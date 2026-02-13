@@ -514,6 +514,11 @@ export default function JudgeManagement() {
     setShowSubmitModal(true);
   };
 
+  const openDeleteModal = (judge) => {
+    setSelectedJudge(judge);
+    setShowDeleteModal(true);
+  };
+
   const toggleDropdown = (judgeId) => {
     setActiveDropdown(activeDropdown === judgeId ? null : judgeId);
   };

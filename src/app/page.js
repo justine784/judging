@@ -164,7 +164,7 @@ export default function Home() {
           <div className="text-center">
             <h3 className="mb-2 text-xl font-bold">JUDGING & TABULATION SYSTEM</h3>
             <p className="mb-4 text-gray-300">
-              Developed by BSIT Students – Mindoro State University
+              Municipality of Bongabong, Oriental Mindoro
             </p>
             <div className="mb-4 text-sm text-gray-400">
               <p>📧 contact@judgingsystem.com</p>

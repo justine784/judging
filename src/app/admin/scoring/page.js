@@ -169,9 +169,9 @@ export default function ScoringPage() {
   );
 
   const calculateWeightedScore = (talent, beauty, qa) => {
-    const talentWeighted = talent * 0.4;
-    const beautyWeighted = beauty * 0.3;
-    const qaWeighted = qa * 0.3;
+    const talentWeighted = (talent || 0) * 0.4;
+    const beautyWeighted = (beauty || 0) * 0.3;
+    const qaWeighted = (qa || 0) * 0.3;
     return (talentWeighted + beautyWeighted + qaWeighted).toFixed(1);
   };
 
@@ -317,22 +317,22 @@ export default function ScoringPage() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className="inline-flex items-center justify-center px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full">
-                      {contestant.talent.toFixed(1)}
+                      {(contestant.talent || 0).toFixed(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className="inline-flex items-center justify-center px-3 py-1 text-sm font-medium bg-pink-100 text-pink-800 rounded-full">
-                      {contestant.beauty.toFixed(1)}
+                      {(contestant.beauty || 0).toFixed(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className="inline-flex items-center justify-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
-                      {contestant.qa.toFixed(1)}
+                      {(contestant.qa || 0).toFixed(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className="inline-flex items-center justify-center px-3 py-1 text-sm font-bold bg-green-100 text-green-800 rounded-full">
-                      {contestant.totalWeightedScore.toFixed(1)}
+                      {(contestant.totalWeightedScore || 0).toFixed(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -503,9 +503,9 @@ export default function ScoringPage() {
               </div>
               <div className="bg-gray-50 p-3 rounded-lg">
                 <div className="text-sm text-gray-600">
-                  <div>Talent (40%): {(formData.talent * 0.4).toFixed(1)}</div>
-                  <div>Beauty (30%): {(formData.beauty * 0.3).toFixed(1)}</div>
-                  <div>Q&A (30%): {(formData.qa * 0.3).toFixed(1)}</div>
+                  <div>Talent (40%): {((formData.talent || 0) * 0.4).toFixed(1)}</div>
+                  <div>Beauty (30%): {((formData.beauty || 0) * 0.3).toFixed(1)}</div>
+                  <div>Q&A (30%): {((formData.qa || 0) * 0.3).toFixed(1)}</div>
                   <div className="font-semibold text-gray-900 pt-1 border-t">
                     Total: {calculateWeightedScore(formData.talent, formData.beauty, formData.qa)}
                   </div>

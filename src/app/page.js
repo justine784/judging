@@ -47,12 +47,12 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-white to-blue-50">
       {/* Hero Section */}
       <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center">
         {/* Event Logo */}
         <div className="mb-8">
-          <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full bg-white shadow-xl p-2">
+          <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full shadow-xl p-2">
             <Image
               src="/logo.jpg"
               alt="Bongabong Logo"
@@ -60,10 +60,6 @@ export default function Home() {
               height={120}
               className="rounded-full object-contain"
             />
-            {/* Icon Overlay */}
-            <div className="absolute -bottom-2 -right-2 h-12 w-12 rounded-full bg-purple-600 flex items-center justify-center shadow-lg border-4 border-white">
-              <span className="text-white text-xl">🏆</span>
-            </div>
           </div>
         </div>
 
@@ -78,27 +74,27 @@ export default function Home() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
           <button 
             onClick={() => window.location.href = '/judge/login'}
-            className="flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-3 font-medium text-white transition-colors hover:bg-purple-700 shadow-lg"
+            className="flex items-center justify-center gap-3 rounded-xl bg-blue-600 px-6 py-4 font-medium text-white transition-all duration-200 hover:bg-blue-700 hover:scale-105 shadow-lg w-full sm:w-auto order-1 sm:order-1"
           >
-            <span>🔐</span>
-            Login as Judge
+            <span className="text-lg">🔐</span>
+            <span className="font-semibold">Login as Judge</span>
           </button>
           <button 
             onClick={() => window.location.href = '/admin/login'}
-            className="flex items-center justify-center gap-2 rounded-lg bg-gray-800 px-6 py-3 font-medium text-white transition-colors hover:bg-gray-900 shadow-lg"
+            className="flex items-center justify-center gap-3 rounded-xl bg-gray-800 px-6 py-4 font-medium text-white transition-all duration-200 hover:bg-gray-900 hover:scale-105 shadow-lg w-full sm:w-auto order-2 sm:order-2"
           >
-            <span>🛠</span>
-            Admin Login
+            <span className="text-lg">🛠</span>
+            <span className="font-semibold">Admin Login</span>
           </button>
           <button 
             onClick={() => window.location.href = '/scoreboard'}
-            className="flex items-center justify-center gap-2 rounded-lg border-2 border-blue-600 bg-transparent px-6 py-3 font-medium text-blue-600 transition-colors hover:bg-blue-50"
+            className="flex items-center justify-center gap-3 rounded-xl border-2 border-blue-600 bg-transparent px-6 py-4 font-medium text-blue-600 transition-all duration-200 hover:bg-blue-50 hover:scale-105 shadow-lg w-full sm:w-auto order-3 sm:order-3"
           >
-            <span>📊</span>
-            View Live Scoreboard
+            <span className="text-lg">📊</span>
+            <span className="font-semibold">View Live Scoreboard</span>
           </button>
         </div>
 
@@ -124,13 +120,13 @@ export default function Home() {
                   <div className="text-center mb-6">
                     <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
                       event.status === 'ongoing' 
-                        ? 'bg-green-100 text-green-800' 
+                        ? 'bg-blue-100 text-blue-800' 
                         : event.status === 'upcoming'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
                       <div className={`w-2 h-2 rounded-full ${
-                        event.status === 'ongoing' ? 'bg-green-500 animate-pulse' : 
+                        event.status === 'ongoing' ? 'bg-blue-500 animate-pulse' : 
                         event.status === 'upcoming' ? 'bg-blue-500' : 'bg-gray-500'
                       }`}></div>
                       <span className="font-medium capitalize">
@@ -142,37 +138,37 @@ export default function Home() {
                     <p className="text-gray-600">{event.eventDescription}</p>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
                     <div className="text-center">
-                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl">📅</span>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl sm:text-2xl">📅</span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-1">Date</p>
-                      <p className="font-semibold text-gray-900">{event.date}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Date</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.date}</p>
                     </div>
                     
                     <div className="text-center">
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl">⏰</span>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl sm:text-2xl">⏰</span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-1">Time</p>
-                      <p className="font-semibold text-gray-900">{event.time}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Time</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.time}</p>
                     </div>
                     
                     <div className="text-center">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl">📍</span>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl sm:text-2xl">📍</span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-1">Venue</p>
-                      <p className="font-semibold text-gray-900">{event.venue}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Venue</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{event.venue}</p>
                     </div>
                     
                     <div className="text-center">
-                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl">🏆</span>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl sm:text-2xl">🏆</span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-1">Status</p>
-                      <p className="font-semibold text-gray-900 capitalize">{event.status}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Status</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
                     </div>
                   </div>
                   
@@ -223,6 +219,27 @@ export default function Home() {
       <footer className="bg-gray-900 text-white">
         <div className="mx-auto px-4 py-8">
           <div className="text-center">
+            {/* Logos */}
+            <div className="flex justify-center items-center gap-4 mb-4">
+              <div className="h-16 w-16 rounded-full">
+                <Image
+                  src="/logo.jpg"
+                  alt="Bongabong Logo"
+                  width={64}
+                  height={64}
+                  className="rounded-full object-contain"
+                />
+              </div>
+              <div className="h-16 w-16 rounded-full">
+                <Image
+                  src="/minsu_logo.jpg"
+                  alt="Trophy Logo"
+                  width={64}
+                  height={64}
+                  className="rounded-full object-contain"
+                />
+              </div>
+            </div>
             <h3 className="mb-2 text-xl font-bold">JUDGING & TABULATION SYSTEM</h3>
             <p className="mb-4 text-gray-300">
               Municipality of Bongabong, Oriental Mindoro

@@ -13,6 +13,7 @@ export default function AdminScoreboard() {
   const [highestScorer, setHighestScorer] = useState(null);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [scores, setScores] = useState([]); // Store individual judge scores
 
   useEffect(() => {
     // Fetch events and auto-select the first ongoing or upcoming event
@@ -46,10 +47,79 @@ export default function AdminScoreboard() {
       }
     });
 
+    // Fetch scores for aggregation
+    const scoresCollection = collection(db, 'scores');
+    const unsubscribeScores = onSnapshot(scoresCollection, (snapshot) => {
+      const scoresData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setScores(scoresData);
+    });
+
     return () => {
       unsubscribeEvents();
+      unsubscribeScores();
     };
   }, []);
+
+  // Calculate aggregated scores from all judges for a contestant (same as live scoreboard)
+  const calculateAggregatedScore = (contestantId, eventId) => {
+    const contestantScores = scores.filter(score => 
+      score.contestantId === contestantId && score.eventId === eventId
+    );
+    
+    if (contestantScores.length === 0) {
+      return { totalScore: 0, judgeCount: 0, criteriaScores: {} };
+    }
+    
+    // Count unique judges (not total score entries)
+    const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
+    
+    // Get criteria from the event
+    const event = events.find(e => e.id === eventId);
+    const criteria = event?.criteria?.filter(c => c.enabled) || [];
+    
+    // Calculate average for each criteria using only the latest score from each judge
+    const criteriaScores = {};
+    criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      
+      // Get the latest score from each judge for this criteria
+      const latestScoresByJudge = {};
+      contestantScores.forEach(score => {
+        if (score.scores?.[key] > 0) {
+          if (!latestScoresByJudge[score.judgeId] || 
+              new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
+            latestScoresByJudge[score.judgeId] = score;
+          }
+        }
+      });
+      
+      const criteriaValues = Object.values(latestScoresByJudge).map(score => score.scores[key]);
+      
+      if (criteriaValues.length > 0) {
+        criteriaScores[key] = criteriaValues.reduce((sum, val) => sum + val, 0) / criteriaValues.length;
+      } else {
+        criteriaScores[key] = 0;
+      }
+    });
+    
+    // Calculate weighted total score
+    let totalScore = 0;
+    criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      const score = criteriaScores[key] || 0;
+      const weight = criterion.weight / 100;
+      totalScore += score * weight;
+    });
+    
+    return {
+      totalScore: parseFloat(totalScore.toFixed(1)),
+      judgeCount: uniqueJudges.length,
+      criteriaScores
+    };
+  };
 
   useEffect(() => {
     // Fetch contestants filtered by selected event
@@ -63,18 +133,25 @@ export default function AdminScoreboard() {
     const unsubscribeContestants = onSnapshot(contestantsQuery, (snapshot) => {
       const contestantsData = snapshot.docs.map(doc => {
         const data = doc.data();
+        const contestantId = doc.id;
+        
+        // Calculate aggregated scores from all judges (same as live scoreboard)
+        const aggregatedScore = calculateAggregatedScore(contestantId, selectedEvent.id);
+        
         return {
-          id: doc.id,
+          id: contestantId,
           ...data,
           // Map display names but preserve the actual score fields from judge dashboard
           name: data.contestantName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Contestant',
           number: data.contestantNumber || data.contestantNo || '',
-          totalScore: data.totalWeightedScore || 0,
+          totalScore: aggregatedScore.totalScore,
+          judgeCount: aggregatedScore.judgeCount,
+          criteriaScores: aggregatedScore.criteriaScores,
           photo: data.photo || data.imageUrl || null
         };
       });
       
-      // Sort client-side by totalWeightedScore in descending order
+      // Sort client-side by aggregated totalScore in descending order
       contestantsData.sort((a, b) => b.totalScore - a.totalScore);
       
       setContestants(contestantsData);
@@ -137,9 +214,9 @@ export default function AdminScoreboard() {
   };
 
   const getContestantCriteriaScore = (contestant, criteriaName) => {
-    // Use the same field mapping as judge dashboard: lowercase with underscores
+    // Use the aggregated criteria scores calculated from all judges (same as live scoreboard)
     const key = criteriaName.toLowerCase().replace(/\s+/g, '_');
-    return contestant[key] || 0;
+    return contestant.criteriaScores?.[key] || 0;
   };
 
   if (loading) {
@@ -277,7 +354,14 @@ export default function AdminScoreboard() {
                             >
                               {contestant.name || 'Contestant ' + (index + 1)}
                             </button>
-                            <div className="text-sm text-gray-500">#{contestant.number || index + 1}</div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <span>#{contestant.number || index + 1}</span>
+                              {contestant.judgeCount > 0 && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                  👤 {contestant.judgeCount}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -360,6 +444,10 @@ export default function AdminScoreboard() {
                   <div className="flex items-center gap-4">
                     <div className="text-xl font-bold text-purple-600">
                       Total Score: {selectedContestant.totalScore.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">Judges: </span>
+                      <span className="font-bold text-purple-600">{selectedContestant.judgeCount || 0}</span>
                     </div>
                     {selectedContestant.totalScore === highestScorer?.totalScore && (
                       <div className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-800">

@@ -39,44 +39,45 @@ export default function AdminSidebar() {
   const isActive = (path) => pathname === path;
 
   return (
-    <div className="w-64 bg-white shadow-lg h-screen sticky top-0 border-r border-gray-200">
+    <div className="w-64 lg:w-64 bg-white shadow-lg h-screen sticky top-0 border-r border-gray-200">
       {/* Logo Section */}
-      <div className="p-6 border-b border-gray-200">
+      <div className="p-4 sm:p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-white shadow p-1">
+          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-white shadow p-1 overflow-hidden">
             <Image
               src="/logo.jpg"
               alt="Admin Logo"
-              width={40}
-              height={40}
-              className="rounded-full object-contain"
+              width={48}
+              height={48}
+              className="w-full h-full object-cover rounded-full"
+              priority
             />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">Admin Panel</h1>
+            <h1 className="text-base sm:text-lg font-bold text-gray-900">Admin Panel</h1>
             <p className="text-xs text-gray-500">Judging System</p>
           </div>
         </div>
       </div>
 
       {/* Navigation Menu */}
-      <nav className="p-4">
+      <nav className="p-3 sm:p-4">
         <div className="space-y-1">
           {menuItems.map((item) => (
             <button
               key={item.path}
               onClick={() => router.push(item.path)}
-              className={`w-full text-left p-3 rounded-lg transition-all duration-200 group ${
+              className={`w-full text-left p-2.5 sm:p-3 rounded-lg transition-all duration-200 group ${
                 isActive(item.path)
-                  ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600'
+                  ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600'
                   : 'hover:bg-gray-100 text-gray-700 hover:text-gray-900'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{item.icon}</span>
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <span className="text-lg sm:text-xl">{item.icon}</span>
                 <div className="flex-1">
-                  <div className="font-medium">{item.name}</div>
-                  <div className="text-xs opacity-70">{item.description}</div>
+                  <div className="font-medium text-sm sm:text-base">{item.name}</div>
+                  <div className="text-xs opacity-70 hidden sm:block">{item.description}</div>
                 </div>
               </div>
             </button>
@@ -85,7 +86,7 @@ export default function AdminSidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+      <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 border-t border-gray-200">
         <button
           onClick={async () => {
             try {
@@ -97,12 +98,12 @@ export default function AdminSidebar() {
               router.push('/');
             }
           }}
-          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
+          className="w-full flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
         >
-          <span className="text-xl">🚪</span>
+          <span className="text-lg sm:text-xl">🚪</span>
           <div className="flex-1">
-            <div className="font-medium">Logout</div>
-            <div className="text-xs opacity-70">Sign out of admin</div>
+            <div className="font-medium text-sm sm:text-base">Logout</div>
+            <div className="text-xs opacity-70 hidden sm:block">Sign out of admin</div>
           </div>
         </button>
       </div>

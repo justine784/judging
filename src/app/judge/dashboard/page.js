@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from "next/image";
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function JudgeDashboard() {
@@ -29,16 +30,15 @@ export default function JudgeDashboard() {
   const [currentContestantIndex, setCurrentContestantIndex] = useState(0);
   const [currentEvent, setCurrentEvent] = useState(null);
   const [quickScores, setQuickScores] = useState({});
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
   const [unsubscribeFunctions, setUnsubscribeFunctions] = useState([]);
 
   // Form state for scoring
-  const [formData, setFormData] = useState({
-    contestantNo: '',
-    contestantName: ''
-  });
+  const [formData, setFormData] = useState({});
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -213,16 +213,32 @@ export default function JudgeDashboard() {
     return unsubscribe;
   };
 
+  // Load judge-specific scores from the scores collection
+  const loadJudgeScores = async (judgeId) => {
+    try {
+      const scoresCollection = collection(db, 'scores');
+      const scoresQuery = query(scoresCollection, where('judgeId', '==', judgeId));
+      const scoresSnapshot = await getDocs(scoresQuery);
+      
+      const judgeScores = {};
+      scoresSnapshot.docs.forEach(doc => {
+        const scoreData = doc.data();
+        const contestantId = scoreData.contestantId;
+        judgeScores[contestantId] = scoreData.scores;
+      });
+      
+      return judgeScores;
+    } catch (error) {
+      console.error('Error loading judge scores:', error);
+      return {};
+    }
+  };
+
   // Load contestants data from Firestore
   const loadContestants = async (judge) => {
     try {
       const assignedEventIds = judge.assignedEvents || [];
       
-      if (assignedEventIds.length === 0) {
-        setContestants([]);
-        return;
-      }
-
       // Fetch real contestants from Firestore
       const contestantsCollection = collection(db, 'contestants');
       const contestantsSnapshot = await getDocs(contestantsCollection);
@@ -242,17 +258,37 @@ export default function JudgeDashboard() {
         };
       });
 
+      // Load current judge's scores
+      const judgeScores = await loadJudgeScores(judge.uid || judge.id);
+
       // Filter contestants to only include those from assigned events
-      // and add eventName field, using correct field names
-      const assignedContestants = allContestants.filter(contestant => 
-        assignedEventIds.includes(contestant.eventId)
-      ).map(contestant => ({
-        ...contestant,
-        // Add the fields expected by the judge dashboard
-        contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
-        contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
-        eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
-      }));
+      // If no events are assigned, show all contestants (fallback for existing judges)
+      let assignedContestants;
+      if (assignedEventIds.length === 0) {
+        // Fallback: show all contestants if no events are assigned
+        assignedContestants = allContestants.map(contestant => ({
+          ...contestant,
+          // Add judge's own scores or default to 0
+          ...judgeScores[contestant.id],
+          // Add the fields expected by the judge dashboard
+          contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
+          contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
+          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
+        }));
+      } else {
+        // Normal case: filter by assigned events
+        assignedContestants = allContestants.filter(contestant => 
+          assignedEventIds.includes(contestant.eventId)
+        ).map(contestant => ({
+          ...contestant,
+          // Add judge's own scores or default to 0
+          ...judgeScores[contestant.id],
+          // Add the fields expected by the judge dashboard
+          contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
+          contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
+          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
+        }));
+      }
 
       setContestants(assignedContestants);
       
@@ -283,7 +319,7 @@ export default function JudgeDashboard() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'contestantNo' || name === 'contestantName' ? value : parseFloat(value) || 0
+      [name]: parseFloat(value) || 0
     }));
   };
 
@@ -360,10 +396,7 @@ export default function JudgeDashboard() {
   const openEditModal = (contestant) => {
     setEditingContestant(contestant);
     const criteria = getCurrentEventCriteria();
-    const editFormData = {
-      contestantNo: contestant.contestantNo,
-      contestantName: contestant.contestantName
-    };
+    const editFormData = {};
     
     // Add criteria scores to form data
     criteria.forEach(criterion => {
@@ -376,10 +409,7 @@ export default function JudgeDashboard() {
   };
 
   const resetForm = () => {
-    setFormData({
-      contestantNo: '',
-      contestantName: ''
-    });
+    setFormData({});
   };
 
   const getRankColor = (rank) => {
@@ -411,6 +441,9 @@ export default function JudgeDashboard() {
         performanceOrder: contestant.performanceOrder || newIndex + 1,
         photo: null
       });
+      // Update quick scores to match the previous contestant's saved scores
+      const newQuickScores = initializeQuickScores(currentEvent, contestant);
+      setQuickScores(newQuickScores);
     }
   };
 
@@ -426,6 +459,9 @@ export default function JudgeDashboard() {
         performanceOrder: contestant.performanceOrder || newIndex + 1,
         photo: null
       });
+      // Update quick scores to match the next contestant's saved scores
+      const newQuickScores = initializeQuickScores(currentEvent, contestant);
+      setQuickScores(newQuickScores);
     }
   };
 
@@ -443,6 +479,36 @@ export default function JudgeDashboard() {
       // Update quick scores to match current contestant scores based on event criteria
       const newQuickScores = initializeQuickScores(currentEvent, contestant);
       setQuickScores(newQuickScores);
+    }
+  };
+
+  // Swipe handlers for mobile navigation
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && currentContestantIndex < contestants.length - 1) {
+      // Swipe left - go to next contestant
+      selectContestantByIndex(currentContestantIndex + 1);
+    }
+    
+    if (isRightSwipe && currentContestantIndex > 0) {
+      // Swipe right - go to previous contestant
+      selectContestantByIndex(currentContestantIndex - 1);
     }
   };
 
@@ -484,6 +550,68 @@ export default function JudgeDashboard() {
         submissionStatus: 'completed',
         submittedAt: new Date().toISOString()
       });
+      
+      // Update ALL contestants with totalWeightedScore to make them visible on scoreboard
+      const contestantsWithScores = contestants.map(contestant => {
+        // Calculate weighted total for each individual contestant
+        const criteria = getCurrentEventCriteria();
+        let totalScore = 0;
+        criteria.forEach(criterion => {
+          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+          const score = contestant[key] || 0;
+          const weight = criterion.weight / 100;
+          totalScore += score * weight;
+        });
+        
+        return {
+          ...contestant,
+          totalWeightedScore: parseFloat(totalScore.toFixed(1))
+        };
+      });
+      
+      // Save all judge's individual scores to the scores collection for aggregation
+      const batch = writeBatch(db);
+      contestantsWithScores.forEach(contestant => {
+        if (contestant.id) {
+          // Calculate weighted total for this specific contestant
+          const criteria = getCurrentEventCriteria();
+          let totalScore = 0;
+          criteria.forEach(criterion => {
+            const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+            const score = contestant[key] || 0;
+            const weight = criterion.weight / 100;
+            totalScore += score * weight;
+          });
+          
+          // Create score data for the scores collection
+          const scoreData = {
+            contestantId: contestant.id,
+            contestantName: contestant.contestantName,
+            contestantNo: contestant.contestantNo,
+            eventId: contestant.eventId,
+            eventName: contestant.eventName,
+            judgeId: user.uid,
+            judgeName: user.displayName || user.email,
+            judgeEmail: user.email,
+            scores: {},
+            criteria: getCurrentEventCriteria(),
+            totalScore: parseFloat(totalScore.toFixed(1)),
+            timestamp: new Date().toISOString()
+          };
+          
+          // Add individual criteria scores to the score data
+          criteria.forEach(criterion => {
+            const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+            scoreData.scores[key] = contestant[key] || 0;
+          });
+          
+          // Save to scores collection
+          const scoreRef = doc(db, 'scores', `${user.uid}_${contestant.id}_${Date.now()}_${Math.random()}`);
+          batch.set(scoreRef, scoreData);
+        }
+      });
+      
+      await batch.commit();
       
       // Update local state
       setJudgeData(prev => ({
@@ -530,25 +658,44 @@ export default function JudgeDashboard() {
         // Save to scores collection
         await setDoc(doc(db, 'scores', `${user.uid}_${contestant.id}_${Date.now()}`), scoreData);
         
-        // Update contestant in Firestore with latest scores
-        const contestantRef = doc(db, 'contestants', contestant.id);
-        await updateDoc(contestantRef, {
-          ...quickScores,
-          totalWeightedScore: totalScore,
-          lastUpdatedBy: user.uid,
-          lastUpdatedAt: new Date().toISOString()
-        }, { merge: true });
+        // Don't update contestant document directly to maintain score privacy between judges
+        // Only update local state for the current judge's view
         
-        // Update local state
-        const updatedContestants = contestants.map((c, index) => 
-          index === currentContestantIndex 
-            ? { 
-                ...c, 
-                ...quickScores,
-                totalWeightedScore: totalScore
-              }
-            : c
-        );
+        // Update local state - update the current contestant with their new scores
+        const updatedContestants = contestants.map((c, index) => {
+          if (index === currentContestantIndex) {
+            // Calculate weighted total for the current contestant with new scores
+            const criteria = getCurrentEventCriteria();
+            let totalScore = 0;
+            criteria.forEach(criterion => {
+              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              const score = quickScores[key] || 0;
+              const weight = criterion.weight / 100;
+              totalScore += score * weight;
+            });
+            
+            return { 
+              ...c, 
+              ...quickScores,
+              totalWeightedScore: parseFloat(totalScore.toFixed(1))
+            };
+          } else {
+            // Calculate weighted total for other contestants with their existing scores
+            const criteria = getCurrentEventCriteria();
+            let totalScore = 0;
+            criteria.forEach(criterion => {
+              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              const score = c[key] || 0;
+              const weight = criterion.weight / 100;
+              totalScore += score * weight;
+            });
+            
+            return { 
+              ...c,
+              totalWeightedScore: parseFloat(totalScore.toFixed(1))
+            };
+          }
+        });
         
         const rankedContestants = updateRankings(updatedContestants);
         setContestants(rankedContestants);
@@ -564,9 +711,9 @@ export default function JudgeDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
@@ -574,7 +721,7 @@ export default function JudgeDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Real-time Update Notification */}
       {showUpdateNotification && (
         <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-pulse">
@@ -593,65 +740,123 @@ export default function JudgeDashboard() {
       )}
 
       {/* Header */}
-      <header className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">🎤 Judge Dashboard</h1>
-              <p className="text-lg text-gray-700 mt-1">Welcome, Judge {user?.displayName || user?.email}</p>
-              {lastUpdated && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Last updated: {lastUpdated.toLocaleTimeString()}
-                </p>
-              )}
+      <header className="w-full bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
+          <div className="py-4 sm:py-6">
+            {/* Main Header Row */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              {/* Left Section - Title and Info */}
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => router.push('/')}
+                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 group"
+                >
+                  <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span className="font-medium">Back to Home</span>
+                </button>
+                <div className="h-8 w-px bg-gray-300"></div>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="h-12 w-12 rounded-full bg-white shadow-xl p-1">
+                      <Image
+                        src="/logo.jpg"
+                        alt="Bongabong Logo"
+                        width={40}
+                        height={40}
+                        className="rounded-full object-contain"
+                      />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-blue-600 flex items-center justify-center shadow-lg border-2 border-white">
+                      <Image
+                        src="/minsu_logo.jpg"
+                        alt="Trophy"
+                        width={16}
+                        height={16}
+                        className="rounded-full object-contain"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">
+                      Judge Dashboard
+                    </h1>
+                    <p className="text-sm text-gray-500 font-medium">Welcome, {user?.displayName || user?.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Section - Status and Controls */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                {/* Connection Status */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-2 text-green-600">
+                    <div className="relative w-3 h-3 rounded-full bg-green-500">
+                      <div className="absolute inset-0 rounded-full bg-green-500 animate-ping"></div>
+                    </div>
+                    <span className="font-medium text-sm">🟢 Live</span>
+                  </div>
+                  <div className="h-4 w-px bg-gray-300"></div>
+                  <div className="text-xs text-gray-500">
+                    <div className="font-medium">Updated</div>
+                    <div>{lastUpdated ? lastUpdated.toLocaleTimeString() : 'Just now'}</div>
+                  </div>
+                </div>
+
+                {/* Logout Button */}
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center gap-2 shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Logout
+                </button>
+              </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg transition-colors font-medium"
-            >
-              Logout
-            </button>
           </div>
         </div>
       </header>
 
       
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📝</span>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-xl sm:text-2xl">📝</span>
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-medium">Total Contestants</p>
-                <p className="text-2xl font-bold text-gray-900">{contestants.length}</p>
+                <p className="text-xs sm:text-sm text-gray-600 font-medium">Total Contestants</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{contestants.length}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">🎯</span>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-xl sm:text-2xl">🎯</span>
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-medium">Criteria Count</p>
-                <p className="text-2xl font-bold text-gray-900">{getCurrentEventCriteria().length}</p>
+                <p className="text-xs sm:text-sm text-gray-600 font-medium">Criteria Count</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{getCurrentEventCriteria().length}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">✅</span>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-xl sm:text-2xl">✅</span>
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-medium">Completed Evaluations</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600 font-medium">Completed Evaluations</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">
                   {contestants.filter(c => {
                     const criteria = getCurrentEventCriteria();
                     return criteria.every(criterion => {
@@ -664,14 +869,14 @@ export default function JudgeDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">⏳</span>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <span className="text-xl sm:text-2xl">⏳</span>
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-medium">Pending Evaluations</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600 font-medium">Pending Evaluations</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">
                   {contestants.filter(c => {
                     const criteria = getCurrentEventCriteria();
                     return criteria.some(criterion => {
@@ -687,39 +892,41 @@ export default function JudgeDashboard() {
 
         {/* Event Information */}
         {assignedEvents.length > 0 && assignedEvents.map((event) => (
-          <div key={event.id} className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-6 mb-6 text-white">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div key={event.id} className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 text-white">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="text-sm font-medium text-purple-100">Event Name</label>
-                <p className="font-semibold text-white">{event.eventName}</p>
+                <label className="text-xs sm:text-sm font-medium text-blue-100">Event Name</label>
+                <p className="font-semibold text-white text-sm sm:text-base truncate">{event.eventName}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-purple-100">Date & Time</label>
-                <p className="font-semibold text-white">{event.date} at {event.time}</p>
+                <label className="text-xs sm:text-sm font-medium text-blue-100">Date & Time</label>
+                <p className="font-semibold text-white text-sm sm:text-base">{event.date} at {event.time}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-purple-100">Venue</label>
-                <p className="font-semibold text-white">{event.venue}</p>
+                <label className="text-xs sm:text-sm font-medium text-blue-100">Venue</label>
+                <p className="font-semibold text-white text-sm sm:text-base truncate">{event.venue}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-purple-100">Status</label>
-                <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full ${
+                <label className="text-xs sm:text-sm font-medium text-blue-100">Status</label>
+                <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-bold rounded-full ${
                   event.status === 'upcoming' ? 'bg-yellow-100 text-yellow-800' :
                   event.status === 'ongoing' ? 'bg-green-100 text-green-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
                   <span>{event.status === 'upcoming' ? '📅' : event.status === 'ongoing' ? '🎭' : '✅'}</span>
-                  {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                  <span className="hidden sm:inline">{event.status.charAt(0).toUpperCase() + event.status.slice(1)}</span>
+                  <span className="sm:hidden">{event.status === 'upcoming' ? 'Up' : event.status === 'ongoing' ? 'On' : 'Fi'}</span>
                 </span>
               </div>
             </div>
             
-            <div className="mt-4 pt-4 border-t border-purple-200">
-              <label className="text-sm font-medium text-purple-100 block mb-2">Judging Criteria</label>
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-blue-200">
+              <label className="text-xs sm:text-sm font-medium text-blue-100 block mb-2">Judging Criteria</label>
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {event.criteria && event.criteria.filter(c => c.enabled).map((criterion, index) => (
-                  <span key={index} className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                    {criterion.name} ({criterion.weight}%)
+                  <span key={index} className="inline-flex items-center px-2 sm:px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                    <span className="hidden sm:inline">{criterion.name} ({criterion.weight}%)</span>
+                    <span className="sm:hidden">{criterion.name.substring(0, 8)}...</span>
                   </span>
                 ))}
               </div>
@@ -728,12 +935,12 @@ export default function JudgeDashboard() {
         ))}
 
           {/* Scoring Table */}
-          <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4">
-              <div className="flex items-center justify-between">
+          <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 sm:mb-8">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">📊 Contestant Scoring</h2>
-                <p className="text-purple-100 text-sm">Evaluate and score contestants</p>
+                <h2 className="text-lg sm:text-xl font-bold">📊 Contestant Scoring</h2>
+                <p className="text-blue-100 text-xs sm:text-sm">Evaluate and score contestants</p>
               </div>
               <div className="relative">
                 <input
@@ -741,91 +948,86 @@ export default function JudgeDashboard() {
                   placeholder="Search contestants..."
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  className="w-64 px-4 py-2 pl-10 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-purple-50 text-white placeholder-purple-200"
+                  className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white placeholder-blue-200 text-sm"
                 />
-                <span className="absolute left-3 top-2.5 text-purple-200">🔍</span>
+                <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
               </div>
             </div>
           </div>
           
           {contestants.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contestant No.</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contestant Name</th>
-                    {getCurrentEventCriteria().map((criterion, index) => (
-                      <th key={index} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {criterion.name} ({criterion.weight}%)
-                      </th>
-                    ))}
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredContestants.map((contestant) => (
-                    <tr key={contestant.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${getRankColor(contestant.rank)}`}>
-                          {contestant.rank}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{contestant.contestantNo}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{contestant.contestantName}</td>
-                      {getCurrentEventCriteria().map((criterion, index) => {
-                        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                        const score = contestant[key] || 0;
-                        const colors = ['bg-purple-100 text-purple-800', 'bg-pink-100 text-pink-800', 'bg-blue-100 text-blue-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
-                        const colorClass = colors[index % colors.length];
-                        return (
-                          <td key={index} className="px-6 py-4 text-center">
-                            <span className={`inline-flex items-center justify-center px-3 py-1 text-sm font-medium ${colorClass} rounded-full`}>
-                              {score.toFixed(1)}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center justify-center px-3 py-1 text-sm font-bold bg-green-100 text-green-800 rounded-full">
-                          {(contestant.totalWeightedScore || 0).toFixed(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(contestant.status)}`}>
-                          {contestant.status || 'Not Rated'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => openEditModal(contestant)}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                          title="Edit Scores"
-                        >
-                          ✏️
-                        </button>
-                      </td>
-                    </tr>
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Rank</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">No.</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  {getCurrentEventCriteria().map((criterion, index) => (
+                    <th key={index} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="hidden sm:block">{criterion.name} ({criterion.weight}%)</div>
+                      <div className="sm:hidden">{criterion.name.substring(0, 6)}...</div>
+                    </th>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredContestants.map((contestant) => (
+                  <tr key={contestant.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-bold ${getRankColor(contestant.rank)}`}>
+                        {contestant.rank}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{contestant.contestantNo}</td>
+                    <td className="px-4 py-3 text-xs sm:text-sm text-gray-900">
+                      <div className="truncate">{contestant.contestantName}</div>
+                    </td>
+                    {getCurrentEventCriteria().map((criterion, index) => {
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                      const score = contestant[key] || 0;
+                      const colors = ['bg-blue-100 text-blue-800', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
+                      const colorClass = colors[index % colors.length];
+                      return (
+                        <td key={index} className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-medium ${colorClass} rounded-full`}>
+                            {score.toFixed(1)}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-bold bg-green-100 text-green-800 rounded-full">
+                        {(contestant.totalWeightedScore || 0).toFixed(1)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(contestant.status)}`}>
+                        <span className="hidden sm:inline">{contestant.status || 'Not Rated'}</span>
+                        <span className="sm:hidden">{(contestant.status || 'Not Rated').substring(0, 8)}...</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No contestants found</h3>
-              <p className="text-gray-500 mb-4">
+            <div className="text-center py-8 sm:py-12">
+              <div className="text-4xl sm:text-6xl mb-4">👥</div>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No contestants found</h3>
+              <p className="text-xs sm:text-sm text-gray-500 mb-4">
                 {assignedEvents.length === 0 
-                  ? "You need to be assigned to an event first to see contestants."
+                  ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
                   : "No contestants have been added to your assigned events yet."
                 }
               </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
-                <p className="text-sm text-yellow-800">
-                  <strong>Note:</strong> Contestants will appear here once they are added to events you're assigned to judge.
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 max-w-md mx-auto">
+                <p className="text-xs sm:text-sm text-yellow-800">
+                  <strong>Note:</strong> {assignedEvents.length === 0 
+                    ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
+                    : "Contestants will appear here once they are added to events you're assigned to judge."
+                  }
                 </p>
               </div>
             </div>
@@ -833,40 +1035,65 @@ export default function JudgeDashboard() {
         </div>
 
         {/* Mobile-Optimized 3-Line Scoring Layout */}
-        <div className="lg:hidden">
+        <div 
+          className="lg:hidden"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
           {/* Line 1: Contestant Info & Navigation */}
           <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex-1">
-                <h2 className="text-lg font-bold text-gray-900">🎤 {currentContestant.name}</h2>
-                <p className="text-sm text-gray-600">#{currentContestant.number} • {currentContestant.category}</p>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold text-gray-900 truncate">🎤 {currentContestant.name}</h2>
+                <p className="text-sm text-gray-600 truncate">#{currentContestant.number} • {currentContestant.category}</p>
+                <p className="text-xs text-gray-400 mt-1">👆 Swipe left/right to navigate</p>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={goToPreviousContestant}
+                <button
+                  onClick={() => setCurrentContestantIndex(Math.max(0, currentContestantIndex - 1))}
                   disabled={currentContestantIndex === 0}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="p-2 bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ←
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7 7" />
+                  </svg>
                 </button>
-                <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-                  {currentContestantIndex + 1}/{contestants.length}
-                </span>
-                <button 
-                  onClick={goToNextContestant}
+                <button
+                  onClick={() => setCurrentContestantIndex(Math.min(contestants.length - 1, currentContestantIndex + 1))}
                   disabled={currentContestantIndex === contestants.length - 1}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="p-2 bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  →
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </button>
               </div>
             </div>
             
+            {/* Progress Indicator */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                <span>Contestant {currentContestantIndex + 1} of {contestants.length}</span>
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                  {Math.round(((currentContestantIndex + 1) / contestants.length) * 100)}% Complete
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${((currentContestantIndex + 1) / contestants.length) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+            
             {/* Contestant Selector */}
-            <select
+            <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
+              <select
               value={currentContestantIndex}
               onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
             >
               {contestants.map((contestant, index) => (
                 <option key={contestant.id} value={index}>
@@ -874,7 +1101,7 @@ export default function JudgeDashboard() {
                 </option>
               ))}
             </select>
-          </div>
+            </div>
 
           {/* Line 2: Quick Scoring */}
           <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
@@ -883,7 +1110,7 @@ export default function JudgeDashboard() {
               {getCurrentEventCriteria().map((criterion, index) => {
                 const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                 const score = quickScores[key] || 0;
-                const colors = ['purple', 'pink', 'blue', 'green', 'yellow'];
+                const colors = ['blue', 'cyan', 'sky', 'green', 'yellow'];
                 const color = colors[index % colors.length];
                 
                 return (
@@ -909,7 +1136,7 @@ export default function JudgeDashboard() {
                           step="0.1"
                           value={score}
                           onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                          className="w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-center text-sm"
+                          className="w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-sm"
                         />
                       </div>
                     </div>
@@ -939,14 +1166,13 @@ export default function JudgeDashboard() {
               </button>
               <button
                 onClick={() => openEditModal(contestants[currentContestantIndex])}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
               >
                 ✏️ Advanced Edit
               </button>
               <button
                 onClick={openSubmitModal}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
-                disabled={judgeData?.submissionStatus === 'completed'}
               >
                 📤 Submit to Admin
               </button>
@@ -962,7 +1188,7 @@ export default function JudgeDashboard() {
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-900">Current Contestant</h2>
-                  <span className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
                     {currentContestantIndex + 1} of {contestants.length}
                   </span>
                 </div>
@@ -973,7 +1199,7 @@ export default function JudgeDashboard() {
                   <select
                     value={currentContestantIndex}
                     onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   >
                     {contestants.map((contestant, index) => (
                       <option key={contestant.id} value={index}>
@@ -985,8 +1211,8 @@ export default function JudgeDashboard() {
                 
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Contestant Number</label>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-3">
-                    <p className="text-2xl font-bold text-purple-800">#{currentContestant.number}</p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                    <p className="text-2xl font-bold text-blue-800">#{currentContestant.number}</p>
                   </div>
                 </div>
 
@@ -1019,7 +1245,7 @@ export default function JudgeDashboard() {
                       {getCurrentEventCriteria().map((criterion, index) => {
                         const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                         const score = contestants[currentContestantIndex]?.[key] || 0;
-                        const colors = ['text-purple-800', 'text-pink-800', 'text-blue-800', 'text-green-800', 'text-yellow-800'];
+                        const colors = ['text-blue-800', 'text-pink-800', 'text-blue-800', 'text-green-800', 'text-yellow-800'];
                         const colorClass = colors[index % colors.length];
                         return (
                           <div key={index} className="flex justify-between items-center">
@@ -1047,7 +1273,7 @@ export default function JudgeDashboard() {
                   <button 
                     onClick={goToNextContestant}
                     disabled={currentContestantIndex === contestants.length - 1}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next →
                   </button>
@@ -1059,7 +1285,7 @@ export default function JudgeDashboard() {
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-900">Quick Scoring Form</h2>
-                  <span className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
                     {currentContestant.name}
                   </span>
                 </div>
@@ -1094,7 +1320,7 @@ export default function JudgeDashboard() {
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-center"
+                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center"
                           />
                         </div>
                         <div className="mt-1 text-xs text-gray-500">Weighted: {(score * criterion.weight / 100).toFixed(1)}</div>
@@ -1126,14 +1352,13 @@ export default function JudgeDashboard() {
                     </button>
                     <button
                       onClick={() => openEditModal(contestants[currentContestantIndex])}
-                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
                     >
                       ✏️ Advanced Edit
                     </button>
                     <button
                       onClick={openSubmitModal}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
-                      disabled={judgeData?.submissionStatus === 'completed'}
                     >
                       📤 Submit to Admin
                     </button>
@@ -1162,29 +1387,6 @@ export default function JudgeDashboard() {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Contestant Scores</h3>
             <form onSubmit={(e) => { e.preventDefault(); handleEditContestant(); }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contestant Number</label>
-                <input
-                  type="text"
-                  name="contestantNo"
-                  value={formData.contestantNo}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contestant Name</label>
-                <input
-                  type="text"
-                  name="contestantName"
-                  value={formData.contestantName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
-                  required
-                />
-              </div>
-              
               {/* Dynamic Criteria Fields */}
               {getCurrentEventCriteria().map((criterion, index) => {
                 const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -1201,7 +1403,7 @@ export default function JudgeDashboard() {
                       min="0"
                       max="100"
                       step="0.1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                       required
                     />
                   </div>
@@ -1228,7 +1430,7 @@ export default function JudgeDashboard() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Update Scores
                 </button>

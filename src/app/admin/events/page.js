@@ -387,7 +387,7 @@ export default function EventManagement() {
           <button
             onClick={() => setShowAddModal(true)}
             disabled={loading}
-            className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-xl">➕</span>
             {loading ? 'Loading...' : 'Add Event'}
@@ -460,7 +460,7 @@ export default function EventManagement() {
                     <td className="px-6 py-4">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-sm text-gray-900">
-                          <span className="text-purple-600">📅</span>
+                          <span className="text-blue-600">📅</span>
                           {event.date}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -521,7 +521,7 @@ export default function EventManagement() {
                               onClick={() => { openCriteriaModal(event); closeDropdown(); }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                             >
-                              <span className="text-purple-600">📋</span>
+                              <span className="text-blue-600">📋</span>
                               Manage Criteria
                             </button>
                             <button
@@ -572,7 +572,7 @@ export default function EventManagement() {
             <p className="text-gray-500 mb-4">Create your first event to get started</p>
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Add Event
             </button>
@@ -622,7 +622,7 @@ export default function EventManagement() {
                     name="eventName"
                     value={formData.eventName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
                     placeholder="Enter event name"
                     required
                   />
@@ -638,7 +638,7 @@ export default function EventManagement() {
                     value={formData.eventDescription}
                     onChange={handleInputChange}
                     rows="4"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white resize-none"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white resize-none"
                     placeholder="Describe the event details"
                     required
                   />
@@ -655,7 +655,7 @@ export default function EventManagement() {
                       name="date"
                       value={formData.date}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
                       required
                     />
                   </div>
@@ -668,7 +668,7 @@ export default function EventManagement() {
                       name="time"
                       value={formData.time}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
                       required
                     />
                   </div>
@@ -684,7 +684,7 @@ export default function EventManagement() {
                     name="venue"
                     value={formData.venue}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
                     placeholder="Enter venue location"
                     required
                   />
@@ -699,7 +699,7 @@ export default function EventManagement() {
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
                   >
                     <option value="upcoming">📅 Upcoming</option>
                     <option value="ongoing">🎭 Ongoing</option>
@@ -763,7 +763,7 @@ export default function EventManagement() {
                   name="eventName"
                   value={formData.eventName}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                 />
               </div>
@@ -774,7 +774,7 @@ export default function EventManagement() {
                   value={formData.eventDescription}
                   onChange={handleInputChange}
                   rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                 />
               </div>
@@ -786,7 +786,7 @@ export default function EventManagement() {
                     name="date"
                     value={formData.date}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                     required
                   />
                 </div>
@@ -797,7 +797,7 @@ export default function EventManagement() {
                     name="time"
                     value={formData.time}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                     required
                   />
                 </div>
@@ -809,7 +809,7 @@ export default function EventManagement() {
                   name="venue"
                   value={formData.venue}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                 />
               </div>
@@ -819,7 +819,7 @@ export default function EventManagement() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="ongoing">Ongoing</option>
@@ -830,7 +830,7 @@ export default function EventManagement() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <div className="flex items-center justify-center gap-2">
@@ -901,7 +901,7 @@ export default function EventManagement() {
                           type="text"
                           value={criterion.name}
                           onChange={(e) => handleCriteriaChange(index, 'name', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                           placeholder="Enter criteria name"
                         />
                       </div>
@@ -911,7 +911,7 @@ export default function EventManagement() {
                           type="number"
                           value={criterion.weight}
                           onChange={(e) => handleCriteriaChange(index, 'weight', parseInt(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                           placeholder="Weight"
                           min="0"
                           max="100"
@@ -923,7 +923,7 @@ export default function EventManagement() {
                             type="checkbox"
                             checked={criterion.enabled}
                             onChange={(e) => handleCriteriaChange(index, 'enabled', e.target.checked)}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                           />
                           <span className="text-sm font-medium text-gray-700">Enabled</span>
                         </label>
@@ -935,16 +935,16 @@ export default function EventManagement() {
                 {/* Add Criteria Button */}
                 <button
                   onClick={addCriteria}
-                  className="w-full py-3 px-4 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="w-full py-3 px-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   <span className="text-xl">➕</span>
                   Add New Criteria
                 </button>
 
                 {/* Total Weight Display */}
-                <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-purple-900">Total Weight:</span>
+                    <span className="font-semibold text-blue-900">Total Weight:</span>
                     <span className={`font-bold ${selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100 ? 'text-green-600' : 'text-orange-600'}`}>
                       {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}%
                     </span>

@@ -18,6 +18,7 @@ export default function JudgeManagement() {
   const [selectedJudge, setSelectedJudge] = useState(null);
   const [events, setEvents] = useState([]);
   const [eventAssignment, setEventAssignment] = useState({});
+  const [criteriaAssignment, setCriteriaAssignment] = useState({});
   const [editingJudge, setEditingJudge] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
@@ -36,13 +37,13 @@ export default function JudgeManagement() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Criteria assignment state
-  const [criteriaAssignment, setCriteriaAssignment] = useState({
-    vocalQuality: false,
-    stagePresence: false,
-    songInterpretation: false,
-    audienceImpact: false
-  });
+
+
+
+
+
+
+
 
   // Load judges from Firestore on component mount
   useEffect(() => {
@@ -52,10 +53,10 @@ export default function JudgeManagement() {
 
   // Clear error when modals are closed
   useEffect(() => {
-    if (!showAddModal && !showEditModal && !showAssignModal && !showEventAssignModal && !showPasswordModal && !showDeleteModal && !showSubmitModal) {
+    if (!showAddModal && !showEditModal && !showEventAssignModal && !showPasswordModal && !showDeleteModal && !showSubmitModal) {
       setError('');
     }
-  }, [showAddModal, showEditModal, showAssignModal, showEventAssignModal, showPasswordModal, showDeleteModal, showSubmitModal]);
+  }, [showAddModal, showEditModal, showEventAssignModal, showPasswordModal, showDeleteModal, showSubmitModal]);
 
   const loadJudges = async () => {
     try {
@@ -221,6 +222,11 @@ export default function JudgeManagement() {
         }
       }
       
+      // Get all existing events to assign to the new judge
+      const eventsCollection = collection(db, 'events');
+      const eventsSnapshot = await getDocs(eventsCollection);
+      const allEvents = eventsSnapshot.docs.map(doc => doc.id);
+      
       // Store judge data in Firestore
       const judgeData = {
         uid: user.uid,
@@ -229,6 +235,7 @@ export default function JudgeManagement() {
         status: formData.status,
         submissionStatus: 'not-started',
         criteria: [],
+        assignedEvents: allEvents, // Automatically assign to all existing events
         createdAt: new Date().toISOString(),
         role: 'judge'
       };
@@ -250,7 +257,7 @@ export default function JudgeManagement() {
       setShowAddModal(false);
       resetForm();
       
-      alert(`Judge ${formData.judgeName} has been added successfully!\n\nLogin credentials:\nEmail: ${formData.email}\nPassword: ${formData.password}`);
+      alert(`Judge ${formData.judgeName} has been added successfully!\n\nLogin credentials:\nEmail: ${formData.email}\nPassword: ${formData.password}\n\nThe judge has been automatically assigned to all existing events and can now view contestants.`);
     } catch (error) {
       console.error('Error adding judge:', error);
       // Clear the temporary flag on error
@@ -272,36 +279,36 @@ export default function JudgeManagement() {
   };
 
   const handleEditJudge = async () => {
-  if (!editingJudge) return;
-  
-  setLoading(true);
-  setError('');
-  
-  try {
-    // Update judge data in Firestore
-    const judgeRef = doc(db, 'judges', editingJudge.uid);
-    await updateDoc(judgeRef, {
-      judgeName: formData.judgeName,
-      email: formData.email,
-      assignedCategory: formData.assignedCategory,
-      status: formData.status
-    });
+    if (!editingJudge) return;
     
-    // Refresh judges list from Firestore
-    await loadJudges();
+    setLoading(true);
+    setError('');
     
-    setShowEditModal(false);
-    setEditingJudge(null);
-    resetForm();
-    
-    alert(`Judge ${formData.judgeName} has been updated successfully!`);
-  } catch (error) {
-    console.error('Error updating judge:', error);
-    setError('Failed to update judge. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      // Update judge data in Firestore
+      const judgeRef = doc(db, 'judges', editingJudge.uid);
+      await updateDoc(judgeRef, {
+        judgeName: formData.judgeName,
+        email: formData.email,
+        assignedCategory: formData.assignedCategory,
+        status: formData.status
+      });
+      
+      // Refresh judges list from Firestore
+      await loadJudges();
+      
+      setShowEditModal(false);
+      setEditingJudge(null);
+      resetForm();
+      
+      alert(`Judge ${formData.judgeName} has been updated successfully!`);
+    } catch (error) {
+      console.error('Error updating judge:', error);
+      setError('Failed to update judge. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleToggleStatus = async (judgeId) => {
   const judge = judges.find(j => j.id === judgeId);
@@ -334,14 +341,14 @@ export default function JudgeManagement() {
     // Refresh judges list from Firestore
     await loadJudges();
     
-    setShowAssignModal(false);
+
     setSelectedJudge(null);
-    resetCriteriaAssignment();
+
     
-    alert(`Criteria assigned successfully to ${selectedJudge.judgeName}!`);
+
   } catch (error) {
     console.error('Error assigning criteria:', error);
-    setError('Failed to assign criteria. Please try again.');
+
   }
 };
 
@@ -475,7 +482,7 @@ export default function JudgeManagement() {
       audienceImpact: judge.criteria.includes('audienceImpact')
     };
     setCriteriaAssignment(currentCriteria);
-    setShowAssignModal(true);
+
   };
 
   const openPasswordModal = (judge) => {
@@ -532,6 +539,7 @@ export default function JudgeManagement() {
         top: rect.bottom + scrollTop + 4,
         right: window.innerWidth - rect.right - scrollLeft + 4
       });
+      
       setActiveDropdown(judgeId);
     }
   };
@@ -549,15 +557,17 @@ export default function JudgeManagement() {
       assignedCategory: '',
       status: 'active'
     });
+    
     setError('');
   };
 
   const resetCriteriaAssignment = () => {
     setCriteriaAssignment({
-      vocalQuality: false,
-      stagePresence: false,
-      songInterpretation: false,
-      audienceImpact: false
+      criteria1: '',
+      criteria2: '',
+      criteria3: '',
+      criteria4: '',
+      criteria5: ''
     });
   };
 
@@ -606,7 +616,7 @@ export default function JudgeManagement() {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors shadow-lg"
+          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
         >
           <span className="text-xl">➕</span>
           Add Judge
@@ -631,74 +641,57 @@ export default function JudgeManagement() {
 
       {/* Judges Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="overflow-x-auto lg:overflow-hidden">
+          <table className="w-full min-w-[600px] lg:min-w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Judge Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submission Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Events</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16 lg:w-auto">Name</th>
+                <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 lg:w-auto">Email</th>
+                <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16 lg:w-auto">Status</th>
+                <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 lg:w-auto">Assigned Events</th>
+                <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 lg:w-auto">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {judges.map((judge) => (
                 <tr key={judge.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">{judge.judgeName}</div>
-                    <div className="text-xs text-gray-500">
-                      {judge.criteria.length > 0 ? judge.criteria.map(c => getCriteriaLabel(c)).join(', ') : 'No criteria assigned'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{judge.email}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(judge.status)}`}>
-                      <span>{judge.status === 'active' ? '✅' : '❌'}</span>
-                      {judge.status.charAt(0).toUpperCase() + judge.status.slice(1)}
+                  <td className="px-3 lg:px-6 py-2 lg:py-4 text-xs lg:text-sm font-medium text-gray-900 truncate max-w-[100px] lg:max-w-none">{judge.judgeName}</td>
+                  <td className="px-3 lg:px-6 py-2 lg:py-4 text-xs lg:text-sm text-gray-900 truncate max-w-[120px] lg:max-w-none">{judge.email}</td>
+                  <td className="px-3 lg:px-6 py-2 lg:py-4">
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(judge.status)}`}>
+                      <span className="hidden lg:inline">{judge.status || 'Active'}</span>
+                      <span className="lg:hidden">{(judge.status || 'Active').substring(0, 8)}...</span>
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${getSubmissionStatusColor(judge.submissionStatus)}`}>
-                      {judge.submissionStatus.replace('-', ' ').charAt(0).toUpperCase() + judge.submissionStatus.slice(1).replace('-', ' ')}
-                    </span>
+                  <td className="px-3 lg:px-6 py-2 lg:py-4 text-xs lg:text-sm text-gray-900">
+                    {judge.assignedEvents && judge.assignedEvents.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[150px] lg:max-w-none">
+                        {getEventNames(judge.assignedEvents).map((eventName, index) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs"
+                              >
+                                {eventName.length > 12 ? `${eventName.substring(0, 12)}...` : eventName}
+                              </span>
+                            ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">No assigned events</span>
+                    )}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm">
-                      {judge.assignedEvents && judge.assignedEvents.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {getEventNames(judge.assignedEvents).map((eventName, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800"
-                              title={eventName}
-                            >
-                              {eventName.length > 15 ? eventName.substring(0, 15) + '...' : eventName}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No events assigned</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="relative">
-                      <button
-                        onClick={(e) => toggleDropdown(judge.id, e)}
-                        className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                        title="Actions"
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
-                        </svg>
-                      </button>
-                      
-                      {activeDropdown === judge.id && (
-                        <div 
-                          className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]"
-                          style={{
+                  <td className="px-3 lg:px-6 py-2 lg:py-4">
+                    <button
+                      onClick={(e) => openDropdown(e, judge.id)}
+                      className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                      </svg>
+                    </button>
+                    {activeDropdown === judge.id && (
+                      <div 
+                        className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]"
+                        style={{
                             top: `${dropdownPosition.top}px`,
                             right: `${dropdownPosition.right}px`
                           }}
@@ -708,28 +701,21 @@ export default function JudgeManagement() {
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
                             <span>✏️</span>
-                            Edit Judge
-                          </button>
-                          <button
-                            onClick={() => { openAssignModal(judge); closeDropdown(); }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                          >
-                            <span>📋</span>
-                            Assign Criteria
+                            <span>Edit Judge</span>
                           </button>
                           <button
                             onClick={() => { openEventAssignModal(judge); closeDropdown(); }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
                             <span>🎯</span>
-                            Assign Event
+                            <span>Assign Event</span>
                           </button>
                           <button
                             onClick={() => { openPasswordModal(judge); closeDropdown(); }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
                             <span>🔑</span>
-                            Reset Password
+                            <span>Reset Password</span>
                           </button>
                           <div className="border-t border-gray-200"></div>
                           <button
@@ -737,7 +723,7 @@ export default function JudgeManagement() {
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
                             <span>📤</span>
-                            Submit Scores
+                            <span>Submit Scores</span>
                           </button>
                           <div className="border-t border-gray-200"></div>
                           <button
@@ -745,21 +731,18 @@ export default function JudgeManagement() {
                             className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                           >
                             <span>🗑️</span>
-                            Delete Judge
+                            <span>Delete Judge</span>
                           </button>
                           <div className="border-t border-gray-200"></div>
-                          <button
+                            <button
                             onClick={() => { handleToggleStatus(judge.id); closeDropdown(); }}
-                            className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
-                              judge.status === 'active' ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'
-                            }`}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
                             <span>{judge.status === 'active' ? '🔒' : '🔓'}</span>
-                            {judge.status === 'active' ? 'Disable Judge' : 'Enable Judge'}
+                            <span>{judge.status === 'active' ? 'Disable Judge' : 'Enable Judge'}</span>
                           </button>
                         </div>
-                      )}
-                    </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -776,7 +759,7 @@ export default function JudgeManagement() {
           <p className="text-gray-500 mb-4">Add your first judge to get started</p>
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Add Judge
           </button>
@@ -785,8 +768,8 @@ export default function JudgeManagement() {
 
       {/* Add Judge Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Add New Judge</h3>
             <form onSubmit={(e) => { e.preventDefault(); handleAddJudge(); }} className="space-y-4">
               {error && (
@@ -802,13 +785,11 @@ export default function JudgeManagement() {
                   name="judgeName"
                   value={formData.judgeName}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   placeholder="Enter judge's full name"
                   required
-                  disabled={loading}
                 />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
@@ -816,12 +797,11 @@ export default function JudgeManagement() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                   disabled={loading}
                 />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <input
@@ -829,14 +809,13 @@ export default function JudgeManagement() {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                   minLength="6"
                   placeholder="At least 6 characters"
                   disabled={loading}
                 />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
                 <input
@@ -844,7 +823,7 @@ export default function JudgeManagement() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                   minLength="6"
                   placeholder="Re-enter password"
@@ -857,17 +836,17 @@ export default function JudgeManagement() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Adding Judge...' : 'Add Judge'}
                 </button>
@@ -887,8 +866,8 @@ export default function JudgeManagement() {
 
       {/* Edit Judge Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Judge</h3>
             <form onSubmit={(e) => { e.preventDefault(); handleEditJudge(); }} className="space-y-4">
               {error && (
@@ -903,7 +882,7 @@ export default function JudgeManagement() {
                   name="judgeName"
                   value={formData.judgeName}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                 />
               </div>
@@ -914,7 +893,7 @@ export default function JudgeManagement() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                 />
               </div>
@@ -924,7 +903,7 @@ export default function JudgeManagement() {
                   name="assignedCategory"
                   value={formData.assignedCategory}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   required
                 >
                   <option value="Vocal Quality">Vocal Quality</option>
@@ -940,17 +919,17 @@ export default function JudgeManagement() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Updating Judge...' : 'Update Judge'}
                 </button>
@@ -970,81 +949,74 @@ export default function JudgeManagement() {
 
       {/* Assign Criteria Modal */}
       {showAssignModal && selectedJudge && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Assign Criteria - {selectedJudge.judgeName}</h3>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={criteriaAssignment.vocalQuality}
-                  onChange={() => handleCriteriaChange('vocalQuality')}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">Vocal Quality</div>
-                  <div className="text-sm text-gray-500">Technical vocal ability and technique</div>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={criteriaAssignment.stagePresence}
-                  onChange={() => handleCriteriaChange('stagePresence')}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">Stage Presence</div>
-                  <div className="text-sm text-gray-500">Performance and stage confidence</div>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={criteriaAssignment.songInterpretation}
-                  onChange={() => handleCriteriaChange('songInterpretation')}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">Song Interpretation</div>
-                  <div className="text-sm text-gray-500">Understanding and artistic expression</div>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={criteriaAssignment.audienceImpact}
-                  onChange={() => handleCriteriaChange('audienceImpact')}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">Audience Impact</div>
-                  <div className="text-sm text-gray-500">Connection with audience and overall impact</div>
-                </div>
-              </label>
-            </div>
-            <div className="flex gap-3 pt-4">
-              <button
-                onClick={handleAssignCriteria}
-                className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Assign Criteria
-              </button>
-              <button
-                onClick={() => { setShowAssignModal(false); setSelectedJudge(null); resetCriteriaAssignment(); }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleAssignCriteria(); }} className="space-y-4">
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={criteriaAssignment.vocalQuality || false}
+                    onChange={() => handleCriteriaChange('vocalQuality')}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Vocal Quality</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={criteriaAssignment.stagePresence || false}
+                    onChange={() => handleCriteriaChange('stagePresence')}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Stage Presence</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={criteriaAssignment.songInterpretation || false}
+                    onChange={() => handleCriteriaChange('songInterpretation')}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Song Interpretation</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={criteriaAssignment.audienceImpact || false}
+                    onChange={() => handleCriteriaChange('audienceImpact')}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Audience Impact</span>
+                </label>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Assigning...' : 'Assign Criteria'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowAssignModal(false); setSelectedJudge(null); resetCriteriaAssignment(); }}
+                  disabled={loading}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Event Assignment Modal */}
       {showEventAssignModal && selectedJudge && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Assign Events - {selectedJudge.judgeName}</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {events.length > 0 ? (
@@ -1054,12 +1026,10 @@ export default function JudgeManagement() {
                       type="checkbox"
                       checked={eventAssignment[event.id] || false}
                       onChange={() => handleEventChange(event.id)}
-                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{event.eventName}</div>
-                      <div className="text-sm text-gray-500">{event.date} at {event.time}</div>
-                      <div className="text-sm text-gray-500">{event.venue}</div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
                           event.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
@@ -1084,16 +1054,18 @@ export default function JudgeManagement() {
                 </div>
               )}
             </div>
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 mt-4">
               <button
                 onClick={handleAssignEvents}
-                className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Assign Events
+                {loading ? 'Assigning...' : 'Assign Events'}
               </button>
               <button
                 onClick={() => { setShowEventAssignModal(false); setSelectedJudge(null); resetEventAssignment(); }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -1104,8 +1076,8 @@ export default function JudgeManagement() {
 
       {/* Reset Password Modal */}
       {showPasswordModal && selectedJudge && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Reset Password</h3>
             <div className="mb-6">
               <p className="text-gray-600 mb-4">
@@ -1122,13 +1094,15 @@ export default function JudgeManagement() {
             <div className="flex gap-3">
               <button
                 onClick={handleResetPassword}
-                className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Send Reset Email
+                {loading ? 'Sending...' : 'Send Reset Email'}
               </button>
               <button
                 onClick={() => { setShowPasswordModal(false); setSelectedJudge(null); }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -1139,8 +1113,8 @@ export default function JudgeManagement() {
 
       {/* Submit Scores Modal */}
       {showSubmitModal && selectedJudge && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                 <span className="text-2xl">📤</span>
@@ -1163,13 +1137,15 @@ export default function JudgeManagement() {
             <div className="flex gap-3">
               <button
                 onClick={handleSubmitScores}
-                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Submit Scores
+                {loading ? 'Submitting...' : 'Submit Scores'}
               </button>
               <button
                 onClick={() => { setShowSubmitModal(false); setSelectedJudge(null); }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -1180,8 +1156,8 @@ export default function JudgeManagement() {
 
       {/* Delete Judge Modal */}
       {showDeleteModal && selectedJudge && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                 <span className="text-2xl">⚠️</span>
@@ -1204,13 +1180,15 @@ export default function JudgeManagement() {
             <div className="flex gap-3">
               <button
                 onClick={handleDeleteJudge}
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Delete Judge
+                {loading ? 'Deleting...' : 'Delete Judge'}
               </button>
               <button
                 onClick={() => { setShowDeleteModal(false); setSelectedJudge(null); }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                disabled={loading}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

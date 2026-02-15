@@ -117,7 +117,7 @@ export default function JudgeLogin() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="judge@example.com"
               />
             </div>
@@ -132,7 +132,7 @@ export default function JudgeLogin() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="Enter your password"
               />
             </div>
@@ -140,7 +140,7 @@ export default function JudgeLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               {loading ? 'Signing in...' : 'Sign In as Judge'}
             </button>
@@ -157,7 +157,7 @@ export default function JudgeLogin() {
         <div className="text-center mt-6">
           <button
             onClick={() => router.push('/')}
-            className="text-purple-600 hover:text-purple-700 font-medium text-sm"
+            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
           >
             ← Back to Home
           </button>

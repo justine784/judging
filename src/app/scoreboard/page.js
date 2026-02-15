@@ -16,6 +16,13 @@ export default function LiveScoreboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isLive, setIsLive] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('connected');
+  const [scores, setScores] = useState([]); // Store individual judge scores
+  const [judgeStats, setJudgeStats] = useState({
+    totalJudges: 0,
+    activeJudges: 0,
+    totalScores: 0,
+    completedEvaluations: 0
+  });
 
   useEffect(() => {
     // Fetch events
@@ -49,10 +56,120 @@ export default function LiveScoreboard() {
       }
     });
 
+    // Fetch scores for aggregation
+    const scoresCollection = collection(db, 'scores');
+    const unsubscribeScores = onSnapshot(scoresCollection, (snapshot) => {
+      const scoresData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setScores(scoresData);
+    });
+
     return () => {
       unsubscribeEvents();
+      unsubscribeScores();
     };
   }, []);
+
+  // Calculate judge statistics from scores data
+  const calculateJudgeStats = (scoresData, eventId) => {
+    // Filter scores for current event
+    const eventScores = scoresData.filter(score => score.eventId === eventId);
+    
+    // Get unique judges
+    const uniqueJudges = [...new Set(eventScores.map(score => score.judgeId))];
+    const totalJudges = uniqueJudges.length;
+    
+    // Count judges who have submitted scores (have non-zero scores)
+    const activeJudges = [...new Set(
+      eventScores
+        .filter(score => Object.values(score.scores || {}).some(val => val > 0))
+        .map(score => score.judgeId)
+    )].length;
+    
+    // Count total score entries
+    const totalScores = eventScores.length;
+    
+    // Count completed evaluations (judges who have scored all criteria for at least one contestant)
+    const completedEvaluations = [...new Set(
+      eventScores
+        .filter(score => {
+          const event = events.find(e => e.id === eventId);
+          const criteria = event?.criteria?.filter(c => c.enabled) || [];
+          const scoredCriteria = Object.keys(score.scores || {}).filter(key => 
+            score.scores[key] && score.scores[key] > 0
+          );
+          return scoredCriteria.length === criteria.length && scoredCriteria.length > 0;
+        })
+        .map(score => score.judgeId)
+    )].length;
+    
+    return {
+      totalJudges,
+      activeJudges,
+      totalScores,
+      completedEvaluations
+    };
+  };
+
+  // Calculate aggregated scores from all judges for a contestant
+  const calculateAggregatedScore = (contestantId, eventId) => {
+    const contestantScores = scores.filter(score => 
+      score.contestantId === contestantId && score.eventId === eventId
+    );
+    
+    if (contestantScores.length === 0) {
+      return { totalScore: 0, judgeCount: 0, criteriaScores: {} };
+    }
+    
+    // Count unique judges (not total score entries)
+    const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
+    
+    // Get criteria from the event
+    const event = events.find(e => e.id === eventId);
+    const criteria = event?.criteria?.filter(c => c.enabled) || [];
+    
+    // Calculate average for each criteria using only the latest score from each judge
+    const criteriaScores = {};
+    criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      
+      // Get the latest score from each judge for this criteria
+      const latestScoresByJudge = {};
+      contestantScores.forEach(score => {
+        if (score.scores?.[key] > 0) {
+          if (!latestScoresByJudge[score.judgeId] || 
+              new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
+            latestScoresByJudge[score.judgeId] = score;
+          }
+        }
+      });
+      
+      const criteriaValues = Object.values(latestScoresByJudge).map(score => score.scores[key]);
+      
+      if (criteriaValues.length > 0) {
+        criteriaScores[key] = criteriaValues.reduce((sum, val) => sum + val, 0) / criteriaValues.length;
+      } else {
+        criteriaScores[key] = 0;
+      }
+    });
+    
+    // Calculate weighted total score
+    let totalScore = 0;
+    criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      const score = criteriaScores[key] || 0;
+      const weight = criterion.weight / 100;
+      totalScore += score * weight;
+    });
+    
+    return {
+      totalScore: parseFloat(totalScore.toFixed(1)),
+      judgeCount: uniqueJudges.length,
+      criteriaScores
+    };
+  };
 
   useEffect(() => {
     // Fetch contestants filtered by selected event
@@ -71,21 +188,32 @@ export default function LiveScoreboard() {
         
         const contestantsData = snapshot.docs.map(doc => {
           const data = doc.data();
+          const contestantId = doc.id;
+          
+          // Calculate aggregated scores from all judges
+          const aggregatedScore = calculateAggregatedScore(contestantId, selectedEvent.id);
+          
           return {
-            id: doc.id,
+            id: contestantId,
             ...data,
             // Map display names but preserve the actual score fields from judge dashboard
             name: data.contestantName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Contestant',
             number: data.contestantNumber || data.contestantNo || '',
-            totalScore: data.totalWeightedScore || 0,
+            totalScore: aggregatedScore.totalScore,
+            judgeCount: aggregatedScore.judgeCount,
+            criteriaScores: aggregatedScore.criteriaScores,
             photo: data.photo || data.imageUrl || null
           };
         });
         
-        // Sort client-side by totalWeightedScore in descending order
+        // Sort client-side by aggregated totalScore in descending order
         contestantsData.sort((a, b) => b.totalScore - a.totalScore);
         
         setContestants(contestantsData);
+        
+        // Calculate and update judge statistics
+        const stats = calculateJudgeStats(scores, selectedEvent.id);
+        setJudgeStats(stats);
         
         // Set highest scorer
         if (contestantsData.length > 0 && contestantsData[0].totalScore > 0) {
@@ -187,17 +315,28 @@ export default function LiveScoreboard() {
     return (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1);
   };
 
+  const getRankColor = (rank) => {
+    switch (rank) {
+      case 1: return 'bg-red-100 text-red-800 border-red-200'; // 1st place - Red
+      case 2: return 'bg-gray-100 text-gray-800 border-gray-200'; // 2nd place - Gray
+      case 3: return 'bg-orange-100 text-orange-800 border-orange-200'; // 3rd place - Orange/bronze
+      case 4: return 'bg-blue-50 text-blue-700 border-blue-200'; // 4th place - Light blue
+      case 5: return 'bg-blue-100 text-blue-800 border-blue-200'; // 5th place - Blue
+      default: return 'bg-white text-gray-700 border-gray-200'; // Others - White
+    }
+  };
+
   const getContestantCriteriaScore = (contestant, criteriaName) => {
-    // Use the same field mapping as judge dashboard: lowercase with underscores
+    // Use the aggregated criteria scores calculated from all judges
     const key = criteriaName.toLowerCase().replace(/\s+/g, '_');
-    return contestant[key] || 0;
+    return contestant.criteriaScores?.[key] || 0;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading live scores...</p>
         </div>
       </div>
@@ -205,78 +344,133 @@ export default function LiveScoreboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => window.location.href = '/'}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                ← Back to Home
-              </button>
-              <h1 className="text-2xl font-bold text-gray-900">🏆 Live Scoreboard</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  connectionStatus === 'connected' && isLive 
-                    ? 'bg-green-500 animate-pulse' 
-                    : connectionStatus === 'connected' 
-                    ? 'bg-yellow-500' 
-                    : 'bg-red-500'
-                }`}></div>
-                <span className="text-sm text-gray-600">
-                  {connectionStatus === 'connected' && isLive 
-                    ? 'Live' 
-                    : connectionStatus === 'connected' 
-                    ? 'Connected' 
-                    : 'Disconnected'
-                  }
-                </span>
-              </div>
-              <div className="text-sm text-gray-500">
-                Updated: {lastUpdate.toLocaleTimeString()}
-              </div>
-              {connectionStatus === 'disconnected' && (
+      <header className="w-full bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
+          <div className="py-4 sm:py-6">
+            {/* Main Header Row */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              {/* Left Section - Title and Navigation */}
+              <div className="flex items-center gap-4">
                 <button 
-                  onClick={() => window.location.reload()}
-                  className="text-sm text-red-600 hover:text-red-700"
+                  onClick={() => window.location.href = '/'}
+                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 group"
                 >
-                  Reconnect
+                  <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span className="font-medium">Back to Home</span>
                 </button>
-              )}
+                <div className="h-8 w-px bg-gray-300"></div>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-yellow-400 to-blue-500 rounded-xl shadow-lg">
+                    <span className="text-2xl">🏆</span>
+                  </div>
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">
+                      Live Scoreboard
+                    </h1>
+                    <p className="text-sm text-gray-500 font-medium">Real-time scoring updates</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Section - Status and Controls */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                {/* Connection Status */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center gap-2 ${
+                    connectionStatus === 'connected' && isLive 
+                      ? 'text-green-600' 
+                      : connectionStatus === 'connected' 
+                      ? 'text-yellow-600' 
+                      : 'text-red-600'
+                  }`}>
+                    <div className={`relative w-3 h-3 rounded-full ${
+                      connectionStatus === 'connected' && isLive 
+                        ? 'bg-green-500 animate-pulse' 
+                        : connectionStatus === 'connected' 
+                        ? 'bg-yellow-500' 
+                        : 'bg-red-500'
+                    }`}>
+                      {connectionStatus === 'connected' && isLive && (
+                        <div className="absolute inset-0 rounded-full bg-green-500 animate-ping"></div>
+                      )}
+                    </div>
+                    <span className="font-medium text-sm">
+                      {connectionStatus === 'connected' && isLive 
+                        ? '🔴 Live' 
+                        : connectionStatus === 'connected' 
+                        ? '🟡 Connected' 
+                        : '🔴 Disconnected'
+                      }
+                    </span>
+                  </div>
+                  <div className="h-4 w-px bg-gray-300"></div>
+                  <div className="text-xs text-gray-500">
+                    <div className="font-medium">Updated</div>
+                    <div>{lastUpdate.toLocaleTimeString()}</div>
+                  </div>
+                </div>
+
+                {/* Reconnect Button */}
+                {connectionStatus === 'disconnected' && (
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center gap-2 shadow-lg"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Reconnect
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Event Selector */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Event</label>
-              <select
-                value={selectedEvent?.id || ''}
-                onChange={(e) => {
-                  const event = events.find(ev => ev.id === e.target.value);
-                  setSelectedEvent(event);
-                }}
-                className="block w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
-              >
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.status === 'ongoing' ? '🎭' : event.status === 'upcoming' ? '📅' : '✅'} {event.eventName} ({event.status})
-                  </option>
-                ))}
-              </select>
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className="bg-gradient-to-r from-white to-gray-50 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <span className="text-2xl">🎭</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Event Selection</h2>
+                  <p className="text-blue-100 text-sm">Choose an event to view scores</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-blue-100 text-sm font-medium">Total Events</p>
+                <p className="text-3xl font-bold text-white">{events.length}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Total Events</p>
-              <p className="font-bold text-gray-900">{events.length}</p>
+          </div>
+          <div className="p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex-1 max-w-full sm:max-w-md">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Event</label>
+                <select
+                  value={selectedEvent?.id || ''}
+                  onChange={(e) => {
+                    const event = events.find(ev => ev.id === e.target.value);
+                    setSelectedEvent(event);
+                  }}
+                  className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                >
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.status === 'ongoing' ? '🎭' : event.status === 'upcoming' ? '📅' : '✅'} {event.eventName} ({event.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -284,36 +478,83 @@ export default function LiveScoreboard() {
 
       {/* Contest Info */}
       {selectedEvent && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">{selectedEvent.eventName}</h2>
-                <p className="text-gray-600">{selectedEvent.date} • {selectedEvent.venue}</p>
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            {/* Event Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">{selectedEvent.eventName}</h2>
+                  <div className="flex items-center gap-4 text-blue-100">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>{selectedEvent.date}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>{selectedEvent.venue}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-4 text-center">
+                    <p className="text-blue-100 text-sm font-medium mb-1">Contestants</p>
+                    <p className="text-3xl font-bold text-white">{contestants.length}</p>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-4 text-center">
+                    <p className="text-blue-100 text-sm font-medium mb-2">Status</p>
+                    <div className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-full ${
+                      selectedEvent.status === 'ongoing' ? 'bg-green-500 text-white' :
+                      selectedEvent.status === 'upcoming' ? 'bg-blue-500 text-white' :
+                      'bg-gray-500 text-white'
+                    }`}>
+                      <span>{selectedEvent.status === 'ongoing' ? '🎭' : selectedEvent.status === 'upcoming' ? '📅' : '✅'}</span>
+                      <span>{selectedEvent.status.charAt(0).toUpperCase() + selectedEvent.status.slice(1)}</span>
+                    </div>
+                  </div>
+                  {highestScorer && (
+                    <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl px-6 py-4 text-center shadow-lg">
+                      <p className="text-white text-sm font-medium mb-1">🏆 Leading</p>
+                      <p className="text-xl font-bold text-white truncate max-w-[140px]">{highestScorer.name}</p>
+                      <p className="text-yellow-100 text-sm font-bold">{highestScorer.totalScore.toFixed(1)} pts</p>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-6 text-sm">
-                <div className="text-center">
-                  <p className="text-gray-500">Contestants</p>
-                  <p className="font-bold text-gray-900">{contestants.length}</p>
+            </div>
+
+            {/* Judge Statistics */}
+            <div className="p-6 bg-gray-50 border-t border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span className="text-2xl">🧑‍⚖️</span>
+                Judge Statistics
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center border border-blue-200">
+                  <div className="text-3xl mb-2">👥</div>
+                  <p className="text-sm text-blue-600 font-semibold mb-1">Total Judges</p>
+                  <p className="text-2xl font-bold text-blue-900">{judgeStats.totalJudges}</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-gray-500">Status</p>
-                  <div className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
-                    selectedEvent.status === 'ongoing' ? 'bg-green-100 text-green-800' :
-                    selectedEvent.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    <span>{selectedEvent.status === 'ongoing' ? '🎭' : selectedEvent.status === 'upcoming' ? '📅' : '✅'}</span>
-                    {selectedEvent.status.charAt(0).toUpperCase() + selectedEvent.status.slice(1)}
-                  </div>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 text-center border border-green-200">
+                  <div className="text-3xl mb-2">✅</div>
+                  <p className="text-sm text-green-600 font-semibold mb-1">Active Judges</p>
+                  <p className="text-2xl font-bold text-green-900">{judgeStats.activeJudges}</p>
                 </div>
-                {highestScorer && (
-                  <div className="text-center">
-                    <p className="text-gray-500">🏆 Leading</p>
-                    <p className="font-bold text-purple-600">{highestScorer.name}</p>
-                    <p className="text-sm text-purple-500">{highestScorer.totalScore.toFixed(1)} pts</p>
-                  </div>
-                )}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center border border-blue-200">
+                  <div className="text-3xl mb-2">📊</div>
+                  <p className="text-sm text-blue-600 font-semibold mb-1">Total Scores</p>
+                  <p className="text-2xl font-bold text-blue-900">{judgeStats.totalScores}</p>
+                </div>
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 text-center border border-orange-200">
+                  <div className="text-3xl mb-2">🎯</div>
+                  <p className="text-sm text-orange-600 font-semibold mb-1">Completed</p>
+                  <p className="text-2xl font-bold text-orange-900">{judgeStats.completedEvaluations}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -321,83 +562,134 @@ export default function LiveScoreboard() {
       )}
 
       {/* Scoreboard */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="w-full px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
           {contestants.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No contestants for this event</h3>
-              <p className="text-gray-600">Contestants will appear here once they are registered for "{selectedEvent?.eventName || 'this event'}" by the administrator.</p>
+            <div className="p-12 sm:p-16 text-center">
+              <div className="text-6xl sm:text-8xl mb-6">👥</div>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">No contestants for this event</h3>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">Contestants will appear here once they are registered for "{selectedEvent?.eventName || 'this event'}" by the administrator.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contestant</th>
-                    {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => (
-                      <th key={index} className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {criteria.name}
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                <tr>
+                  <th className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 lg:w-20">Rank</th>
+                  <th className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20 lg:w-32">Contestant</th>
+                  {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => (
+                    <th key={index} className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                      <div className="lg:hidden flex flex-col items-center">
+                        <span className="text-xs font-medium">{criteria.name.substring(0, 8)}</span>
                         {criteria.weight && (
-                          <span className="block text-xs text-gray-400 normal-case">({criteria.weight}%)</span>
+                          <span className="text-xs text-gray-400">({criteria.weight}%)</span>
                         )}
-                      </th>
-                    ))}
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {contestants.map((contestant, index) => (
-                    <tr key={contestant.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{getRankIcon(index + 1)}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                            <span className="text-purple-600 font-bold">
-                              {contestant.name ? contestant.name.charAt(0).toUpperCase() : 'C'}
-                            </span>
+                      </div>
+                    </th>
+                  ))}
+                  <th className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20 lg:w-24">Total Score</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {contestants.map((contestant, index) => {
+                  const rank = index + 1;
+                  const rankColorClass = getRankColor(rank);
+                  return (
+                  <tr key={contestant.id} className={`hover:bg-gray-50 transition-all duration-200 border-l-4 ${rankColorClass} ${
+                    rank === 1 ? 'hover:shadow-lg' : ''
+                  }`}>
+                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100">
+                      <div className="flex items-center justify-center">
+                        <span className="text-2xl sm:text-3xl">{getRankIcon(rank)}</span>
+                      </div>
+                    </td>
+                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center shadow-md flex-shrink-0 ${
+                              rank === 1 ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' :
+                              rank === 2 ? 'bg-gradient-to-br from-gray-500 to-gray-600 text-white' :
+                              rank === 3 ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white' :
+                              rank === 4 ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white' :
+                              rank === 5 ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
+                              'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700'
+                            }`}>
+                              <span className="font-bold text-sm sm:text-base">
+                                {contestant.name ? contestant.name.charAt(0).toUpperCase() : 'C'}
+                              </span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <button 
+                                onClick={() => handleContestantClick(contestant)}
+                                className={`font-bold text-sm sm:text-base transition-colors text-left truncate block hover:underline ${
+                                  rank === 1 ? 'text-red-700 hover:text-red-800' :
+                                  rank === 2 ? 'text-gray-700 hover:text-gray-800' :
+                                  rank === 3 ? 'text-orange-700 hover:text-orange-800' :
+                                  rank === 4 ? 'text-blue-700 hover:text-blue-800' :
+                                  rank === 5 ? 'text-blue-800 hover:text-blue-900' :
+                                  'text-gray-700 hover:text-gray-800'
+                                }`}
+                              >
+                                {contestant.name || 'Contestant ' + rank}
+                              </button>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs sm:text-sm font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">#{contestant.number || rank}</span>
+                                {contestant.judgeCount > 0 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                                    👤 {contestant.judgeCount}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <button 
-                              onClick={() => handleContestantClick(contestant)}
-                              className="font-medium text-gray-900 hover:text-purple-600 transition-colors text-left"
-                            >
-                              {contestant.name || 'Contestant ' + (index + 1)}
-                            </button>
-                            <div className="text-sm text-gray-500">#{contestant.number || index + 1}</div>
+                        </td>
+                    {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
+                      const score = getContestantCriteriaScore(contestant, criteria.name);
+                      const colors = [
+                        'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300',
+                        'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-300', 
+                        'bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 border-sky-300',
+                        'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300', 
+                        'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-yellow-300'
+                      ];
+                      const colorClass = colors[criteriaIndex % colors.length];
+                      return (
+                        <td key={criteriaIndex} className="px-4 py-4 whitespace-nowrap text-center border-r border-gray-100">
+                          <div className={`inline-flex items-center justify-center px-3 py-2 text-sm font-bold border ${colorClass} rounded-lg shadow-sm`}>
+                            {score === 0 ? '—' : `${score.toFixed(1)}`}
                           </div>
-                        </div>
-                      </td>
-                      {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
-                        const score = getContestantCriteriaScore(contestant, criteria.name);
-                        const colors = ['bg-purple-100 text-purple-800', 'bg-pink-100 text-pink-800', 'bg-blue-100 text-blue-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
-                        const colorClass = colors[criteriaIndex % colors.length];
-                        return (
-                          <td key={criteriaIndex} className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex items-center justify-center px-3 py-1 text-sm font-medium ${colorClass} rounded-full`}>
-                              {score.toFixed(1)}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td className="px-6 py-4 whitespace-nowrap">
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex flex-col items-center">
                         <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-purple-600">
+                          <span className={`text-2xl sm:text-3xl font-bold ${
+                            rank === 1 ? 'text-red-600' :
+                            rank === 2 ? 'text-gray-600' :
+                            rank === 3 ? 'text-orange-600' :
+                            rank === 4 ? 'text-blue-600' :
+                            rank === 5 ? 'text-blue-700' :
+                            'text-gray-600'
+                          }`}>
                             {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
                           </span>
-                          {contestant.totalScore > 0 && <span className="text-sm text-gray-500">/100</span>}
+                          {contestant.totalScore > 0 && (
+                            <span className="text-sm text-gray-500 font-medium">/100</span>
+                          )}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {rank === 1 && contestant.totalScore > 0 && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full">
+                              🏆 Leading
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       </div>
@@ -405,19 +697,19 @@ export default function LiveScoreboard() {
       {/* Contestant Detail Modal */}
       {showModal && selectedContestant && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-5 rounded-t-xl sm:rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xl font-bold text-white">Contestant Details</h3>
-                  <p className="text-purple-100 text-sm mt-1">View detailed scores and information</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-white">Contestant Details</h3>
+                  <p className="text-blue-100 text-xs sm:text-sm mt-1">View detailed scores and information</p>
                 </div>
                 <button
                   onClick={closeModal}
-                  className="text-white hover:text-purple-200 transition-colors p-1"
+                  className="text-white hover:text-blue-200 transition-colors p-1"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -425,20 +717,20 @@ export default function LiveScoreboard() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* Contestant Photo and Basic Info */}
-              <div className="flex items-center gap-8 mb-8">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-8 mb-6 sm:mb-8">
                 {/* Left Side - Image */}
                 <div className="flex-shrink-0">
                   {selectedContestant.photo ? (
                     <img 
                       src={selectedContestant.photo} 
                       alt={selectedContestant.name}
-                      className="w-48 h-48 rounded-2xl object-cover border-4 border-purple-100 shadow-lg"
+                      className="w-32 h-32 sm:w-48 sm:h-48 rounded-xl sm:rounded-2xl object-cover border-4 border-blue-100 shadow-lg"
                     />
                   ) : (
-                    <div className="w-48 h-48 rounded-2xl bg-purple-100 flex items-center justify-center border-4 border-purple-100 shadow-lg">
-                      <span className="text-6xl font-bold text-purple-600">
+                    <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-xl sm:rounded-2xl bg-blue-100 flex items-center justify-center border-4 border-blue-100 shadow-lg">
+                      <span className="text-4xl sm:text-6xl font-bold text-blue-600">
                         {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
                       </span>
                     </div>
@@ -446,12 +738,16 @@ export default function LiveScoreboard() {
                 </div>
                 
                 {/* Right Side - Info */}
-                <div className="flex-1 text-left">
-                  <h4 className="text-3xl font-bold text-gray-900 mb-2">{selectedContestant.name}</h4>
-                  <p className="text-lg text-gray-600 mb-4">Contestant #{selectedContestant.number || 'N/A'}</p>
-                  <div className="flex items-center gap-4">
-                    <div className="text-xl font-bold text-purple-600">
+                <div className="flex-1 text-center sm:text-left">
+                  <h4 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{selectedContestant.name}</h4>
+                  <p className="text-base sm:text-lg text-gray-600 mb-4">Contestant #{selectedContestant.number || 'N/A'}</p>
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-4">
+                    <div className="text-lg sm:text-xl font-bold text-blue-600">
                       Total Score: {selectedContestant.totalScore.toFixed(1)}%
+                    </div>
+                    <div className="text-sm sm:text-base text-gray-600">
+                      <span className="font-medium">Judges: </span>
+                      <span className="font-bold text-blue-600">{selectedContestant.judgeCount || 0}</span>
                     </div>
                     {selectedContestant.totalScore === highestScorer?.totalScore && (
                       <div className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-800">
@@ -485,8 +781,8 @@ export default function LiveScoreboard() {
                     return (
                       <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                            <span className="text-purple-600">{criteriaIcons[criteria.name] || '📋'}</span>
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600">{criteriaIcons[criteria.name] || '📋'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-700">{criteria.name}</span>
@@ -505,13 +801,13 @@ export default function LiveScoreboard() {
               </div>
 
               {/* Average Score */}
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6">
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h5 className="text-lg font-semibold text-gray-900">Criteria Average</h5>
                     <p className="text-gray-600 text-sm">Average score across all criteria</p>
                   </div>
-                  <div className="text-3xl font-bold text-purple-600">
+                  <div className="text-3xl font-bold text-blue-600">
                     {getCriteriaAverage(selectedContestant)}%
                   </div>
                 </div>

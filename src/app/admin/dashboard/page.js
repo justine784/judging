@@ -217,7 +217,7 @@ export default function AdminDashboard() {
     switch(color) {
       case 'green': return 'bg-green-50 border-green-100 hover:bg-green-100';
       case 'blue': return 'bg-blue-50 border-blue-100 hover:bg-blue-100';
-      case 'purple': return 'bg-purple-50 border-purple-100 hover:bg-purple-100';
+      case 'purple': return 'bg-blue-50 border-blue-100 hover:bg-blue-100';
       default: return 'bg-gray-50 border-gray-100 hover:bg-gray-100';
     }
   };
@@ -226,7 +226,7 @@ export default function AdminDashboard() {
     switch(color) {
       case 'green': return 'bg-green-500';
       case 'blue': return 'bg-blue-500';
-      case 'purple': return 'bg-purple-500';
+      case 'purple': return 'bg-blue-500';
       default: return 'bg-gray-500';
     }
   };
@@ -235,7 +235,7 @@ export default function AdminDashboard() {
     switch(color) {
       case 'green': return 'bg-green-100 text-green-800';
       case 'blue': return 'bg-blue-100 text-blue-800';
-      case 'purple': return 'bg-purple-100 text-purple-800';
+      case 'purple': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -537,20 +537,20 @@ export default function AdminDashboard() {
   return (
     <div className="p-6">
       {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
               Admin Dashboard
             </h1>
-            <p className="text-gray-600 text-lg">Welcome back! Here's what's happening with your judging system today.</p>
+            <p className="text-sm sm:text-base lg:text-lg text-gray-600">Welcome back! Here's what's happening with your judging system today.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <button 
               onClick={() => router.push('/admin/events')}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+              className="px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-sm sm:text-base"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
               </svg>
               New Event
@@ -558,19 +558,19 @@ export default function AdminDashboard() {
             <div className="relative export-dropdown">
               <button 
                 onClick={() => setShowExportDropdown(!showExportDropdown)}
-                className="px-6 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg"
+                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm sm:text-base"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
                 Export
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </button>
               
               {showExportDropdown && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                <div className="absolute right-0 mt-2 w-64 sm:w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                   <div className="px-4 py-2 border-b border-gray-100">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Select Event</label>
                     <select
@@ -579,7 +579,7 @@ export default function AdminDashboard() {
                         const event = events.find(ev => ev.id === e.target.value);
                         setSelectedEventForPrint(event);
                       }}
-                      className="w-full text-sm px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-purple-600 focus:border-purple-600"
+                      className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-600"
                     >
                       {events.map((event) => (
                         <option key={event.id} value={event.id}>
@@ -607,41 +607,41 @@ export default function AdminDashboard() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
           </svg>
-          <span className="text-purple-600 font-medium">Dashboard</span>
+          <span className="text-blue-600 font-medium">Dashboard</span>
         </nav>
       </div>
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {/* Contestants Card */}
         <div 
           onClick={() => router.push('/admin/events')}
-          className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
         >
-          <div className="flex items-center justify-between mb-6">
-            <div className="h-14 w-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <span className="text-3xl">👥</span>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-14 sm:w-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+              <span className="text-xl sm:text-2xl lg:text-3xl">👥</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-8 w-12 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-10 sm:h-8 sm:w-12 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-3xl font-bold text-gray-900">{stats.totalContestants}</span>
+                <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalContestants}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">Contestants</h3>
-          <p className="text-sm text-gray-500 mb-4">Total registered</p>
+          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Contestants</h3>
+          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Total registered</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs text-green-600 font-medium">
+              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs sm:text-sm text-green-600 font-medium">
                 {loading ? 'Loading...' : `${stats.totalContestants} total`}
               </span>
             </div>
-            <svg className="w-4 h-4 text-purple-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -650,32 +650,32 @@ export default function AdminDashboard() {
         {/* Judges Card */}
         <div 
           onClick={() => router.push('/admin/judges')}
-          className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
         >
-          <div className="flex items-center justify-between mb-6">
-            <div className="h-14 w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <span className="text-3xl">🧑‍⚖️</span>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-14 sm:w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+              <span className="text-xl sm:text-2xl lg:text-3xl">🧑‍⚖️</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-8 w-12 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-10 sm:h-8 sm:w-12 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-3xl font-bold text-gray-900">{stats.totalJudges}</span>
+                <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalJudges}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">Judges</h3>
-          <p className="text-sm text-gray-500 mb-4">Active judges</p>
+          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Judges</h3>
+          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Active judges</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs text-blue-600 font-medium">
+              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-xs sm:text-sm text-blue-600 font-medium">
                 {loading ? 'Loading...' : `${stats.totalJudges} active`}
               </span>
             </div>
-            <svg className="w-4 h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -684,32 +684,32 @@ export default function AdminDashboard() {
         {/* Events Card */}
         <div 
           onClick={() => router.push('/admin/events')}
-          className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
         >
-          <div className="flex items-center justify-between mb-6">
-            <div className="h-14 w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <span className="text-3xl">🎯</span>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-14 sm:w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+              <span className="text-xl sm:text-2xl lg:text-3xl">🎯</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-8 w-12 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-10 sm:h-8 sm:w-12 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-3xl font-bold text-gray-900">{stats.totalEvents}</span>
+                <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalEvents}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">Events</h3>
-          <p className="text-sm text-gray-500 mb-4">Total events</p>
+          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Events</h3>
+          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Total events</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs text-green-600 font-medium">
+              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs sm:text-sm text-green-600 font-medium">
                 {loading ? 'Loading...' : `${stats.ongoingEvents} ongoing`}
               </span>
             </div>
-            <svg className="w-4 h-4 text-green-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-green-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -718,36 +718,36 @@ export default function AdminDashboard() {
         {/* Progress Card */}
         <div 
           onClick={() => router.push('/scoreboard')}
-          className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
         >
-          <div className="flex items-center justify-between mb-6">
-            <div className={`h-14 w-14 ${getProgressBg(stats.scoringProgress)} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg`}>
-              <span className="text-3xl">📊</span>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className={`h-10 w-10 sm:h-14 sm:w-14 ${getProgressBg(stats.scoringProgress)} rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg`}>
+              <span className="text-xl sm:text-2xl lg:text-3xl">📊</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-8 w-16 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-12 sm:h-8 sm:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className={`text-3xl font-bold ${getProgressColor(stats.scoringProgress)}`}>
+                <span className={`text-xl sm:text-2xl lg:text-3xl font-bold ${getProgressColor(stats.scoringProgress)}`}>
                   {stats.scoringProgress}%
                 </span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">Progress</h3>
-          <p className="text-sm text-gray-500 mb-4">Scoring completed</p>
+          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Progress</h3>
+          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Scoring completed</p>
           <div className="flex items-center justify-between">
-            <div className="flex-1 mr-3">
+            <div className="flex-1 mr-2 sm:mr-3">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-2 bg-gray-200 rounded-full"></div>
+                  <div className="h-1.5 sm:h-2 bg-gray-200 rounded-full"></div>
                 </div>
               ) : (
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
                   <div 
-                    className={`h-2 rounded-full transition-all duration-700 ease-out ${
+                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-700 ease-out ${
                       stats.scoringProgress >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' : 
                       stats.scoringProgress >= 50 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : 'bg-gradient-to-r from-red-400 to-red-600'
                     }`}
@@ -756,7 +756,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-            <svg className="w-4 h-4 text-orange-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -764,39 +764,39 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="text-2xl">📈</span>
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 sm:px-6 py-3 sm:py-4">
+          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+            <span className="text-xl sm:text-2xl">📈</span>
             Recent Activity
           </h2>
-          <p className="text-purple-100 text-sm mt-1">Latest updates from your judging system</p>
+          <p className="text-purple-100 text-xs sm:text-sm mt-1">Latest updates from your judging system</p>
         </div>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {recentActivities.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-4xl mb-4">�</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No recent activity</h3>
-              <p className="text-gray-500">Activities will appear here as contestants, judges, and events are added to the system.</p>
+            <div className="text-center py-6 sm:py-8">
+              <div className="text-3xl sm:text-4xl mb-4">📋</div>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No recent activity</h3>
+              <p className="text-xs sm:text-sm text-gray-500">Activities will appear here as contestants, judges, and events are added to the system.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {recentActivities.map((activity, index) => (
                 <div 
                   key={index}
-                  className={`flex items-center justify-between p-4 rounded-xl border transition-colors cursor-pointer ${getActivityColor(activity.color)}`}
+                  className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-xl border transition-colors cursor-pointer ${getActivityColor(activity.color)}`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 ${getActivityIconColor(activity.color)} rounded-full flex items-center justify-center`}>
-                      <span className="text-white">{activity.icon}</span>
+                  <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                    <div className={`h-8 w-8 sm:h-10 sm:w-10 ${getActivityIconColor(activity.color)} rounded-full flex items-center justify-center`}>
+                      <span className="text-white text-sm sm:text-base">{activity.icon}</span>
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">{activity.title}</p>
-                      <p className="text-sm text-gray-500">{activity.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{activity.title}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 truncate">{activity.description}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${getActivityBadgeColor(activity.color)}`}>
+                  <div className="flex-shrink-0">
+                    <span className={`inline-flex items-center px-2 sm:px-3 py-1 text-xs font-medium rounded-full ${getActivityBadgeColor(activity.color)}`}>
                       {formatTimeAgo(activity.timestamp)}
                     </span>
                   </div>

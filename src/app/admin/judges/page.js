@@ -20,6 +20,7 @@ export default function JudgeManagement() {
   const [eventAssignment, setEventAssignment] = useState({});
   const [editingJudge, setEditingJudge] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const router = useRouter();
 
   // Form state
@@ -519,8 +520,20 @@ export default function JudgeManagement() {
     setShowDeleteModal(true);
   };
 
-  const toggleDropdown = (judgeId) => {
-    setActiveDropdown(activeDropdown === judgeId ? null : judgeId);
+  const toggleDropdown = (judgeId, event) => {
+    if (activeDropdown === judgeId) {
+      setActiveDropdown(null);
+    } else {
+      const rect = event.target.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      setDropdownPosition({
+        top: rect.bottom + scrollTop + 4,
+        right: window.innerWidth - rect.right - scrollLeft + 4
+      });
+      setActiveDropdown(judgeId);
+    }
   };
 
   const closeDropdown = () => {
@@ -673,7 +686,7 @@ export default function JudgeManagement() {
                   <td className="px-6 py-4">
                     <div className="relative">
                       <button
-                        onClick={() => toggleDropdown(judge.id)}
+                        onClick={(e) => toggleDropdown(judge.id, e)}
                         className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
                         title="Actions"
                       >
@@ -683,7 +696,13 @@ export default function JudgeManagement() {
                       </button>
                       
                       {activeDropdown === judge.id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                        <div 
+                          className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]"
+                          style={{
+                            top: `${dropdownPosition.top}px`,
+                            right: `${dropdownPosition.right}px`
+                          }}
+                        >
                           <button
                             onClick={() => { openEditModal(judge); closeDropdown(); }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"

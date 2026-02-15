@@ -29,12 +29,6 @@ export default function AdminSidebar() {
       description: 'Manage judges'
     },
     {
-      name: 'Scoring',
-      icon: '🏆',
-      path: '/admin/scoring',
-      description: 'View and manage scores'
-    },
-    {
       name: 'Settings',
       icon: '⚙️',
       path: '/admin/settings',

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, getDoc, where } from 'firebase/firestore';
 
-export default function LiveScoreboard() {
+export default function AdminScoreboard() {
   const [contestants, setContestants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [contestInfo, setContestInfo] = useState(null);
@@ -13,12 +13,9 @@ export default function LiveScoreboard() {
   const [highestScorer, setHighestScorer] = useState(null);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [isLive, setIsLive] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState('connected');
 
   useEffect(() => {
-    // Fetch events
+    // Fetch events and auto-select the first ongoing or upcoming event
     const eventsCollection = collection(db, 'events');
     const unsubscribeEvents = onSnapshot(eventsCollection, (snapshot) => {
       const eventsData = snapshot.docs.map(doc => ({
@@ -44,7 +41,7 @@ export default function LiveScoreboard() {
       setEvents(eventsData);
       
       // Auto-select the first ongoing or upcoming event
-      if (eventsData.length > 0 && !selectedEvent) {
+      if (eventsData.length > 0) {
         setSelectedEvent(eventsData[0]);
       }
     });
@@ -63,75 +60,34 @@ export default function LiveScoreboard() {
       where('eventId', '==', selectedEvent.id)
     );
 
-    const unsubscribeContestants = onSnapshot(
-      contestantsQuery, 
-      (snapshot) => {
-        setConnectionStatus('connected');
-        setLastUpdate(new Date()); // Update last update time
-        
-        const contestantsData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            // Map display names but preserve the actual score fields from judge dashboard
-            name: data.contestantName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Contestant',
-            number: data.contestantNumber || data.contestantNo || '',
-            totalScore: data.totalWeightedScore || 0,
-            photo: data.photo || data.imageUrl || null
-          };
-        });
-        
-        // Sort client-side by totalWeightedScore in descending order
-        contestantsData.sort((a, b) => b.totalScore - a.totalScore);
-        
-        setContestants(contestantsData);
-        
-        // Set highest scorer
-        if (contestantsData.length > 0 && contestantsData[0].totalScore > 0) {
-          setHighestScorer(contestantsData[0]);
-        } else {
-          setHighestScorer(null);
-        }
-        
-        setLoading(false);
-        
-        // Show real-time update notification
-        if (snapshot.docChanges().length > 0) {
-          const changes = snapshot.docChanges();
-          console.log(`Live update: ${changes.length} contestant(s) updated`);
-          
-          // Flash a subtle update indicator
-          const updateIndicator = document.createElement('div');
-          updateIndicator.className = 'fixed top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-lg text-sm z-50 animate-pulse';
-          updateIndicator.textContent = '🔄 Live Update';
-          document.body.appendChild(updateIndicator);
-          
-          setTimeout(() => {
-            if (document.body.contains(updateIndicator)) {
-              document.body.removeChild(updateIndicator);
-            }
-          }, 2000);
-        }
-      },
-      (error) => {
-        console.error('Firestore listener error:', error);
-        setConnectionStatus('disconnected');
-        setIsLive(false);
-        
-        // Show error indicator
-        const errorIndicator = document.createElement('div');
-        errorIndicator.className = 'fixed top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-lg text-sm z-50';
-        errorIndicator.textContent = '⚠️ Connection Lost';
-        document.body.appendChild(errorIndicator);
-        
-        setTimeout(() => {
-          if (document.body.contains(errorIndicator)) {
-            document.body.removeChild(errorIndicator);
-          }
-        }, 3000);
+    const unsubscribeContestants = onSnapshot(contestantsQuery, (snapshot) => {
+      const contestantsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Map display names but preserve the actual score fields from judge dashboard
+          name: data.contestantName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Contestant',
+          number: data.contestantNumber || data.contestantNo || '',
+          totalScore: data.totalWeightedScore || 0,
+          photo: data.photo || data.imageUrl || null
+        };
+      });
+      
+      // Sort client-side by totalWeightedScore in descending order
+      contestantsData.sort((a, b) => b.totalScore - a.totalScore);
+      
+      setContestants(contestantsData);
+      
+      // Set highest scorer
+      if (contestantsData.length > 0 && contestantsData[0].totalScore > 0) {
+        setHighestScorer(contestantsData[0]);
+      } else {
+        setHighestScorer(null);
       }
-    );
+      
+      setLoading(false);
+    });
 
     return () => {
       unsubscribeContestants();
@@ -153,13 +109,6 @@ export default function LiveScoreboard() {
     if (score >= 80) return 'text-blue-600 bg-blue-50';
     if (score >= 70) return 'text-yellow-600 bg-yellow-50';
     return 'text-gray-600 bg-gray-50';
-  };
-
-  const getScoreAnimation = (score, previousScore) => {
-    if (previousScore !== undefined && score > previousScore) {
-      return 'animate-pulse bg-green-100 border-green-300';
-    }
-    return '';
   };
 
   const handleContestantClick = (contestant) => {
@@ -198,7 +147,7 @@ export default function LiveScoreboard() {
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading live scores...</p>
+          <p className="text-gray-600">Loading admin scoreboard...</p>
         </div>
       </div>
     );
@@ -212,75 +161,22 @@ export default function LiveScoreboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => window.location.href = '/'}
+                onClick={() => window.location.href = '/admin/events'}
                 className="text-gray-600 hover:text-gray-900 transition-colors"
               >
-                ← Back to Home
+                ← Back to Events
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">🏆 Live Scoreboard</h1>
+              <h1 className="text-2xl font-bold text-gray-900">🏆 Admin Scoreboard</h1>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  connectionStatus === 'connected' && isLive 
-                    ? 'bg-green-500 animate-pulse' 
-                    : connectionStatus === 'connected' 
-                    ? 'bg-yellow-500' 
-                    : 'bg-red-500'
-                }`}></div>
-                <span className="text-sm text-gray-600">
-                  {connectionStatus === 'connected' && isLive 
-                    ? 'Live' 
-                    : connectionStatus === 'connected' 
-                    ? 'Connected' 
-                    : 'Disconnected'
-                  }
-                </span>
-              </div>
-              <div className="text-sm text-gray-500">
-                Updated: {lastUpdate.toLocaleTimeString()}
-              </div>
-              {connectionStatus === 'disconnected' && (
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="text-sm text-red-600 hover:text-red-700"
-                >
-                  Reconnect
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-gray-600">Live</span>
+              <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Admin View</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Event Selector */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Event</label>
-              <select
-                value={selectedEvent?.id || ''}
-                onChange={(e) => {
-                  const event = events.find(ev => ev.id === e.target.value);
-                  setSelectedEvent(event);
-                }}
-                className="block w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
-              >
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.status === 'ongoing' ? '🎭' : event.status === 'upcoming' ? '📅' : '✅'} {event.eventName} ({event.status})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Total Events</p>
-              <p className="font-bold text-gray-900">{events.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Contest Info */}
       {selectedEvent && (
@@ -319,6 +215,18 @@ export default function LiveScoreboard() {
           </div>
         </div>
       )}
+
+      {/* Admin Info Banner */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <span className="text-purple-600">ℹ️</span>
+            <p className="text-sm text-purple-700">
+              This is the admin-only view of the scoreboard. Scores cannot be edited from this page. Use the judge dashboard to modify scores.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Scoreboard */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
@@ -402,7 +310,7 @@ export default function LiveScoreboard() {
         </div>
       </div>
 
-      {/* Contestant Detail Modal */}
+      {/* Contestant Detail Modal (View Only) */}
       {showModal && selectedContestant && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -514,6 +422,16 @@ export default function LiveScoreboard() {
                   <div className="text-3xl font-bold text-purple-600">
                     {getCriteriaAverage(selectedContestant)}%
                   </div>
+                </div>
+              </div>
+
+              {/* Admin Notice */}
+              <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-purple-600">🔒</span>
+                  <p className="text-sm text-purple-700">
+                    This is a read-only view. To edit scores, please use the judge dashboard or scoring management system.
+                  </p>
                 </div>
               </div>
 

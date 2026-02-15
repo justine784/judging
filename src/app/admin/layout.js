@@ -13,31 +13,6 @@ export default function AdminLayout({ children }) {
 
   // Check for current user immediately
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      // Only set user if it's the allowed admin email
-      if (currentUser.email === 'admin@gmail.com') {
-        setUser(currentUser);
-      } else {
-        // Sign out unauthorized user
-        signOut(auth);
-        router.push('/admin/login');
-      }
-      setLoading(false);
-    }
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.push('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-      router.push('/');
-    }
-  };
-
-  useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       // Check if we're in the middle of creating a judge account
       const isCreatingJudge = typeof window !== 'undefined' && window.creatingJudge;
@@ -48,8 +23,9 @@ export default function AdminLayout({ children }) {
           setUser(user);
         } else if (!isCreatingJudge) {
           // Sign out unauthorized user and redirect to login
-          signOut(auth);
-          router.push('/admin/login');
+          signOut(auth).then(() => {
+            router.push('/admin/login');
+          });
         }
       } else {
         setUser(null);
@@ -66,6 +42,16 @@ export default function AdminLayout({ children }) {
 
     return () => unsubscribe();
   }, [router]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      router.push('/');
+    }
+  };
 
   // Check if current page is login page
   const isLoginPage = typeof window !== 'undefined' && window.location.pathname.includes('/admin/login');

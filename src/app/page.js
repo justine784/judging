@@ -3,25 +3,48 @@
 import Image from "next/image";
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 export default function Home() {
-  const [contestInfo, setContestInfo] = useState(null);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch contest info from Firestore
-    const unsubscribeContest = onSnapshot(doc(db, 'contest', 'info'), (doc) => {
-      if (doc.exists()) {
-        setContestInfo(doc.data());
-      }
+    // Fetch all events from Firestore
+    const eventsCollection = collection(db, 'events');
+    
+    const unsubscribe = onSnapshot(eventsCollection, (snapshot) => {
+      const allEvents = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sort by status priority (ongoing first), then by createdAt (newest first)
+      allEvents.sort((a, b) => {
+        // Priority order: ongoing > upcoming > finished
+        const statusPriority = { ongoing: 0, upcoming: 1, finished: 2 };
+        const priorityA = statusPriority[a.status] || 3;
+        const priorityB = statusPriority[b.status] || 3;
+        
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+        
+        // If same status, sort by createdAt (newest first)
+        const dateA = a.createdAt?.toMillis?.() || 0;
+        const dateB = b.createdAt?.toMillis?.() || 0;
+        return dateB - dateA;
+      });
+      
+      setEvents(allEvents);
       setLoading(false);
     }, (error) => {
-      console.error('Error fetching contest info:', error);
+      console.error('Error fetching events:', error);
+      setEvents([]);
       setLoading(false);
     });
 
-    return () => unsubscribeContest();
+    return () => unsubscribe();
   }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
@@ -29,7 +52,7 @@ export default function Home() {
       <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center">
         {/* Event Logo */}
         <div className="mb-8">
-          <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-white shadow-xl p-2">
+          <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full bg-white shadow-xl p-2">
             <Image
               src="/logo.jpg"
               alt="Bongabong Logo"
@@ -37,6 +60,10 @@ export default function Home() {
               height={120}
               className="rounded-full object-contain"
             />
+            {/* Icon Overlay */}
+            <div className="absolute -bottom-2 -right-2 h-12 w-12 rounded-full bg-purple-600 flex items-center justify-center shadow-lg border-4 border-white">
+              <span className="text-white text-xl">🏆</span>
+            </div>
           </div>
         </div>
 
@@ -75,82 +102,116 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Live Event Information */}
-        <div className="mt-16">
+        {/* Live Events Information */}
+        <div className="mt-16 w-full max-w-6xl">
           {loading ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-lg p-8">
               <div className="animate-pulse">
                 <div className="h-8 bg-gray-200 rounded mb-4"></div>
                 <div className="h-4 bg-gray-200 rounded mb-2"></div>
                 <div className="h-4 bg-gray-200 rounded w-3/4"></div>
               </div>
             </div>
-          ) : contestInfo ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-4xl mx-auto">
+          ) : events.length > 0 ? (
+            <div className="space-y-6">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 bg-green-100 text-green-800 px-4 py-2 rounded-full mb-4">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="font-medium">LIVE EVENT</span>
-                </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">{contestInfo.title || 'Grand Vocal Showdown 2026'}</h2>
-                <p className="text-lg text-gray-600">{contestInfo.description || 'Annual Singing Competition'}</p>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Live Events</h2>
+                <p className="text-lg text-gray-600">Check out our current and upcoming competitions</p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">📅</span>
+              {events.map((event) => (
+                <div key={event.id} className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+                  <div className="text-center mb-6">
+                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
+                      event.status === 'ongoing' 
+                        ? 'bg-green-100 text-green-800' 
+                        : event.status === 'upcoming'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        event.status === 'ongoing' ? 'bg-green-500 animate-pulse' : 
+                        event.status === 'upcoming' ? 'bg-blue-500' : 'bg-gray-500'
+                      }`}></div>
+                      <span className="font-medium capitalize">
+                        {event.status === 'ongoing' ? 'LIVE EVENT' : 
+                         event.status === 'upcoming' ? 'UPCOMING EVENT' : 'FINISHED EVENT'}
+                      </span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">{event.eventName}</h3>
+                    <p className="text-gray-600">{event.eventDescription}</p>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Date</p>
-                  <p className="font-semibold text-gray-900">{contestInfo.date || 'March 15, 2026'}</p>
-                </div>
-                
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">⏰</span>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl">📅</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-1">Date</p>
+                      <p className="font-semibold text-gray-900">{event.date}</p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl">⏰</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-1">Time</p>
+                      <p className="font-semibold text-gray-900">{event.time}</p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl">📍</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-1">Venue</p>
+                      <p className="font-semibold text-gray-900">{event.venue}</p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-xl">🏆</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-1">Status</p>
+                      <p className="font-semibold text-gray-900 capitalize">{event.status}</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Time</p>
-                  <p className="font-semibold text-gray-900">{contestInfo.time || '6:00 PM'}</p>
-                </div>
-                
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">📍</span>
+                  
+                  <div className="border-t pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-1">Event Details</h4>
+                        <p className="text-sm text-gray-600">
+                          {event.status === 'ongoing' 
+                            ? 'Join us for this exciting live competition!' 
+                            : event.status === 'upcoming'
+                            ? 'Get ready for this upcoming competition!'
+                            : 'This competition has concluded.'
+                          }
+                        </p>
+                        {event.scoresLocked && (
+                          <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                            <span>🔒</span>
+                            Scores Locked
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => window.location.href = '/scoreboard'}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
+                      >
+                        <span>📊</span>
+                        View Scoreboard
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Venue</p>
-                  <p className="font-semibold text-gray-900">{contestInfo.venue || 'University Auditorium'}</p>
                 </div>
-                
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">🏆</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-1">Prize Pool</p>
-                  <p className="font-semibold text-gray-900">{contestInfo.prizePool || '$10,000'}</p>
-                </div>
-              </div>
-              
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Event Status</h3>
-                    <p className="text-sm text-gray-600">Join us for an exciting competition!</p>
-                  </div>
-                  <button 
-                    onClick={() => window.location.href = '/scoreboard'}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
-                  >
-                    <span>📊</span>
-                    View Live Scoreboard
-                  </button>
-                </div>
-              </div>
+              ))}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-4xl mx-auto text-center">
+            <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
               <div className="text-6xl mb-4">📅</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Live Event</h3>
-              <p className="text-gray-600">Check back later for upcoming events and live scoring.</p>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Events</h3>
+              <p className="text-gray-600">No events have been created yet. Check back later for upcoming competitions.</p>
             </div>
           )}
         </div>

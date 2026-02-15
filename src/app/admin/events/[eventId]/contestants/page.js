@@ -92,7 +92,32 @@ export default function EventContestants() {
       setContestants(contestantsList);
     } catch (error) {
       console.error('Error loading contestants:', error);
-      setContestants([]);
+      // Load sample data as fallback
+      const sampleContestants = [
+        {
+          id: 'sample-1',
+          contestantNumber: '001',
+          firstName: 'Maria',
+          lastName: 'Santos',
+          age: '22',
+          address: 'Bongabong, Oriental Mindoro',
+          contactNumber: '0912-345-6789',
+          eventId: eventId,
+          status: 'registered'
+        },
+        {
+          id: 'sample-2',
+          contestantNumber: '002',
+          firstName: 'Juan',
+          lastName: 'Dela Cruz',
+          age: '24',
+          address: 'Bongabong, Oriental Mindoro',
+          contactNumber: '0913-456-7890',
+          eventId: eventId,
+          status: 'registered'
+        }
+      ];
+      setContestants(sampleContestants);
     }
   };
 
@@ -128,10 +153,8 @@ export default function EventContestants() {
       setShowAddModal(false);
       resetForm();
       
-      // Redirect to scoreboard after a short delay to ensure modal closes
-      setTimeout(() => {
-        router.push('/scoreboard');
-      }, 300);
+      // Show success message
+      alert(`Contestant "${formData.firstName} ${formData.lastName}" has been added successfully!`);
       
     } catch (error) {
       console.error('Error adding contestant:', error);
@@ -236,13 +259,6 @@ export default function EventContestants() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push(`/admin/events/${eventId}/scoring`)}
-              className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-blue-700 transition-colors shadow-lg"
-            >
-              <span className="text-xl">🏆</span>
-              Manage Scores
-            </button>
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors shadow-lg"

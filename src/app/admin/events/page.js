@@ -13,6 +13,7 @@ export default function EventManagement() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -325,8 +326,20 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
-  const toggleDropdown = (eventId) => {
-    setActiveDropdown(activeDropdown === eventId ? null : eventId);
+  const toggleDropdown = (eventId, event) => {
+    if (activeDropdown === eventId) {
+      setActiveDropdown(null);
+    } else {
+      const rect = event.target.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      setDropdownPosition({
+        top: rect.bottom + scrollTop + 4,
+        right: window.innerWidth - rect.right - scrollLeft + 4
+      });
+      setActiveDropdown(eventId);
+    }
   };
 
   const closeDropdown = () => {
@@ -479,7 +492,7 @@ export default function EventManagement() {
                     <td className="px-6 py-4">
                       <div className="relative dropdown-menu">
                         <button
-                          onClick={() => toggleDropdown(event.id)}
+                          onClick={(e) => toggleDropdown(event.id, e)}
                           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
                           title="More actions"
                         >
@@ -490,7 +503,13 @@ export default function EventManagement() {
 
                         {/* Dropdown Menu */}
                         {activeDropdown === event.id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                          <div 
+                            className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999]"
+                            style={{
+                              top: `${dropdownPosition.top}px`,
+                              right: `${dropdownPosition.right}px`
+                            }}
+                          >
                             <button
                               onClick={() => { openEditModal(event); closeDropdown(); }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -516,15 +535,15 @@ export default function EventManagement() {
                               onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                             >
-                              <span>{event.scoresLocked ? '�' : '�'}</span>
+                              <span>{event.scoresLocked ? '🔓' : '🔒'}</span>
                               {event.scoresLocked ? 'Unlock Scores' : 'Lock Scores'}
                             </button>
                             <button
-                              onClick={() => { router.push(`/admin/events/${event.id}/scoring`); closeDropdown(); }}
+                              onClick={() => { router.push(`/admin/scoreboard?eventId=${event.id}`); closeDropdown(); }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                             >
-                              <span className="text-green-600">🏆</span>
-                              Manage Scores
+                              <span className="text-blue-600">📊</span>
+                              View Scoreboard
                             </button>
                             <hr className="my-1 border-gray-200" />
                             <button

@@ -4,6 +4,42 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, getDoc, where } from 'firebase/firestore';
 
+// Custom scrollbar styles for mobile horizontal scrolling
+const scrollbarStyles = `
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  
+  .delay-75 {
+    animation-delay: 75ms;
+  }
+  
+  .delay-150 {
+    animation-delay: 150ms;
+  }
+  
+  @media (max-width: 1024px) {
+    .scroll-indicator {
+      background: linear-gradient(to right, rgba(255,255,255,0.9), rgba(255,255,255,0.7), rgba(255,255,255,0.9));
+      backdrop-filter: blur(4px);
+    }
+  }
+`;
+
 export default function LiveScoreboard() {
   const [contestants, setContestants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +59,19 @@ export default function LiveScoreboard() {
     totalScores: 0,
     completedEvaluations: 0
   });
+
+  useEffect(() => {
+    // Inject custom scrollbar styles
+    const styleElement = document.createElement('style');
+    styleElement.textContent = scrollbarStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      if (document.head.contains(styleElement)) {
+        document.head.removeChild(styleElement);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Fetch events
@@ -377,7 +426,7 @@ export default function LiveScoreboard() {
               </div>
 
               {/* Right Section - Status and Controls */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="hidden lg:flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 {/* Connection Status */}
                 <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
                   <div className={`flex items-center gap-2 ${
@@ -529,31 +578,31 @@ export default function LiveScoreboard() {
             </div>
 
             {/* Judge Statistics */}
-            <div className="p-6 bg-gray-50 border-t border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="p-4 sm:p-6 bg-gray-50 border-t border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
                 <span className="text-2xl">🧑‍⚖️</span>
                 Judge Statistics
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center border border-blue-200">
-                  <div className="text-3xl mb-2">👥</div>
-                  <p className="text-sm text-blue-600 font-semibold mb-1">Total Judges</p>
-                  <p className="text-2xl font-bold text-blue-900">{judgeStats.totalJudges}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 sm:p-4 text-center border border-blue-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="text-2xl sm:text-3xl mb-2">👥</div>
+                  <p className="text-xs sm:text-sm text-blue-600 font-semibold mb-1">Total Judges</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-900">{judgeStats.totalJudges}</p>
                 </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 text-center border border-green-200">
-                  <div className="text-3xl mb-2">✅</div>
-                  <p className="text-sm text-green-600 font-semibold mb-1">Active Judges</p>
-                  <p className="text-2xl font-bold text-green-900">{judgeStats.activeJudges}</p>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 sm:p-4 text-center border border-green-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="text-2xl sm:text-3xl mb-2">✅</div>
+                  <p className="text-xs sm:text-sm text-green-600 font-semibold mb-1">Active Judges</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-900">{judgeStats.activeJudges}</p>
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center border border-blue-200">
-                  <div className="text-3xl mb-2">📊</div>
-                  <p className="text-sm text-blue-600 font-semibold mb-1">Total Scores</p>
-                  <p className="text-2xl font-bold text-blue-900">{judgeStats.totalScores}</p>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 sm:p-4 text-center border border-purple-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="text-2xl sm:text-3xl mb-2">📊</div>
+                  <p className="text-xs sm:text-sm text-purple-600 font-semibold mb-1">Total Scores</p>
+                  <p className="text-xl sm:text-2xl font-bold text-purple-900">{judgeStats.totalScores}</p>
                 </div>
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 text-center border border-orange-200">
-                  <div className="text-3xl mb-2">🎯</div>
-                  <p className="text-sm text-orange-600 font-semibold mb-1">Completed</p>
-                  <p className="text-2xl font-bold text-orange-900">{judgeStats.completedEvaluations}</p>
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-3 sm:p-4 text-center border border-orange-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="text-2xl sm:text-3xl mb-2">🎯</div>
+                  <p className="text-xs sm:text-sm text-orange-600 font-semibold mb-1">Completed</p>
+                  <p className="text-xl sm:text-2xl font-bold text-orange-900">{judgeStats.completedEvaluations}</p>
                 </div>
               </div>
             </div>
@@ -571,15 +620,39 @@ export default function LiveScoreboard() {
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">Contestants will appear here once they are registered for "{selectedEvent?.eventName || 'this event'}" by the administrator.</p>
             </div>
           ) : (
-            <table className="w-full">
+            <div className="relative">
+              {/* Mobile Scroll Indicator */}
+              <div className="lg:hidden absolute top-0 left-0 right-0 z-10 px-4 py-3 scroll-indicator border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-gray-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                    </svg>
+                    <span className="text-sm text-gray-700 font-medium">
+                      Swipe to see all scores
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse delay-75"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse delay-150"></div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Scrollable Table Container */}
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <table className="w-full min-w-[800px]">
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
                 <tr>
                   <th className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 lg:w-20">Rank</th>
                   <th className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20 lg:w-32">Contestant</th>
                   {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => (
-                    <th key={index} className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
-                      <div className="lg:hidden flex flex-col items-center">
-                        <span className="text-xs font-medium">{criteria.name.substring(0, 8)}</span>
+                    <th key={index} className="px-2 sm:px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-[100px]">
+                      <div className="flex flex-col items-center lg:items-start">
+                        <span className="text-xs font-medium truncate max-w-[80px] sm:max-w-none">
+                          {criteria.name.length > 12 ? criteria.name.substring(0, 10) + '...' : criteria.name}
+                        </span>
                         {criteria.weight && (
                           <span className="text-xs text-gray-400">({criteria.weight}%)</span>
                         )}
@@ -597,14 +670,14 @@ export default function LiveScoreboard() {
                   <tr key={contestant.id} className={`hover:bg-gray-50 transition-all duration-200 border-l-4 ${rankColorClass} ${
                     rank === 1 ? 'hover:shadow-lg' : ''
                   }`}>
-                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100">
+                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-16 lg:w-20">
                       <div className="flex items-center justify-center">
-                        <span className="text-2xl sm:text-3xl">{getRankIcon(rank)}</span>
+                        <span className="text-xl sm:text-2xl lg:text-3xl">{getRankIcon(rank)}</span>
                       </div>
                     </td>
-                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100">
+                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-20 lg:w-32">
                           <div className="flex items-center gap-2 sm:gap-3">
-                            <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center shadow-md flex-shrink-0 ${
+                            <div className={`h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 rounded-full flex items-center justify-center shadow-md flex-shrink-0 ${
                               rank === 1 ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' :
                               rank === 2 ? 'bg-gradient-to-br from-gray-500 to-gray-600 text-white' :
                               rank === 3 ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white' :
@@ -612,14 +685,14 @@ export default function LiveScoreboard() {
                               rank === 5 ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
                               'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-700'
                             }`}>
-                              <span className="font-bold text-sm sm:text-base">
+                              <span className="font-bold text-xs sm:text-sm lg:text-base">
                                 {contestant.name ? contestant.name.charAt(0).toUpperCase() : 'C'}
                               </span>
                             </div>
                             <div className="min-w-0 flex-1">
                               <button 
                                 onClick={() => handleContestantClick(contestant)}
-                                className={`font-bold text-sm sm:text-base transition-colors text-left truncate block hover:underline ${
+                                className={`font-bold text-xs sm:text-sm lg:text-base transition-colors text-left truncate block hover:underline ${
                                   rank === 1 ? 'text-red-700 hover:text-red-800' :
                                   rank === 2 ? 'text-gray-700 hover:text-gray-800' :
                                   rank === 3 ? 'text-orange-700 hover:text-orange-800' :
@@ -630,10 +703,10 @@ export default function LiveScoreboard() {
                               >
                                 {contestant.name || 'Contestant ' + rank}
                               </button>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs sm:text-sm font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">#{contestant.number || rank}</span>
+                              <div className="flex items-center gap-1 sm:gap-2 mt-1">
+                                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">#{contestant.number || rank}</span>
                                 {contestant.judgeCount > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                                  <span className="inline-flex items-center px-1 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
                                     👤 {contestant.judgeCount}
                                   </span>
                                 )}
@@ -652,17 +725,17 @@ export default function LiveScoreboard() {
                       ];
                       const colorClass = colors[criteriaIndex % colors.length];
                       return (
-                        <td key={criteriaIndex} className="px-4 py-4 whitespace-nowrap text-center border-r border-gray-100">
-                          <div className={`inline-flex items-center justify-center px-3 py-2 text-sm font-bold border ${colorClass} rounded-lg shadow-sm`}>
+                        <td key={criteriaIndex} className="px-2 sm:px-4 py-3 whitespace-nowrap text-center border-r border-gray-100 min-w-[100px]">
+                          <div className={`inline-flex items-center justify-center px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm font-bold border ${colorClass} rounded-lg shadow-sm min-w-[60px]`}>
                             {score === 0 ? '—' : `${score.toFixed(1)}`}
                           </div>
                         </td>
                       );
                     })}
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-2 sm:px-4 py-3 whitespace-nowrap min-w-[100px]">
                       <div className="flex flex-col items-center">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-2xl sm:text-3xl font-bold ${
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <span className={`text-lg sm:text-2xl lg:text-3xl font-bold ${
                             rank === 1 ? 'text-red-600' :
                             rank === 2 ? 'text-gray-600' :
                             rank === 3 ? 'text-orange-600' :
@@ -673,12 +746,12 @@ export default function LiveScoreboard() {
                             {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
                           </span>
                           {contestant.totalScore > 0 && (
-                            <span className="text-sm text-gray-500 font-medium">/100</span>
+                            <span className="text-xs sm:text-sm text-gray-500 font-medium">/100</span>
                           )}
                         </div>
                         {rank === 1 && contestant.totalScore > 0 && (
                           <div className="mt-1">
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full">
+                            <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full">
                               🏆 Leading
                             </span>
                           </div>
@@ -690,6 +763,8 @@ export default function LiveScoreboard() {
                 })}
               </tbody>
             </table>
+              </div>
+            </div>
           )}
         </div>
       </div>

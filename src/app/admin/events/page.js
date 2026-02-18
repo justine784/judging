@@ -14,6 +14,7 @@ export default function EventManagement() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -377,9 +378,106 @@ export default function EventManagement() {
   };
 
   return (
-    <div className="p-6">
-        {/* Page Header */}
-        <div className="flex justify-between items-center mb-8">
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:hidden ${
+        mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <div className="flex flex-col h-full">
+          {/* Sidebar Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">Event Management</h2>
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="text-white hover:text-purple-200 transition-colors p-1"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-purple-100 text-sm">Create and manage competition events</p>
+          </div>
+          
+          {/* Sidebar Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <button
+              onClick={() => { setShowAddModal(true); setMobileSidebarOpen(false); }}
+              disabled={loading}
+              className="w-full flex items-center gap-3 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mb-6 touch-manipulation active:scale-95"
+            >
+              <span className="text-xl">➕</span>
+              <span className="font-medium">{loading ? 'Loading...' : 'Add Event'}</span>
+            </button>
+            
+            {/* Quick Stats */}
+            <div className="space-y-3">
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-lg">📋</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-purple-900">Total Events</p>
+                    <p className="text-2xl font-bold text-purple-600">{events.length}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-green-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-lg">🎭</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-green-900">Ongoing Events</p>
+                    <p className="text-2xl font-bold text-green-600">{events.filter(e => e.status === 'ongoing').length}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-lg">🔒</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Locked Events</p>
+                    <p className="text-2xl font-bold text-blue-600">{events.filter(e => e.scoresLocked).length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-gray-200">
+            <button
+              onClick={() => { router.push('/admin/dashboard'); setMobileSidebarOpen(false); }}
+              className="w-full flex items-center gap-3 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors touch-manipulation active:scale-95"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="font-medium">Back to Dashboard</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Main Content */}
+      <div className="lg:pl-0">
+        {/* Desktop Header */}
+        <div className="hidden lg:flex justify-between items-center p-6 bg-white shadow-sm border-b border-gray-200">
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Event Management</h2>
             <p className="text-gray-600">Create and manage competition events</p>
@@ -391,6 +489,28 @@ export default function EventManagement() {
           >
             <span className="text-xl">➕</span>
             {loading ? 'Loading...' : 'Add Event'}
+          </button>
+        </div>
+        
+        {/* Mobile Header */}
+        <div className="lg:hidden flex items-center justify-between p-4 bg-white shadow-sm border-b border-gray-200">
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation active:scale-95"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h1 className="text-lg font-semibold text-gray-900">Events</h1>
+          <button
+            onClick={() => setShowAddModal(true)}
+            disabled={loading}
+            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation active:scale-95"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
           </button>
         </div>
 
@@ -421,12 +541,141 @@ export default function EventManagement() {
         )}
 
         {/* Events Table */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-          <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4">
-            <h3 className="text-lg font-semibold text-white">Events List</h3>
-            <p className="text-purple-100 text-sm">Manage and track all competition events</p>
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 mx-4 lg:mx-6 mb-6">
+          <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 lg:px-6 py-3 lg:py-4">
+            <h3 className="text-base lg:text-lg font-semibold text-white">Events List</h3>
+            <p className="text-purple-100 text-xs lg:text-sm">Manage and track all competition events</p>
           </div>
-          <div className="overflow-x-auto">
+          
+          {/* Mobile Card View */}
+          <div className="lg:hidden">
+            {events.map((event) => (
+              <div key={event.id} className="border-b border-gray-100 last:border-b-0 p-4 hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200">
+                {/* Event Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-12 w-12 rounded-lg flex items-center justify-center text-lg ${getStatusColor(event.status)}`}>
+                      {getStatusIcon(event.status)}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm">{event.eventName}</h4>
+                      <p className="text-xs text-gray-500">ID: #{event.id.toString().padStart(4, '0')}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => toggleDropdown(event.id, e)}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
+                    title="More actions"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Event Description */}
+                <div className="mb-3">
+                  <p className="text-xs text-gray-600 line-clamp-2">{event.eventDescription}</p>
+                </div>
+                
+                {/* Event Details Grid */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                      <span className="text-blue-600">📅</span>
+                      <span>Date</span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-900">{event.date}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                      <span className="text-blue-600">🕐</span>
+                      <span>Time</span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-900">{event.time}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                      <span className="text-orange-600">📍</span>
+                      <span>Venue</span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-900 truncate">{event.venue}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                      <span className="text-green-600">📊</span>
+                      <span>Status</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full ${getStatusColor(event.status)} shadow-sm`}>
+                        <span>{getStatusIcon(event.status)}</span>
+                        {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                      </span>
+                      {event.scoresLocked && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                          <span>🔒</span>
+                          Locked
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Mobile Dropdown Menu */}
+                {activeDropdown === event.id && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => { openEditModal(event); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span className="text-blue-600">✏️</span>
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => { openCriteriaModal(event); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span className="text-blue-600">📋</span>
+                        Criteria
+                      </button>
+                      <button
+                        onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span className="text-green-600">👥</span>
+                        Contestants
+                      </button>
+                      <button
+                        onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span>{event.scoresLocked ? '🔓' : '🔒'}</span>
+                        {event.scoresLocked ? 'Unlock' : 'Lock'}
+                      </button>
+                      <button
+                        onClick={() => { router.push(`/admin/scoreboard?eventId=${event.id}`); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span className="text-blue-600">📊</span>
+                        Scoreboard
+                      </button>
+                      <button
+                        onClick={() => { handleDeleteEvent(event.id); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span>🗑️</span>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -566,13 +815,13 @@ export default function EventManagement() {
 
         {/* Empty State */}
         {events.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No events yet</h3>
-            <p className="text-gray-500 mb-4">Create your first event to get started</p>
+          <div className="text-center py-8 lg:py-12 mx-4 lg:mx-6">
+            <div className="text-4xl lg:text-6xl mb-3 lg:mb-4">📋</div>
+            <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-1 lg:mb-2">No events yet</h3>
+            <p className="text-xs lg:text-sm text-gray-500 mb-3 lg:mb-4 px-4">Create your first event to get started</p>
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-blue-600 text-white px-4 lg:px-6 py-2 lg:py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm lg:text-base"
             >
               Add Event
             </button>
@@ -977,6 +1226,7 @@ export default function EventManagement() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

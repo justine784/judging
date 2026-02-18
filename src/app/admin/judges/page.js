@@ -62,8 +62,6 @@ export default function JudgeManagement() {
 
     confirmPassword: '',
 
-    assignedCategory: '',
-
     status: 'active'
 
   });
@@ -582,8 +580,6 @@ export default function JudgeManagement() {
 
         email: formData.email,
 
-        assignedCategory: formData.assignedCategory,
-
         status: formData.status
 
       });
@@ -934,8 +930,6 @@ export default function JudgeManagement() {
 
       email: judge.email,
 
-      assignedCategory: judge.assignedCategory || '',
-
       status: judge.status
 
     });
@@ -1110,8 +1104,6 @@ export default function JudgeManagement() {
 
       confirmPassword: '',
 
-      assignedCategory: '',
-
       status: 'active'
 
     });
@@ -1215,35 +1207,21 @@ export default function JudgeManagement() {
 
 
   return (
-
-    <div className="p-6">
-
+    <div className="p-3 xs:p-4 sm:p-5 lg:p-6 min-h-screen bg-gray-50">
       {/* Page Header */}
-
-      <div className="flex justify-between items-center mb-8">
-
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6 lg:mb-8">
         <div>
-
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Judge Management</h1>
-
-          <p className="text-gray-600">Manage judge accounts and assignments</p>
-
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">Judge Management</h1>
+          <p className="text-xs sm:text-sm lg:text-base text-gray-600">Manage judge accounts and assignments</p>
         </div>
-
         <button
-
           onClick={() => setShowAddModal(true)}
-
-          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
-
+          className="px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 bg-blue-600 text-white rounded-lg sm:rounded-xl hover:bg-blue-700 transition-colors shadow-lg flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base font-medium touch-manipulation active:scale-95"
         >
-
-          <span className="text-xl">➕</span>
-
-          Add Judge
-
+          <span className="text-lg sm:text-xl lg:text-xl">➕</span>
+          <span className="hidden xs:inline">Add Judge</span>
+          <span className="xs:hidden">+ Judge</span>
         </button>
-
       </div>
 
 
@@ -1364,7 +1342,7 @@ export default function JudgeManagement() {
 
                     <button
 
-                      onClick={(e) => openDropdown(e, judge.id)}
+                      onClick={(e) => toggleDropdown(judge.id, e)}
 
                       className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
 
@@ -1793,38 +1771,6 @@ export default function JudgeManagement() {
                   required
 
                 />
-
-              </div>
-
-              <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Category</label>
-
-                <select
-
-                  name="assignedCategory"
-
-                  value={formData.assignedCategory}
-
-                  onChange={handleInputChange}
-
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-
-                  required
-
-                >
-
-                  <option value="Vocal Quality">Vocal Quality</option>
-
-                  <option value="Stage Presence">Stage Presence</option>
-
-                  <option value="Song Interpretation">Song Interpretation</option>
-
-                  <option value="Audience Impact">Audience Impact</option>
-
-                  <option value="Overall Performance">Overall Performance</option>
-
-                </select>
 
               </div>
 
@@ -2394,9 +2340,32 @@ export default function JudgeManagement() {
 
       )}
 
+      {/* Mobile Floating Action Button */}
+
+      <div className="lg:hidden fixed bottom-6 right-6 z-40">
+
+        <button
+
+          onClick={() => setShowAddModal(true)}
+
+          className="w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
+
+          aria-label="Add Judge"
+
+        >
+
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+
+          </svg>
+
+        </button>
+
+      </div>
+
     </div>
 
   );
 
 }
-

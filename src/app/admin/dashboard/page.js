@@ -535,43 +535,45 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-3 xs:p-4 sm:p-5 lg:p-6 min-h-screen bg-gray-50">
       {/* Page Header */}
-      <div className="mb-6 sm:mb-8">
-        <div className="flex flex-col gap-4">
+      <div className="mb-4 sm:mb-6 lg:mb-8">
+        <div className="flex flex-col gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-1 sm:mb-2 bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
               Admin Dashboard
             </h1>
-            <p className="text-sm sm:text-base lg:text-lg text-gray-600">Welcome back! Here's what's happening with your judging system today.</p>
+            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600">Welcome back! Here's what's happening with your judging system today.</p>
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <button 
               onClick={() => router.push('/admin/events')}
-              className="px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-sm sm:text-base"
+              className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-medium touch-manipulation active:scale-95"
             >
-              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
               </svg>
-              New Event
+              <span className="hidden xs:inline">New Event</span>
+              <span className="xs:hidden">+ Event</span>
             </button>
             <div className="relative export-dropdown">
               <button 
                 onClick={() => setShowExportDropdown(!showExportDropdown)}
-                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm sm:text-base"
+                className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-white text-gray-700 border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base font-medium"
               >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
-                Export
-                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="hidden xs:inline">Export</span>
+                <span className="xs:hidden">⬇</span>
+                <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </button>
               
               {showExportDropdown && (
-                <div className="absolute right-0 mt-2 w-64 sm:w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                  <div className="px-4 py-2 border-b border-gray-100">
+                <div className="absolute right-0 mt-2 w-56 sm:w-64 md:w-72 lg:w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 xs:z-[60] sm:z-50">
+                  <div className="px-3 sm:px-4 py-2 border-b border-gray-100">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Select Event</label>
                     <select
                       value={selectedEventForPrint?.id || ''}
@@ -579,21 +581,22 @@ export default function AdminDashboard() {
                         const event = events.find(ev => ev.id === e.target.value);
                         setSelectedEventForPrint(event);
                       }}
-                      className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-600"
+                      className="w-full text-xs sm:text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-600 touch-manipulation"
                     >
                       {events.map((event) => (
                         <option key={event.id} value={event.id}>
-                          {event.status === 'ongoing' ? '🎭' : event.status === 'upcoming' ? '📅' : '✅'} {event.eventName}
+                          {event.status === 'ongoing' ? '🎭' : event.status === 'upcoming' ? '📅' : '✅'} {event.eventName.length > 25 ? `${event.eventName.substring(0, 25)}...` : event.eventName}
                         </option>
                       ))}
                     </select>
                   </div>
                   <button
                     onClick={() => { handlePrint(); setShowExportDropdown(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 touch-manipulation active:bg-gray-200 transition-colors"
                   >
                     <span>🖨️</span>
-                    Print Event Scoreboard
+                    <span className="hidden xs:inline">Print Event Scoreboard</span>
+                    <span className="xs:hidden">Print</span>
                   </button>
                 </div>
               )}
@@ -602,9 +605,9 @@ export default function AdminDashboard() {
         </div>
         
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-gray-500 mt-6">
+        <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 mt-3 sm:mt-4 lg:mt-6">
           <span className="hover:text-gray-700 cursor-pointer transition-colors">Home</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
           </svg>
           <span className="text-blue-600 font-medium">Dashboard</span>
@@ -612,36 +615,36 @@ export default function AdminDashboard() {
       </div>
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 xs:gap-4 sm:gap-6 mb-4 sm:mb-6 lg:mb-8">
         {/* Contestants Card */}
         <div 
           onClick={() => router.push('/admin/events')}
-          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <div className="h-10 w-10 sm:h-14 sm:w-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <span className="text-xl sm:text-2xl lg:text-3xl">👥</span>
+          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+              <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">👥</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-6 w-10 sm:h-8 sm:w-12 bg-gray-200 rounded-lg"></div>
+                  <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalContestants}</span>
+                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalContestants}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Contestants</h3>
-          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Total registered</p>
+          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Contestants</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Total registered</p>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs sm:text-sm text-green-600 font-medium">
+            <div className="flex items-center gap-1.5 xs:gap-2">
+              <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs xs:text-sm sm:text-base text-green-600 font-medium">
                 {loading ? 'Loading...' : `${stats.totalContestants} total`}
               </span>
             </div>
-            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-purple-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -650,32 +653,32 @@ export default function AdminDashboard() {
         {/* Judges Card */}
         <div 
           onClick={() => router.push('/admin/judges')}
-          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <div className="h-10 w-10 sm:h-14 sm:w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <span className="text-xl sm:text-2xl lg:text-3xl">🧑‍⚖️</span>
+          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+              <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">🧑‍⚖️</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-6 w-10 sm:h-8 sm:w-12 bg-gray-200 rounded-lg"></div>
+                  <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalJudges}</span>
+                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalJudges}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Judges</h3>
-          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Active judges</p>
+          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Judges</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Active judges</p>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs sm:text-sm text-blue-600 font-medium">
+            <div className="flex items-center gap-1.5 xs:gap-2">
+              <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-xs xs:text-sm sm:text-base text-blue-600 font-medium">
                 {loading ? 'Loading...' : `${stats.totalJudges} active`}
               </span>
             </div>
-            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -684,32 +687,32 @@ export default function AdminDashboard() {
         {/* Events Card */}
         <div 
           onClick={() => router.push('/admin/events')}
-          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <div className="h-10 w-10 sm:h-14 sm:w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <span className="text-xl sm:text-2xl lg:text-3xl">🎯</span>
+          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+              <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">🎯</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-6 w-10 sm:h-8 sm:w-12 bg-gray-200 rounded-lg"></div>
+                  <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalEvents}</span>
+                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalEvents}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Events</h3>
-          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Total events</p>
+          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Events</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Total events</p>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs sm:text-sm text-green-600 font-medium">
+            <div className="flex items-center gap-1.5 xs:gap-2">
+              <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs xs:text-sm sm:text-base text-green-600 font-medium">
                 {loading ? 'Loading...' : `${stats.ongoingEvents} ongoing`}
               </span>
             </div>
-            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-green-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-green-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -718,36 +721,36 @@ export default function AdminDashboard() {
         {/* Progress Card */}
         <div 
           onClick={() => router.push('/scoreboard')}
-          className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 cursor-pointer group border border-gray-100"
+          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <div className={`h-10 w-10 sm:h-14 sm:w-14 ${getProgressBg(stats.scoringProgress)} rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg`}>
-              <span className="text-xl sm:text-2xl lg:text-3xl">📊</span>
+          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className={`h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 ${getProgressBg(stats.scoringProgress)} rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg`}>
+              <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">📊</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-6 w-12 sm:h-8 sm:w-16 bg-gray-200 rounded-lg"></div>
+                  <div className="h-4 w-10 xs:h-5 xs:w-12 sm:h-6 sm:w-14 lg:h-8 lg:w-20 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className={`text-xl sm:text-2xl lg:text-3xl font-bold ${getProgressColor(stats.scoringProgress)}`}>
+                <span className={`text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold ${getProgressColor(stats.scoringProgress)}`}>
                   {stats.scoringProgress}%
                 </span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">Progress</h3>
-          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Scoring completed</p>
+          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Progress</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Scoring completed</p>
           <div className="flex items-center justify-between">
-            <div className="flex-1 mr-2 sm:mr-3">
+            <div className="flex-1 mr-1.5 xs:mr-2 sm:mr-3">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-1.5 sm:h-2 bg-gray-200 rounded-full"></div>
+                  <div className="h-1 xs:h-1.5 sm:h-2 bg-gray-200 rounded-full"></div>
                 </div>
               ) : (
-                <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
+                <div className="w-full bg-gray-200 rounded-full h-1 xs:h-1.5 sm:h-2">
                   <div 
-                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-700 ease-out ${
+                    className={`h-1 xs:h-1.5 sm:h-2 rounded-full transition-all duration-700 ease-out ${
                       stats.scoringProgress >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' : 
                       stats.scoringProgress >= 50 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : 'bg-gradient-to-r from-red-400 to-red-600'
                     }`}
@@ -756,7 +759,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-orange-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -764,39 +767,39 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 sm:px-6 py-3 sm:py-4">
-          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-            <span className="text-xl sm:text-2xl">📈</span>
+      <div className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl border border-gray-100 overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+          <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white flex items-center gap-1.5 xs:gap-2">
+            <span className="text-lg xs:text-xl sm:text-2xl">📈</span>
             Recent Activity
           </h2>
-          <p className="text-purple-100 text-xs sm:text-sm mt-1">Latest updates from your judging system</p>
+          <p className="text-purple-100 text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
         </div>
-        <div className="p-4 sm:p-6">
+        <div className="p-3 xs:p-4 sm:p-6">
           {recentActivities.length === 0 ? (
-            <div className="text-center py-6 sm:py-8">
-              <div className="text-3xl sm:text-4xl mb-4">📋</div>
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No recent activity</h3>
-              <p className="text-xs sm:text-sm text-gray-500">Activities will appear here as contestants, judges, and events are added to the system.</p>
+            <div className="text-center py-4 xs:py-6 sm:py-8">
+              <div className="text-2xl xs:text-3xl sm:text-4xl mb-3 xs:mb-4">📋</div>
+              <h3 className="text-sm xs:text-base sm:text-lg font-medium text-gray-900 mb-1 xs:mb-2">No recent activity</h3>
+              <p className="text-xs xs:text-sm sm:text-sm text-gray-500 px-2 xs:px-4">Activities will appear here as contestants, judges, and events are added to the system.</p>
             </div>
           ) : (
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-2 xs:space-y-3 sm:space-y-4">
               {recentActivities.map((activity, index) => (
                 <div 
                   key={index}
-                  className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-xl border transition-colors cursor-pointer ${getActivityColor(activity.color)}`}
+                  className={`flex flex-col xs:flex-row sm:flex-row xs:items-center sm:items-center xs:justify-between sm:justify-between p-2.5 xs:p-3 sm:p-4 rounded-lg xs:rounded-xl border transition-colors cursor-pointer ${getActivityColor(activity.color)}`}
                 >
-                  <div className="flex items-center gap-3 mb-2 sm:mb-0">
-                    <div className={`h-8 w-8 sm:h-10 sm:w-10 ${getActivityIconColor(activity.color)} rounded-full flex items-center justify-center`}>
-                      <span className="text-white text-sm sm:text-base">{activity.icon}</span>
+                  <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-0">
+                    <div className={`h-6 w-6 xs:h-8 xs:w-8 sm:h-10 sm:w-10 ${getActivityIconColor(activity.color)} rounded-full flex items-center justify-center flex-shrink-0`}>
+                      <span className="text-white text-xs xs:text-sm sm:text-base">{activity.icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{activity.title}</p>
-                      <p className="text-xs sm:text-sm text-gray-500 truncate">{activity.description}</p>
+                      <p className="font-semibold text-gray-900 text-xs xs:text-sm sm:text-base truncate pr-2">{activity.title}</p>
+                      <p className="text-xs xs:text-sm sm:text-sm text-gray-500 truncate pr-2">{activity.description}</p>
                     </div>
                   </div>
                   <div className="flex-shrink-0">
-                    <span className={`inline-flex items-center px-2 sm:px-3 py-1 text-xs font-medium rounded-full ${getActivityBadgeColor(activity.color)}`}>
+                    <span className={`inline-flex items-center px-1.5 xs:px-2 sm:px-3 py-0.5 xs:py-1 text-xs font-medium rounded-full ${getActivityBadgeColor(activity.color)}`}>
                       {formatTimeAgo(activity.timestamp)}
                     </span>
                   </div>
@@ -805,6 +808,19 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+      </div>
+      
+      {/* Mobile Floating Action Button */}
+      <div className="lg:hidden fixed bottom-6 right-6 z-40">
+        <button
+          onClick={() => router.push('/admin/events')}
+          className="w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
+          aria-label="Add Event"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+        </button>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, where, getDocs } from 'firebase/firestore';
 
 // Custom scrollbar styles for mobile horizontal scrolling
 const scrollbarStyles = `
@@ -38,6 +38,35 @@ const scrollbarStyles = `
       backdrop-filter: blur(4px);
     }
   }
+
+  /* Modal animations */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.4s ease-out;
+  }
 `;
 
 export default function LiveScoreboard() {
@@ -59,6 +88,7 @@ export default function LiveScoreboard() {
     totalScores: 0,
     completedEvaluations: 0
   });
+  const [updatedContestants, setUpdatedContestants] = useState(new Set()); // Track recently updated contestants
 
   useEffect(() => {
     // Inject custom scrollbar styles
@@ -113,6 +143,59 @@ export default function LiveScoreboard() {
         ...doc.data()
       }));
       setScores(scoresData);
+      
+      // Trigger contestant recalculation when scores change
+      if (selectedEvent && snapshot.docChanges().length > 0) {
+        const changes = snapshot.docChanges();
+        const relevantChanges = changes.filter(change => 
+          change.doc.data().eventId === selectedEvent.id
+        );
+        
+        if (relevantChanges.length > 0) {
+          console.log(`Live score update: ${relevantChanges.length} score(s) updated for event ${selectedEvent.id}`);
+          
+          // Track which contestants were updated
+          const updatedIds = new Set();
+          relevantChanges.forEach(change => {
+            const contestantId = change.doc.data().contestantId;
+            if (contestantId) {
+              updatedIds.add(contestantId);
+            }
+          });
+          
+          // Update the tracking set
+          setUpdatedContestants(prev => new Set([...prev, ...updatedIds]));
+          
+          // Clear the updated indicators after 3 seconds
+          setTimeout(() => {
+            setUpdatedContestants(prev => {
+              const newSet = new Set(prev);
+              updatedIds.forEach(id => newSet.delete(id));
+              return newSet;
+            });
+          }, 3000);
+          
+          // Show more detailed update notification
+          const updateIndicator = document.createElement('div');
+          updateIndicator.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg text-sm z-50 animate-pulse shadow-lg flex items-center gap-2';
+          updateIndicator.innerHTML = `
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>🔄 New Score Added</span>
+          `;
+          document.body.appendChild(updateIndicator);
+          
+          setTimeout(() => {
+            if (document.body.contains(updateIndicator)) {
+              document.body.removeChild(updateIndicator);
+            }
+          }, 3000);
+          
+          // Force recalculation of contestant scores
+          updateContestantScores();
+        }
+      }
     });
 
     return () => {
@@ -220,6 +303,58 @@ export default function LiveScoreboard() {
     };
   };
 
+  // Function to update contestant scores when scores change
+  const updateContestantScores = async () => {
+    if (!selectedEvent) return;
+    
+    try {
+      const contestantsQuery = query(
+        collection(db, 'contestants'),
+        where('eventId', '==', selectedEvent.id)
+      );
+      
+      const snapshot = await getDocs(contestantsQuery);
+      const contestantsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const contestantId = doc.id;
+        
+        // Calculate aggregated scores from all judges
+        const aggregatedScore = calculateAggregatedScore(contestantId, selectedEvent.id);
+        
+        return {
+          id: contestantId,
+          ...data,
+          name: data.contestantName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Contestant',
+          number: data.contestantNumber || data.contestantNo || '',
+          totalScore: aggregatedScore.totalScore,
+          judgeCount: aggregatedScore.judgeCount,
+          criteriaScores: aggregatedScore.criteriaScores,
+          photo: data.photo || data.imageUrl || null
+        };
+      });
+      
+      // Sort client-side by aggregated totalScore in descending order
+      contestantsData.sort((a, b) => b.totalScore - a.totalScore);
+      
+      setContestants(contestantsData);
+      setLastUpdate(new Date());
+      
+      // Calculate and update judge statistics
+      const stats = calculateJudgeStats(scores, selectedEvent.id);
+      setJudgeStats(stats);
+      
+      // Set highest scorer
+      if (contestantsData.length > 0 && contestantsData[0].totalScore > 0) {
+        setHighestScorer(contestantsData[0]);
+      } else {
+        setHighestScorer(null);
+      }
+      
+    } catch (error) {
+      console.error('Error updating contestant scores:', error);
+    }
+  };
+
   useEffect(() => {
     // Fetch contestants filtered by selected event
     if (!selectedEvent) return;
@@ -280,8 +415,8 @@ export default function LiveScoreboard() {
           
           // Flash a subtle update indicator
           const updateIndicator = document.createElement('div');
-          updateIndicator.className = 'fixed top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-lg text-sm z-50 animate-pulse';
-          updateIndicator.textContent = '🔄 Live Update';
+          updateIndicator.className = 'fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-lg text-sm z-50 animate-pulse';
+          updateIndicator.textContent = '� Contestant Updated';
           document.body.appendChild(updateIndicator);
           
           setTimeout(() => {
@@ -313,7 +448,7 @@ export default function LiveScoreboard() {
     return () => {
       unsubscribeContestants();
     };
-  }, [selectedEvent]);
+  }, [selectedEvent, scores]); // Add scores as dependency to recalculate when scores change
 
   const getRankIcon = (rank) => {
     switch (rank) {
@@ -379,6 +514,23 @@ export default function LiveScoreboard() {
     // Use the aggregated criteria scores calculated from all judges
     const key = criteriaName.toLowerCase().replace(/\s+/g, '_');
     return contestant.criteriaScores?.[key] || 0;
+  };
+
+  // Function to get individual judge scores for a contestant
+  const getIndividualJudgeScores = (contestantId, eventId) => {
+    const contestantScores = scores.filter(score => 
+      score.contestantId === contestantId && score.eventId === eventId
+    );
+    
+    // Group by judge and get latest scores
+    const judgeScores = {};
+    contestantScores.forEach(score => {
+      if (!judgeScores[score.judgeId] || new Date(score.timestamp) > new Date(judgeScores[score.judgeId].timestamp)) {
+        judgeScores[score.judgeId] = score;
+      }
+    });
+    
+    return Object.values(judgeScores);
   };
 
   if (loading) {
@@ -666,10 +818,11 @@ export default function LiveScoreboard() {
                 {contestants.map((contestant, index) => {
                   const rank = index + 1;
                   const rankColorClass = getRankColor(rank);
+                  const isRecentlyUpdated = updatedContestants.has(contestant.id);
                   return (
                   <tr key={contestant.id} className={`hover:bg-gray-50 transition-all duration-200 border-l-4 ${rankColorClass} ${
                     rank === 1 ? 'hover:shadow-lg' : ''
-                  }`}>
+                  } ${isRecentlyUpdated ? 'bg-green-50 animate-pulse' : ''}`}>
                     <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-16 lg:w-20">
                       <div className="flex items-center justify-center">
                         <span className="text-xl sm:text-2xl lg:text-3xl">{getRankIcon(rank)}</span>
@@ -690,19 +843,29 @@ export default function LiveScoreboard() {
                               </span>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <button 
-                                onClick={() => handleContestantClick(contestant)}
-                                className={`font-bold text-xs sm:text-sm lg:text-base transition-colors text-left truncate block hover:underline ${
-                                  rank === 1 ? 'text-red-700 hover:text-red-800' :
-                                  rank === 2 ? 'text-gray-700 hover:text-gray-800' :
-                                  rank === 3 ? 'text-orange-700 hover:text-orange-800' :
-                                  rank === 4 ? 'text-blue-700 hover:text-blue-800' :
-                                  rank === 5 ? 'text-blue-800 hover:text-blue-900' :
-                                  'text-gray-700 hover:text-gray-800'
-                                }`}
-                              >
-                                {contestant.name || 'Contestant ' + rank}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button 
+                                  onClick={() => handleContestantClick(contestant)}
+                                  className={`font-bold text-xs sm:text-sm lg:text-base transition-colors text-left truncate block hover:underline ${
+                                    rank === 1 ? 'text-red-700 hover:text-red-800' :
+                                    rank === 2 ? 'text-gray-700 hover:text-gray-800' :
+                                    rank === 3 ? 'text-orange-700 hover:text-orange-800' :
+                                    rank === 4 ? 'text-blue-700 hover:text-blue-800' :
+                                    rank === 5 ? 'text-blue-800 hover:text-blue-900' :
+                                    'text-gray-700 hover:text-gray-800'
+                                  }`}
+                                >
+                                  {contestant.name || 'Contestant ' + rank}
+                                </button>
+                                {isRecentlyUpdated && (
+                                  <div className="flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full animate-pulse">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    LIVE
+                                  </div>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1 sm:gap-2 mt-1">
                                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">#{contestant.number || rank}</span>
                                 {contestant.judgeCount > 0 && (
@@ -771,18 +934,18 @@ export default function LiveScoreboard() {
 
       {/* Contestant Detail Modal */}
       {showModal && selectedContestant && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-slide-up">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-5 rounded-t-xl sm:rounded-t-2xl">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-5 rounded-t-xl sm:rounded-t-2xl shadow-lg">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="animate-fade-in">
                   <h3 className="text-lg sm:text-xl font-bold text-white">Contestant Details</h3>
                   <p className="text-blue-100 text-xs sm:text-sm mt-1">View detailed scores and information</p>
                 </div>
                 <button
                   onClick={closeModal}
-                  className="text-white hover:text-blue-200 transition-colors p-1"
+                  className="text-white hover:text-blue-200 transition-all duration-200 p-1 hover:bg-white/20 rounded-lg transform hover:scale-110"
                 >
                   <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -836,8 +999,11 @@ export default function LiveScoreboard() {
 
               {/* Criteria Scores */}
               <div className="bg-gray-50 rounded-xl p-6 mb-6">
-                <h5 className="text-lg font-semibold text-gray-900 mb-4">Criteria Breakdown</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h5 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <span className="text-2xl">📊</span>
+                  Criteria Breakdown
+                </h5>
+                <div className="space-y-4">
                   {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => {
                     const score = getContestantCriteriaScore(selectedContestant, criteria.name);
                     const criteriaIcons = {
@@ -853,27 +1019,144 @@ export default function LiveScoreboard() {
                       'Production Number': '🎭'
                     };
                     
+                    const getProgressColor = (score) => {
+                      if (score === 0) return 'bg-gray-200';
+                      if (score >= 90) return 'bg-gradient-to-r from-green-400 to-green-600';
+                      if (score >= 80) return 'bg-gradient-to-r from-blue-400 to-blue-600';
+                      if (score >= 70) return 'bg-gradient-to-r from-yellow-400 to-yellow-600';
+                      return 'bg-gradient-to-r from-gray-400 to-gray-600';
+                    };
+
+                    const getScoreTextColor = (score) => {
+                      if (score === 0) return 'text-gray-400';
+                      if (score >= 90) return 'text-green-600';
+                      if (score >= 80) return 'text-blue-600';
+                      if (score >= 70) return 'text-yellow-600';
+                      return 'text-gray-600';
+                    };
+                    
                     return (
-                      <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600">{criteriaIcons[criteria.name] || '📋'}</span>
+                      <div key={index} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center shadow-sm">
+                              <span className="text-blue-600 text-lg">{criteriaIcons[criteria.name] || '📋'}</span>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-800 text-base">{criteria.name}</span>
+                              {criteria.weight && (
+                                <span className="block text-xs text-gray-500 font-medium">Weight: {criteria.weight}%</span>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-medium text-gray-700">{criteria.name}</span>
-                            {criteria.weight && (
-                              <span className="block text-xs text-gray-500">Weight: {criteria.weight}%</span>
-                            )}
+                          <div className="text-right">
+                            <div className={`text-2xl font-bold ${getScoreTextColor(score)}`}>
+                              {score === 0 ? '—' : `${score}%`}
+                            </div>
+                            <div className="text-xs text-gray-500 font-medium">
+                              {score === 0 ? 'Not Scored' : 'Score'}
+                            </div>
                           </div>
                         </div>
-                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreColor(score)}`}>
-                          {score === 0 ? 'Not Scored' : `${score}%`}
+                        
+                        {/* Progress Bar */}
+                        <div className="relative">
+                          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ease-out ${getProgressColor(score)}`}
+                              style={{ width: `${score}%` }}
+                            >
+                              <div className="h-full bg-white bg-opacity-30 animate-pulse"></div>
+                            </div>
+                          </div>
+                          {/* Score markers */}
+                          <div className="flex justify-between mt-1">
+                            <span className="text-xs text-gray-400">0</span>
+                            <span className="text-xs text-gray-400">50</span>
+                            <span className="text-xs text-gray-400">100</span>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
+
+              
+              {/* Individual Judge Scores */}
+              {(() => {
+                const judgeScores = getIndividualJudgeScores(selectedContestant.id, selectedEvent?.id);
+                if (judgeScores.length === 0) return null;
+                
+                return (
+                  <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 mb-6">
+                    <h5 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                      <span className="text-2xl">🧑‍⚖️</span>
+                      Individual Judge Scores
+                    </h5>
+                    <div className="space-y-4">
+                      {judgeScores.map((judgeScore, judgeIndex) => {
+                        const judgeTotal = selectedEvent?.criteria
+                          ?.filter(criteria => criteria.enabled)
+                          ?.reduce((sum, criteria) => {
+                            const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
+                            const score = judgeScore.scores?.[key] || 0;
+                            const weight = criteria.weight / 100;
+                            return sum + (score * weight);
+                          }, 0) || 0;
+                        
+                        return (
+                          <div key={judgeIndex} className="bg-white rounded-xl p-4 shadow-sm border border-orange-100">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold shadow-sm">
+                                  J{judgeIndex + 1}
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-gray-800">Judge {judgeIndex + 1}</span>
+                                  <span className="block text-xs text-gray-500">
+                                    {new Date(judgeScore.timestamp?.toDate?.() || judgeScore.timestamp).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xl font-bold text-orange-600">
+                                  {judgeTotal.toFixed(1)}%
+                                </div>
+                                <div className="text-xs text-gray-500 font-medium">Total Score</div>
+                              </div>
+                            </div>
+                            
+                            {/* Judge Criteria Breakdown */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
+                                const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
+                                const score = judgeScore.scores?.[key] || 0;
+                                
+                                return (
+                                  <div key={criteriaIndex} className="text-center p-2 bg-gray-50 rounded-lg">
+                                    <div className="text-xs text-gray-600 font-medium truncate mb-1">
+                                      {criteria.name.length > 10 ? criteria.name.substring(0, 8) + '...' : criteria.name}
+                                    </div>
+                                    <div className={`text-sm font-bold ${
+                                      score >= 90 ? 'text-green-600' :
+                                      score >= 80 ? 'text-blue-600' :
+                                      score >= 70 ? 'text-yellow-600' :
+                                      score > 0 ? 'text-gray-600' : 'text-gray-400'
+                                    }`}>
+                                      {score > 0 ? score : '—'}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Average Score */}
               <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6">
@@ -889,11 +1172,14 @@ export default function LiveScoreboard() {
               </div>
 
               {/* Close Button */}
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex justify-end animate-fade-in">
                 <button
                   onClick={closeModal}
-                  className="bg-gray-100 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                  className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 px-6 py-3 rounded-xl hover:from-gray-200 hover:to-gray-300 transition-all duration-200 font-medium transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
                 >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                   Close
                 </button>
               </div>

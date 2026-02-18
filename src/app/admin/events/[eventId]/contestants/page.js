@@ -10,6 +10,8 @@ export default function EventContestants() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingContestant, setEditingContestant] = useState(null);
+  const [showRoundModal, setShowRoundModal] = useState(false);
+  const [currentRound, setCurrentRound] = useState('preliminary');
   const [event, setEvent] = useState(null);
   const router = useRouter();
   const params = useParams();
@@ -36,10 +38,13 @@ export default function EventContestants() {
       // Load actual event from Firestore
       const eventDoc = await getDoc(doc(db, 'events', eventId));
       if (eventDoc.exists()) {
-        setEvent({
+        const eventData = {
           id: eventId,
           ...eventDoc.data()
-        });
+        };
+        setEvent(eventData);
+        // Set current round from event data or default to preliminary
+        setCurrentRound(eventData.currentRound || 'preliminary');
       } else {
         // Fallback to sample data if event not found
         const sampleEvent = {
@@ -235,7 +240,130 @@ export default function EventContestants() {
   };
 
   const getStatusColor = (status) => {
-    return status === 'registered' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+    return status === 'registered' ? 'bg-green-100 text-green-800' : 
+           status === 'eliminated' ? 'bg-red-100 text-red-800' :
+           status === 'finalist' ? 'bg-blue-100 text-blue-800' :
+           'bg-gray-100 text-gray-800';
+  };
+
+  const getRoundColor = (round) => {
+    return round === 'preliminary' ? 'bg-purple-100 text-purple-800' :
+           round === 'semi-final' ? 'bg-orange-100 text-orange-800' :
+           round === 'final' ? 'bg-green-100 text-green-800' :
+           'bg-gray-100 text-gray-800';
+  };
+
+  // Round management functions
+  const handleAdvanceRound = async () => {
+    try {
+      let nextRound;
+      if (currentRound === 'preliminary') {
+        nextRound = 'semi-final';
+        // Eliminate bottom contestants (keep top 10 for example)
+        const sortedContestants = [...contestants].sort((a, b) => 
+          (b.totalWeightedScore || 0) - (a.totalWeightedScore || 0)
+        );
+        const contestantsToKeep = sortedContestants.slice(0, 10);
+        const contestantsToEliminate = sortedContestants.slice(10);
+        
+        // Update eliminated contestants
+        for (const contestant of contestantsToEliminate) {
+          await updateDoc(doc(db, 'contestants', contestant.id), {
+            status: 'eliminated',
+            eliminatedRound: 'preliminary'
+          });
+        }
+        
+        // Update remaining contestants to semi-finalists
+        for (const contestant of contestantsToKeep) {
+          await updateDoc(doc(db, 'contestants', contestant.id), {
+            status: 'finalist'
+          });
+        }
+      } else if (currentRound === 'semi-final') {
+        nextRound = 'final';
+        // Eliminate bottom contestants (keep top 5 for final)
+        const sortedContestants = [...contestants]
+          .filter(c => c.status !== 'eliminated')
+          .sort((a, b) => (b.totalWeightedScore || 0) - (a.totalWeightedScore || 0));
+        const contestantsToKeep = sortedContestants.slice(0, 5);
+        const contestantsToEliminate = sortedContestants.slice(5);
+        
+        // Update eliminated contestants
+        for (const contestant of contestantsToEliminate) {
+          await updateDoc(doc(db, 'contestants', contestant.id), {
+            status: 'eliminated',
+            eliminatedRound: 'semi-final'
+          });
+        }
+        
+        // Update remaining contestants to finalists
+        for (const contestant of contestantsToKeep) {
+          await updateDoc(doc(db, 'contestants', contestant.id), {
+            status: 'finalist'
+          });
+        }
+      } else {
+        // Final round - declare winner
+        const sortedContestants = [...contestants]
+          .filter(c => c.status !== 'eliminated')
+          .sort((a, b) => (b.totalWeightedScore || 0) - (a.totalWeightedScore || 0));
+        
+        if (sortedContestants.length > 0) {
+          const winner = sortedContestants[0];
+          await updateDoc(doc(db, 'contestants', winner.id), {
+            status: 'winner',
+            finalRank: 1
+          });
+          
+          // Update runners-up
+          for (let i = 1; i < Math.min(sortedContestants.length, 3); i++) {
+            await updateDoc(doc(db, 'contestants', sortedContestants[i].id), {
+              status: 'runner-up',
+              finalRank: i + 1
+            });
+          }
+        }
+        nextRound = 'completed';
+      }
+      
+      // Update event round
+      await updateDoc(doc(db, 'events', eventId), {
+        currentRound: nextRound
+      });
+      
+      setCurrentRound(nextRound);
+      loadContestants(); // Reload contestants to show updated status
+      setShowRoundModal(false);
+      
+      alert(`Successfully advanced to ${nextRound} round!`);
+    } catch (error) {
+      console.error('Error advancing round:', error);
+      alert('Failed to advance round. Please try again.');
+    }
+  };
+
+  const handleEliminateContestant = async (contestantId) => {
+    if (!confirm('Are you sure you want to eliminate this contestant? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await updateDoc(doc(db, 'contestants', contestantId), {
+        status: 'eliminated',
+        eliminatedRound: currentRound
+      });
+      
+      loadContestants();
+      alert('Contestant eliminated successfully!');
+    } catch (error) {
+      console.error('Error eliminating contestant:', error);
+      alert('Failed to eliminate contestant. Please try again.');
+    }
+  };
+
+  const openRoundModal = () => {
+    setShowRoundModal(true);
   };
 
   return (
@@ -266,6 +394,13 @@ export default function EventContestants() {
               <span className="text-xl">➕</span>
               Add Contestant
             </button>
+            <button
+              onClick={openRoundModal}
+              className="flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors shadow-lg"
+            >
+              <span className="text-xl">🏆</span>
+              Manage Rounds
+            </button>
           </div>
         </div>
       </div>
@@ -273,22 +408,28 @@ export default function EventContestants() {
       {/* Event Info Card */}
       {event && (
         <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-6 mb-8 text-white">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <p className="text-purple-100 text-sm">Date</p>
-              <p className="font-semibold">{event.date}</p>
+              <p className="text-lg font-semibold">{event.date}</p>
             </div>
             <div>
               <p className="text-purple-100 text-sm">Time</p>
-              <p className="font-semibold">{event.time}</p>
+              <p className="text-lg font-semibold">{event.time}</p>
             </div>
             <div>
               <p className="text-purple-100 text-sm">Venue</p>
-              <p className="font-semibold">{event.venue}</p>
+              <p className="text-lg font-semibold">{event.venue}</p>
             </div>
             <div>
-              <p className="text-purple-100 text-sm">Total Contestants</p>
-              <p className="font-semibold">{contestants.length}</p>
+              <p className="text-purple-100 text-sm">Status</p>
+              <p className="text-lg font-semibold">{event.status}</p>
+            </div>
+            <div>
+              <p className="text-purple-100 text-sm">Current Round</p>
+              <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-bold rounded-full ${getRoundColor(currentRound)}`}>
+                🏆 {currentRound.charAt(0).toUpperCase() + currentRound.slice(1)}
+              </span>
             </div>
           </div>
         </div>
@@ -341,9 +482,18 @@ export default function EventContestants() {
                       >
                         <span className="group-hover:scale-110 transition-transform">✏️</span>
                       </button>
+                      {contestant.status !== 'eliminated' && currentRound !== 'completed' && (
+                        <button
+                          onClick={() => handleEliminateContestant(contestant.id)}
+                          className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200 group"
+                          title="Eliminate Contestant"
+                        >
+                          <span className="group-hover:scale-110 transition-transform">❌</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteContestant(contestant.id)}
-                        className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200 group"
+                        className="p-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-700 transition-all duration-200 group"
                         title="Remove Contestant"
                       >
                         <span className="group-hover:scale-110 transition-transform">🗑️</span>
@@ -619,6 +769,150 @@ export default function EventContestants() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Round Management Modal */}
+      {showRoundModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-5 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">🏆 Round Management</h3>
+                  <p className="text-orange-100 text-sm mt-1">Manage competition rounds and contestant elimination</p>
+                </div>
+                <button
+                  onClick={() => setShowRoundModal(false)}
+                  className="text-white hover:text-orange-200 transition-colors p-1"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              {/* Current Round Display */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current Round</label>
+                <div className={`inline-flex items-center gap-2 px-4 py-3 text-lg font-bold rounded-xl ${getRoundColor(currentRound)}`}>
+                  <span className="text-2xl">🏆</span>
+                  {currentRound.charAt(0).toUpperCase() + currentRound.slice(1)}
+                </div>
+              </div>
+
+              {/* Round Progress Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 mb-1">Total Contestants</div>
+                  <div className="text-2xl font-bold text-gray-900">{contestants.length}</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 mb-1">Active Contestants</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {contestants.filter(c => c.status !== 'eliminated').length}
+                  </div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 mb-1">Eliminated</div>
+                  <div className="text-2xl font-bold text-red-600">
+                    {contestants.filter(c => c.status === 'eliminated').length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Round Actions */}
+              <div className="space-y-4">
+                {currentRound === 'preliminary' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">🎯 Advance to Semi-Final</h4>
+                    <p className="text-sm text-blue-700 mb-4">
+                      Top 10 contestants will advance to semi-final round. Remaining contestants will be eliminated.
+                    </p>
+                    <button
+                      onClick={handleAdvanceRound}
+                      className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                    >
+                      Advance to Semi-Final Round
+                    </button>
+                  </div>
+                )}
+
+                {currentRound === 'semi-final' && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-orange-900 mb-2">🏅 Advance to Final Round</h4>
+                    <p className="text-sm text-orange-700 mb-4">
+                      Top 5 contestants will advance to final round. Remaining semi-finalists will be eliminated.
+                    </p>
+                    <button
+                      onClick={handleAdvanceRound}
+                      className="w-full bg-orange-600 text-white py-3 px-6 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+                    >
+                      Advance to Final Round
+                    </button>
+                  </div>
+                )}
+
+                {currentRound === 'final' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-green-900 mb-2">🏆 Complete Competition</h4>
+                    <p className="text-sm text-green-700 mb-4">
+                      Final rankings will be calculated. Winner and runners-up will be declared.
+                    </p>
+                    <button
+                      onClick={handleAdvanceRound}
+                      className="w-full bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                    >
+                      Complete Competition & Declare Winner
+                    </button>
+                  </div>
+                )}
+
+                {currentRound === 'completed' && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-2">✅ Competition Completed</h4>
+                    <p className="text-sm text-gray-700 mb-4">
+                      This competition has been completed. Winners have been declared.
+                    </p>
+                    <div className="bg-green-100 text-green-800 p-3 rounded-lg">
+                      <div className="font-semibold">🏆 Winner and rankings have been finalized!</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Manual Elimination Section */}
+              {currentRound !== 'completed' && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h4 className="font-semibold text-gray-900 mb-4">⚠️ Manual Elimination</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    You can manually eliminate individual contestants if needed. Use this for disqualifications or special circumstances.
+                  </p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                      <span className="text-xl">⚠️</span>
+                      <span className="font-medium">Manual elimination cannot be undone!</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRoundModal(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

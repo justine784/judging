@@ -9,6 +9,7 @@ export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAllEvents, setShowAllEvents] = useState(false);
 
   useEffect(() => {
     // Fetch all events from Firestore
@@ -47,6 +48,22 @@ export default function Home() {
 
     return () => unsubscribe();
   }, []);
+
+  // Get featured event (first ongoing or upcoming event, or first event if none are ongoing/upcoming)
+  const getFeaturedEvent = () => {
+    if (filteredEvents.length === 0) return null;
+    
+    // Prioritize ongoing events
+    const ongoingEvent = filteredEvents.find(event => event.status === 'ongoing');
+    if (ongoingEvent) return ongoingEvent;
+    
+    // Then upcoming events
+    const upcomingEvent = filteredEvents.find(event => event.status === 'upcoming');
+    if (upcomingEvent) return upcomingEvent;
+    
+    // Otherwise return the first event
+    return filteredEvents[0];
+  };
 
   // Filter events based on search query
   const filteredEvents = events.filter(event => {
@@ -127,11 +144,20 @@ export default function Home() {
           ) : events.length > 0 ? (
             <div className="space-y-6">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Live Events</h2>
-                <p className="text-lg text-gray-600 mb-6">Check out our current and upcoming competitions</p>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  {searchQuery ? 'Search Results' : 'Live Events'}
+                </h2>
+                <p className="text-lg text-gray-600 mb-6">
+                  {searchQuery 
+                    ? `Events matching "${searchQuery}"`
+                    : showAllEvents 
+                      ? 'All competitions and events'
+                      : 'Featured competition'
+                  }
+                </p>
                 
-                {/* Search Box */}
-                <div className="max-w-md mx-auto">
+                {/* Search and Toggle Controls */}
+                <div className="max-w-md mx-auto mb-6">
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <span className="text-gray-400">🔍</span>
@@ -139,13 +165,19 @@ export default function Home() {
                     <input
                       type="text"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setShowAllEvents(true); // Show all events when searching
+                      }}
                       placeholder="Search events by name, description, venue, status..."
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-white shadow-sm"
                     />
                     {searchQuery && (
                       <button
-                        onClick={() => setSearchQuery('')}
+                        onClick={() => {
+                          setSearchQuery('');
+                          setShowAllEvents(false);
+                        }}
                         className="absolute inset-y-0 right-0 pr-3 flex items-center"
                       >
                         <span className="text-gray-400 hover:text-gray-600">✕</span>
@@ -158,96 +190,125 @@ export default function Home() {
                     </p>
                   )}
                 </div>
+
+                {/* Show All Events Button - Only show when not searching */}
+                {!searchQuery && !showAllEvents && filteredEvents.length > 1 && (
+                  <div className="flex justify-center mb-6">
+                    <button
+                      onClick={() => setShowAllEvents(true)}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-lg"
+                    >
+                      <span>📋</span>
+                      View All {filteredEvents.length} Events
+                    </button>
+                  </div>
+                )}
+
+                {/* Show Less Button */}
+                {!searchQuery && showAllEvents && (
+                  <div className="flex justify-center mb-6">
+                    <button
+                      onClick={() => setShowAllEvents(false)}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors shadow-lg"
+                    >
+                      <span>⬆️</span>
+                      Show Featured Event Only
+                    </button>
+                  </div>
+                )}
               </div>
               
               {filteredEvents.length > 0 ? (
-                filteredEvents.map((event) => (
-                <div key={event.id} className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-                  <div className="text-center mb-6">
-                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
-                      event.status === 'ongoing' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : event.status === 'upcoming'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        event.status === 'ongoing' ? 'bg-blue-500 animate-pulse' : 
-                        event.status === 'upcoming' ? 'bg-blue-500' : 'bg-gray-500'
-                      }`}></div>
-                      <span className="font-medium capitalize">
-                        {event.status === 'ongoing' ? 'LIVE EVENT' : 
-                         event.status === 'upcoming' ? 'UPCOMING EVENT' : 'FINISHED EVENT'}
-                      </span>
-                    </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">{event.eventName}</h3>
-                    <p className="text-gray-600">{event.eventDescription}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl sm:text-2xl">📅</span>
+                <div className="space-y-6">
+                  {/* Display either featured event only or all events */}
+                  {(showAllEvents || searchQuery ? filteredEvents : [getFeaturedEvent()]).map((event) => (
+                  <div key={event.id} className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+                    <div className="text-center mb-6">
+                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
+                        event.status === 'ongoing' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : event.status === 'upcoming'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        <div className={`w-2 h-2 rounded-full ${
+                          event.status === 'ongoing' ? 'bg-blue-500 animate-pulse' : 
+                          event.status === 'upcoming' ? 'bg-blue-500' : 'bg-gray-500'
+                        }`}></div>
+                        <span className="font-medium capitalize">
+                          {event.status === 'ongoing' ? 'LIVE EVENT' : 
+                           event.status === 'upcoming' ? 'UPCOMING EVENT' : 'FINISHED EVENT'}
+                        </span>
                       </div>
-                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Date</p>
-                      <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.date}</p>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">{event.eventName}</h3>
+                      <p className="text-gray-600">{event.eventDescription}</p>
                     </div>
                     
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl sm:text-2xl">⏰</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">📅</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Date</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.date}</p>
                       </div>
-                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Time</p>
-                      <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.time}</p>
+                      
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">⏰</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Time</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.time}</p>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">📍</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Venue</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{event.venue}</p>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">🏆</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Status</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
+                      </div>
                     </div>
                     
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl sm:text-2xl">📍</span>
+                    <div className="border-t pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900 mb-1">Event Details</h4>
+                          <p className="text-sm text-gray-600">
+                            {event.status === 'ongoing' 
+                              ? 'Join us for this exciting live competition!' 
+                              : event.status === 'upcoming'
+                              ? 'Get ready for this upcoming competition!'
+                              : 'This competition has concluded.'
+                            }
+                          </p>
+                          {event.scoresLocked && (
+                            <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                              <span>🔒</span>
+                              Scores Locked
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          onClick={() => window.location.href = '/scoreboard'}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
+                        >
+                          <span>📊</span>
+                          View Scoreboard
+                        </button>
                       </div>
-                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Venue</p>
-                      <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{event.venue}</p>
-                    </div>
-                    
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl sm:text-2xl">🏆</span>
-                      </div>
-                      <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Status</p>
-                      <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="border-t pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-lg font-semibold text-gray-900 mb-1">Event Details</h4>
-                        <p className="text-sm text-gray-600">
-                          {event.status === 'ongoing' 
-                            ? 'Join us for this exciting live competition!' 
-                            : event.status === 'upcoming'
-                            ? 'Get ready for this upcoming competition!'
-                            : 'This competition has concluded.'
-                          }
-                        </p>
-                        {event.scoresLocked && (
-                          <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                            <span>🔒</span>
-                            Scores Locked
-                          </div>
-                        )}
-                      </div>
-                      <button 
-                        onClick={() => window.location.href = '/scoreboard'}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
-                      >
-                        <span>📊</span>
-                        View Scoreboard
-                      </button>
                     </div>
                   </div>
+                  ))}
                 </div>
-                ))
               ) : (
                 <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
                   <div className="text-6xl mb-4">🔍</div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, where, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, where, getDocs, updateDoc } from 'firebase/firestore';
 
 // Custom scrollbar styles for mobile horizontal scrolling
 const scrollbarStyles = `
@@ -516,6 +516,63 @@ export default function LiveScoreboard() {
     return contestant.criteriaScores?.[key] || 0;
   };
 
+  // Image upload handler
+  const handleImageUpload = async (event, contestantId) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB.');
+      return;
+    }
+    
+    try {
+      // Convert image to base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const imageData = e.target.result;
+        
+        // Update contestant document with image
+        await updateDoc(doc(db, 'contestants', contestantId), {
+          photo: imageData,
+          lastUpdated: new Date()
+        });
+        
+        // Update local state to show new image immediately
+        setContestants(prevContestants => 
+          prevContestants.map(contestant => 
+            contestant.id === contestantId 
+              ? { ...contestant, photo: imageData }
+              : contestant
+          )
+        );
+        
+        // Update selected contestant if modal is open
+        if (selectedContestant && selectedContestant.id === contestantId) {
+          setSelectedContestant(prev => ({ ...prev, photo: imageData }));
+        }
+        
+        // Show success message
+        alert('Image uploaded successfully!');
+      };
+      
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
+    }
+    
+    // Reset file input
+    event.target.value = '';
+  };
+
   // Function to get individual judge scores for a contestant
   const getIndividualJudgeScores = (contestantId, eventId) => {
     const contestantScores = scores.filter(score => 
@@ -868,6 +925,11 @@ export default function LiveScoreboard() {
                               </div>
                               <div className="flex items-center gap-1 sm:gap-2 mt-1">
                                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">#{contestant.number || rank}</span>
+                                {contestant.photo && (
+                                  <span className="inline-flex items-center px-1 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold" title="Has Photo">
+                                    📷
+                                  </span>
+                                )}
                                 {contestant.judgeCount > 0 && (
                                   <span className="inline-flex items-center px-1 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
                                     👤 {contestant.judgeCount}
@@ -934,10 +996,10 @@ export default function LiveScoreboard() {
 
       {/* Contestant Detail Modal */}
       {showModal && selectedContestant && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-slide-up">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white shadow-2xl w-full h-full transform transition-all duration-300 scale-100 animate-slide-up">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-5 rounded-t-xl sm:rounded-t-2xl shadow-lg">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-4 shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="animate-fade-in">
                   <h3 className="text-lg sm:text-xl font-bold text-white">Contestant Details</h3>
@@ -954,234 +1016,192 @@ export default function LiveScoreboard() {
               </div>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-4 sm:p-6">
-              {/* Contestant Photo and Basic Info */}
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-8 mb-6 sm:mb-8">
-                {/* Left Side - Image */}
-                <div className="flex-shrink-0">
-                  {selectedContestant.photo ? (
-                    <img 
-                      src={selectedContestant.photo} 
-                      alt={selectedContestant.name}
-                      className="w-32 h-32 sm:w-48 sm:h-48 rounded-xl sm:rounded-2xl object-cover border-4 border-blue-100 shadow-lg"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-xl sm:rounded-2xl bg-blue-100 flex items-center justify-center border-4 border-blue-100 shadow-lg">
-                      <span className="text-4xl sm:text-6xl font-bold text-blue-600">
-                        {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Right Side - Info */}
-                <div className="flex-1 text-center sm:text-left">
-                  <h4 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{selectedContestant.name}</h4>
-                  <p className="text-base sm:text-lg text-gray-600 mb-4">Contestant #{selectedContestant.number || 'N/A'}</p>
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-4">
-                    <div className="text-lg sm:text-xl font-bold text-blue-600">
-                      Total Score: {selectedContestant.totalScore.toFixed(1)}%
-                    </div>
-                    <div className="text-sm sm:text-base text-gray-600">
-                      <span className="font-medium">Judges: </span>
-                      <span className="font-bold text-blue-600">{selectedContestant.judgeCount || 0}</span>
-                    </div>
-                    {selectedContestant.totalScore === highestScorer?.totalScore && (
-                      <div className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-800">
-                        <span>🏆</span>
-                        Leading
+            {/* Modal Body - 3-Column Layout */}
+            <div className="p-4 sm:p-6 h-[calc(100vh-80px)] flex flex-col">
+              {/* 3-Column Grid Layout */}
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                {/* Column 1 - Image and Basic Info */}
+                <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="text-xl">👤</span>
+                    Contestant Info
+                  </h5>
+                  
+                  {/* Image */}
+                  <div className="flex-shrink-0 relative group mb-4">
+                    {selectedContestant.photo ? (
+                      <div className="relative">
+                        <img 
+                          src={selectedContestant.photo} 
+                          alt={selectedContestant.name}
+                          className="w-full h-[384px] rounded-xl object-contain border-4 border-blue-100 shadow-lg bg-gray-50"
+                        />
+                        {/* Change Image Button */}
+                        <button
+                          onClick={() => document.getElementById(`image-upload-${selectedContestant.id}`).click()}
+                          className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+                          title="Change Image"
+                        >
+                          <div className="bg-white rounded-lg p-2">
+                            <span className="text-blue-600 text-xl">📷</span>
+                          </div>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full h-[384px] rounded-xl bg-blue-100 flex items-center justify-center border-4 border-blue-100 shadow-lg relative group hover:bg-blue-200 transition-colors cursor-pointer"
+                           onClick={() => document.getElementById(`image-upload-${selectedContestant.id}`).click()}>
+                        <span className="text-5xl font-bold text-blue-600">
+                          {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
+                        </span>
+                        {/* Upload Icon Overlay */}
+                        <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <div className="bg-white rounded-lg p-2">
+                            <span className="text-blue-600 text-xl">📷</span>
+                          </div>
+                        </div>
                       </div>
                     )}
+                    {/* Hidden File Input */}
+                    <input
+                      id={`image-upload-${selectedContestant.id}`}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e, selectedContestant.id)}
+                    />
+                  </div>
+                  
+                  {/* Basic Info */}
+                  <div className="flex-1 space-y-3">
+                    <div className="text-center">
+                      <h4 className="text-2xl font-bold text-gray-900 mb-2">{selectedContestant.name}</h4>
+                      <p className="text-sm text-gray-600 mb-2">Contestant #{selectedContestant.number || 'N/A'}</p>
+                      <div className="text-xs text-gray-500 bg-blue-50 px-3 py-2 rounded-lg inline-block mb-3">
+                        💡 Click photo to upload/change
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-sm text-gray-600">Total Score</div>
+                        <div className="text-lg font-bold text-blue-600">{selectedContestant.totalScore.toFixed(1)}%</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-sm text-gray-600">Judges</div>
+                        <div className="text-lg font-bold text-blue-600">{selectedContestant.judgeCount || 0}</div>
+                      </div>
+                      {selectedContestant.totalScore === highestScorer?.totalScore && (
+                        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                          <div className="flex items-center justify-center gap-2 text-sm font-medium text-yellow-800">
+                            <span className="text-lg">🏆</span>
+                            Leading
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Criteria Scores */}
-              <div className="bg-gray-50 rounded-xl p-6 mb-6">
-                <h5 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                  <span className="text-2xl">📊</span>
-                  Criteria Breakdown
-                </h5>
-                <div className="space-y-4">
-                  {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => {
-                    const score = getContestantCriteriaScore(selectedContestant, criteria.name);
-                    const criteriaIcons = {
-                      'Vocal Quality': '🎤',
-                      'Stage Presence': '🎭',
-                      'Song Interpretation': '🎵',
-                      'Audience Impact': '👏',
-                      'Talent': '🎤',
-                      'Beauty': '👗',
-                      'QA': '🧠',
-                      'Poise and Bearing': '👑',
-                      'Intelligence': '🧠',
-                      'Production Number': '🎭'
-                    };
-                    
-                    const getProgressColor = (score) => {
-                      if (score === 0) return 'bg-gray-200';
-                      if (score >= 90) return 'bg-gradient-to-r from-green-400 to-green-600';
-                      if (score >= 80) return 'bg-gradient-to-r from-blue-400 to-blue-600';
-                      if (score >= 70) return 'bg-gradient-to-r from-yellow-400 to-yellow-600';
-                      return 'bg-gradient-to-r from-gray-400 to-gray-600';
-                    };
-
-                    const getScoreTextColor = (score) => {
-                      if (score === 0) return 'text-gray-400';
-                      if (score >= 90) return 'text-green-600';
-                      if (score >= 80) return 'text-blue-600';
-                      if (score >= 70) return 'text-yellow-600';
-                      return 'text-gray-600';
-                    };
-                    
-                    return (
-                      <div key={index} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200">
-                        <div className="flex items-center justify-between mb-3">
+                {/* Column 2 - Criteria Scores */}
+                <div className="bg-gray-50 rounded-xl p-4 overflow-y-auto">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="text-xl">📊</span>
+                    Criteria Scores
+                  </h5>
+                  
+                  {/* Total Score Summary */}
+                  <div className="bg-gradient-to-r from-blue-100 to-blue-200 rounded-xl p-4 mb-4 border border-blue-300">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-blue-800">Total Score</div>
+                        <div className="text-xs text-blue-600">Overall Performance</div>
+                      </div>
+                      <div className="text-2xl font-bold text-blue-800">
+                        {selectedContestant.totalScore.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => {
+                      const score = getContestantCriteriaScore(selectedContestant, criteria.name);
+                      const colors = [
+                        'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300',
+                        'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-300', 
+                        'bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 border-sky-300',
+                        'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300', 
+                        'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-yellow-300'
+                      ];
+                      const colorClass = colors[index % colors.length];
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center shadow-sm">
-                              <span className="text-blue-600 text-lg">{criteriaIcons[criteria.name] || '📋'}</span>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold border ${colorClass}`}>
+                              {score === 0 ? '—' : `${score.toFixed(1)}`}
                             </div>
                             <div>
-                              <span className="font-semibold text-gray-800 text-base">{criteria.name}</span>
-                              {criteria.weight && (
-                                <span className="block text-xs text-gray-500 font-medium">Weight: {criteria.weight}%</span>
-                              )}
+                              <div className="font-medium text-gray-900">{criteria.name}</div>
+                              <div className="text-xs text-gray-500">Weight: {criteria.weight}%</div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className={`text-2xl font-bold ${getScoreTextColor(score)}`}>
-                              {score === 0 ? '—' : `${score}%`}
-                            </div>
-                            <div className="text-xs text-gray-500 font-medium">
-                              {score === 0 ? 'Not Scored' : 'Score'}
+                            <div className="text-sm font-semibold text-gray-900">
+                              {(score * criteria.weight / 100).toFixed(1)} pts
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="relative">
-                          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ease-out ${getProgressColor(score)}`}
-                              style={{ width: `${score}%` }}
-                            >
-                              <div className="h-full bg-white bg-opacity-30 animate-pulse"></div>
-                            </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Column 3 - Judge Breakdown */}
+                <div className="bg-gray-50 rounded-xl p-4 overflow-y-auto">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="text-xl">👥</span>
+                    Judge Breakdown
+                  </h5>
+                  <div className="space-y-3">
+                    {getIndividualJudgeScores(selectedContestant.id, selectedEvent?.id).map((judgeScore, index) => {
+                      const judgeTotal = selectedEvent?.criteria
+                        ?.filter(criteria => criteria.enabled)
+                        ?.reduce((sum, criteria) => {
+                          const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
+                          const score = judgeScore.scores?.[key] || 0;
+                          const weight = criteria.weight / 100;
+                          return sum + (score * weight);
+                        }, 0) || 0;
+                      
+                      return (
+                        <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-medium text-gray-900">Judge {index + 1}</div>
+                            <div className="text-sm font-bold text-blue-600">{judgeTotal.toFixed(1)}%</div>
                           </div>
-                          {/* Score markers */}
-                          <div className="flex justify-between mt-1">
-                            <span className="text-xs text-gray-400">0</span>
-                            <span className="text-xs text-gray-400">50</span>
-                            <span className="text-xs text-gray-400">100</span>
+                          {/* Judge Criteria Breakdown */}
+                          <div className="grid grid-cols-1 gap-2">
+                            {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
+                              const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
+                              const score = judgeScore.scores?.[key] || 0;
+                              
+                              return (
+                                <div key={criteriaIndex} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-600 truncate">{criteria.name}:</span>
+                                  <span className="font-medium text-gray-900">{score.toFixed(1)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <div className="text-xs text-gray-500">
+                              Scored: {new Date(judgeScore.timestamp).toLocaleString()}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              
-              {/* Individual Judge Scores */}
-              {(() => {
-                const judgeScores = getIndividualJudgeScores(selectedContestant.id, selectedEvent?.id);
-                if (judgeScores.length === 0) return null;
-                
-                return (
-                  <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 mb-6">
-                    <h5 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                      <span className="text-2xl">🧑‍⚖️</span>
-                      Individual Judge Scores
-                    </h5>
-                    <div className="space-y-4">
-                      {judgeScores.map((judgeScore, judgeIndex) => {
-                        const judgeTotal = selectedEvent?.criteria
-                          ?.filter(criteria => criteria.enabled)
-                          ?.reduce((sum, criteria) => {
-                            const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
-                            const score = judgeScore.scores?.[key] || 0;
-                            const weight = criteria.weight / 100;
-                            return sum + (score * weight);
-                          }, 0) || 0;
-                        
-                        return (
-                          <div key={judgeIndex} className="bg-white rounded-xl p-4 shadow-sm border border-orange-100">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold shadow-sm">
-                                  J{judgeIndex + 1}
-                                </div>
-                                <div>
-                                  <span className="font-semibold text-gray-800">Judge {judgeIndex + 1}</span>
-                                  <span className="block text-xs text-gray-500">
-                                    {new Date(judgeScore.timestamp?.toDate?.() || judgeScore.timestamp).toLocaleString()}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xl font-bold text-orange-600">
-                                  {judgeTotal.toFixed(1)}%
-                                </div>
-                                <div className="text-xs text-gray-500 font-medium">Total Score</div>
-                              </div>
-                            </div>
-                            
-                            {/* Judge Criteria Breakdown */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                              {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
-                                const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
-                                const score = judgeScore.scores?.[key] || 0;
-                                
-                                return (
-                                  <div key={criteriaIndex} className="text-center p-2 bg-gray-50 rounded-lg">
-                                    <div className="text-xs text-gray-600 font-medium truncate mb-1">
-                                      {criteria.name.length > 10 ? criteria.name.substring(0, 8) + '...' : criteria.name}
-                                    </div>
-                                    <div className={`text-sm font-bold ${
-                                      score >= 90 ? 'text-green-600' :
-                                      score >= 80 ? 'text-blue-600' :
-                                      score >= 70 ? 'text-yellow-600' :
-                                      score > 0 ? 'text-gray-600' : 'text-gray-400'
-                                    }`}>
-                                      {score > 0 ? score : '—'}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Average Score */}
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h5 className="text-lg font-semibold text-gray-900">Criteria Average</h5>
-                    <p className="text-gray-600 text-sm">Average score across all criteria</p>
-                  </div>
-                  <div className="text-3xl font-bold text-blue-600">
-                    {getCriteriaAverage(selectedContestant)}%
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-
-              {/* Close Button */}
-              <div className="mt-6 flex justify-end animate-fade-in">
-                <button
-                  onClick={closeModal}
-                  className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 px-6 py-3 rounded-xl hover:from-gray-200 hover:to-gray-300 transition-all duration-200 font-medium transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Close
-                </button>
               </div>
             </div>
           </div>

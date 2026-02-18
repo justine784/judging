@@ -647,6 +647,13 @@ export default function EventManagement() {
                         Contestants
                       </button>
                       <button
+                        onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span className="text-orange-600">🏆</span>
+                        Rounds
+                      </button>
+                      <button
                         onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
                         className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
                       >
@@ -779,6 +786,13 @@ export default function EventManagement() {
                             >
                               <span className="text-green-600">👥</span>
                               Manage Contestants
+                            </button>
+                            <button
+                              onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <span className="text-orange-600">🏆</span>
+                              Manage Rounds
                             </button>
                             <button
                               onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}

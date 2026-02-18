@@ -118,6 +118,17 @@ export default function JudgeDashboard() {
     }
   };
 
+  // Initialize quick scores when currentEvent changes
+  useEffect(() => {
+    if (currentEvent && contestants.length > 0) {
+      const currentContestant = contestants[currentContestantIndex];
+      if (currentContestant) {
+        const initialScores = initializeQuickScores(currentEvent, currentContestant);
+        setQuickScores(initialScores);
+      }
+    }
+  }, [currentEvent]);
+
   // Load judge's assigned events from Firestore
   const loadAssignedEvents = async (judge) => {
     try {
@@ -303,11 +314,13 @@ export default function JudgeDashboard() {
           photo: null
         });
         
-        // Initialize quick scores for the first contestant
-        if (currentEvent) {
-          const initialScores = initializeQuickScores(currentEvent, firstContestant);
-          setQuickScores(initialScores);
-        }
+        // Initialize quick scores for the first contestant after a small delay to ensure currentEvent is set
+        setTimeout(() => {
+          if (currentEvent) {
+            const initialScores = initializeQuickScores(currentEvent, firstContestant);
+            setQuickScores(initialScores);
+          }
+        }, 100);
       }
     } catch (error) {
       console.error('Error loading contestants:', error);
@@ -664,21 +677,21 @@ export default function JudgeDashboard() {
         // Update local state - update the current contestant with their new scores
         const updatedContestants = contestants.map((c, index) => {
           if (index === currentContestantIndex) {
-            // Calculate weighted total for the current contestant with new scores
-            const criteria = getCurrentEventCriteria();
-            let totalScore = 0;
-            criteria.forEach(criterion => {
-              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-              const score = quickScores[key] || 0;
-              const weight = criterion.weight / 100;
-              totalScore += score * weight;
-            });
-            
-            return { 
+            // Merge the quick scores with the contestant data
+            const updatedContestant = { 
               ...c, 
               ...quickScores,
               totalWeightedScore: parseFloat(totalScore.toFixed(1))
             };
+            
+            // Update the current contestant state as well
+            setCurrentContestant(prev => ({
+              ...prev,
+              scores: quickScores,
+              totalWeightedScore: parseFloat(totalScore.toFixed(1))
+            }));
+            
+            return updatedContestant;
           } else {
             // Calculate weighted total for other contestants with their existing scores
             const criteria = getCurrentEventCriteria();
@@ -700,8 +713,25 @@ export default function JudgeDashboard() {
         const rankedContestants = updateRankings(updatedContestants);
         setContestants(rankedContestants);
         
+        // Force a re-render by updating the current contestant index
+        setCurrentContestantIndex(prev => prev);
+        
+        // Also update quickScores to ensure consistency
+        setQuickScores(prev => ({ ...prev }));
+        
         // Show success message
-        alert(`Scores saved for ${currentContestant.name}!`);
+        const hasNextContestant = currentContestantIndex < contestants.length - 1;
+        const message = hasNextContestant 
+          ? `Scores saved for ${currentContestant.name}!\n\nMoving to next contestant...`
+          : `Scores saved for ${currentContestant.name}!\n\nAll contestants scored!`;
+        alert(message);
+        
+        // Auto-navigate to next contestant if available
+        if (currentContestantIndex < contestants.length - 1) {
+          setTimeout(() => {
+            goToNextContestant();
+          }, 500);
+        }
       } catch (error) {
         console.error('Error saving scores:', error);
         alert('Error saving scores. Please try again.');
@@ -966,7 +996,7 @@ export default function JudgeDashboard() {
                   </button>
                 </div>
               </div>
-              <table className="w-full min-w-[800px] judge-scoring-table">
+              <table key={`contestants-table-${contestants.length}`} className="w-full min-w-[800px] judge-scoring-table">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Rank</th>
@@ -1056,29 +1086,9 @@ export default function JudgeDashboard() {
           <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold text-gray-900 truncate">🎤 {currentContestant.name}</h2>
-                <p className="text-sm text-gray-600 truncate">#{currentContestant.number} • {currentContestant.category}</p>
+                <h2 className="text-lg font-bold text-gray-900 truncate transition-all duration-300">🎤 {currentContestant.name}</h2>
+                <p className="text-sm text-gray-600 truncate transition-all duration-300">#{currentContestant.number} • {currentContestant.category}</p>
                 <p className="text-xs text-gray-400 mt-1">👆 Swipe left/right to navigate</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentContestantIndex(Math.max(0, currentContestantIndex - 1))}
-                  disabled={currentContestantIndex === 0}
-                  className="p-2 bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7 7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setCurrentContestantIndex(Math.min(contestants.length - 1, currentContestantIndex + 1))}
-                  disabled={currentContestantIndex === contestants.length - 1}
-                  className="p-2 bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
               </div>
             </div>
             
@@ -1102,13 +1112,14 @@ export default function JudgeDashboard() {
             {/* Contestant Selector */}
             <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
               <select
+              key={`mobile-selector-${currentContestantIndex}`}
               value={currentContestantIndex}
               onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
             >
               {contestants.map((contestant, index) => (
                 <option key={contestant.id} value={index}>
-                  {contestant.contestantNo} - {contestant.contestantName}
+                  {index === currentContestantIndex ? '👤 ' : ''}{contestant.contestantNo} - {contestant.contestantName}
                 </option>
               ))}
             </select>
@@ -1227,13 +1238,14 @@ export default function JudgeDashboard() {
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Select Contestant</label>
                   <select
+                    key={`desktop-selector-${currentContestantIndex}`}
                     value={currentContestantIndex}
                     onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                   >
                     {contestants.map((contestant, index) => (
                       <option key={contestant.id} value={index}>
-                        {contestant.contestantNo} - {contestant.contestantName}
+                        {index === currentContestantIndex ? '👤 ' : ''}{contestant.contestantNo} - {contestant.contestantName}
                       </option>
                     ))}
                   </select>
@@ -1249,7 +1261,7 @@ export default function JudgeDashboard() {
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Contestant Name</label>
                   <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                    <p className="text-lg font-semibold text-gray-900">{currentContestant.name}</p>
+                    <p className="text-lg font-semibold text-gray-900 transition-all duration-300">{currentContestant.name}</p>
                   </div>
                 </div>
 
@@ -1292,23 +1304,7 @@ export default function JudgeDashboard() {
                   </div>
                 )}
 
-                <div className="flex gap-3 mt-8">
-                  <button 
-                    onClick={goToPreviousContestant}
-                    disabled={currentContestantIndex === 0}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    ← Previous
-                  </button>
-                  <button 
-                    onClick={goToNextContestant}
-                    disabled={currentContestantIndex === contestants.length - 1}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next →
-                  </button>
-                </div>
-              </div>
+                              </div>
             </div>
 
             <div className="lg:col-span-2">

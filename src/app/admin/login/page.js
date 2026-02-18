@@ -6,7 +6,6 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import ForgotPasswordModal from '@/components/ForgotPasswordModal';
-import FirebaseDebug from '@/components/FirebaseDebug';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -153,17 +152,8 @@ export default function AdminLogin() {
         case 'auth/too-many-requests':
           setError('Too many failed attempts. Please try again later.');
           break;
-        case 'auth/invalid-credential':
-          setError('Authentication configuration issue. Please ensure Email/Password sign-in method is enabled in Firebase Console. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.');
-          break;
-        case 'auth/api-key-not-authorized':
-          setError('Firebase API key not authorized. Please check your Firebase project settings.');
-          break;
-        case 'auth/app-not-authorized':
-          setError('App not authorized for Firebase. Please check your Firebase configuration.');
-          break;
         default:
-          setError(`Login failed: ${error.message}`);
+          setError('Login failed please try again');
       }
     } finally {
       setLoading(false);
@@ -315,7 +305,7 @@ export default function AdminLogin() {
                 <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <span className="text-sm">{error}</span>
+                <div className="text-sm">{error}</div>
               </div>
             )}
 
@@ -395,9 +385,6 @@ export default function AdminLogin() {
         onClose={() => setShowForgotPassword(false)} 
         userType="admin" 
       />
-      
-      {/* Firebase Debug Component - Only in Development */}
-      <FirebaseDebug />
     </div>
   );
 }

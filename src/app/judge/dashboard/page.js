@@ -740,7 +740,7 @@ export default function JudgeDashboard() {
       )}
 
       {/* Header */}
-      <header className="w-full bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+      <header className="w-full bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 shadow-xl border-b border-blue-500/20 sticky top-0 z-40">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="py-4 sm:py-6">
             {/* Main Header Row */}
@@ -749,7 +749,7 @@ export default function JudgeDashboard() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="h-12 w-12 rounded-full bg-white shadow-xl p-1">
+                    <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-sm shadow-2xl p-1 border border-white/20">
                       <Image
                         src="/logo.jpg"
                         alt="Bongabong Logo"
@@ -758,7 +758,7 @@ export default function JudgeDashboard() {
                         className="rounded-full object-contain"
                       />
                     </div>
-                    <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-blue-600 flex items-center justify-center shadow-lg border-2 border-white">
+                    <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-lg border-2 border-white">
                       <Image
                         src="/minsu_logo.jpg"
                         alt="Trophy"
@@ -769,10 +769,22 @@ export default function JudgeDashboard() {
                     </div>
                   </div>
                   <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">
+                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-cyan-100 bg-clip-text text-transparent">
                       Judge Dashboard
                     </h1>
-                    <p className="text-sm text-gray-500 font-medium">Welcome, {user?.displayName || user?.email}</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <p className="text-sm text-blue-100 font-medium">
+                        Welcome back,
+                      </p>
+                      <p className="text-sm font-semibold text-white bg-white/10 px-2 py-1 rounded-md backdrop-blur-sm border border-white/20">
+                        {user?.displayName || user?.email?.split('@')[0] || 'Judge'}
+                      </p>
+                    </div>
+                    {judgeData?.judgeId && (
+                      <p className="text-xs text-blue-200/70 mt-1">
+                        Judge ID: {judgeData.judgeId}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -780,15 +792,15 @@ export default function JudgeDashboard() {
               {/* Right Section - Status and Controls */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:justify-end">
                 {/* Connection Status - Hidden on mobile */}
-                <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center gap-2 text-green-600">
-                    <div className="relative w-3 h-3 rounded-full bg-green-500">
-                      <div className="absolute inset-0 rounded-full bg-green-500 animate-ping"></div>
+                <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                  <div className="flex items-center gap-2 text-cyan-300">
+                    <div className="relative w-3 h-3 rounded-full bg-cyan-400">
+                      <div className="absolute inset-0 rounded-full bg-cyan-400 animate-ping"></div>
                     </div>
                     <span className="font-medium text-sm">🟢 Live</span>
                   </div>
-                  <div className="h-4 w-px bg-gray-300"></div>
-                  <div className="text-xs text-gray-500">
+                  <div className="h-4 w-px bg-white/20"></div>
+                  <div className="text-xs text-blue-100">
                     <div className="font-medium">Updated</div>
                     <div>{lastUpdated ? lastUpdated.toLocaleTimeString() : 'Just now'}</div>
                   </div>
@@ -797,7 +809,7 @@ export default function JudgeDashboard() {
                 {/* Logout Button */}
                 <button
                   onClick={handleLogout}
-                  className="self-end sm:self-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center gap-2 shadow-lg"
+                  className="self-end sm:self-auto px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center gap-2 shadow-lg border border-red-400/20"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -815,38 +827,38 @@ export default function JudgeDashboard() {
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
+          <div className="bg-gradient-to-br from-white to-blue-50/30 rounded-xl sm:rounded-2xl shadow-lg border border-blue-100/50 p-4 sm:p-6 hover:shadow-xl transition-shadow duration-300">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                 <span className="text-xl sm:text-2xl">📝</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium">Total Contestants</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{contestants.length}</p>
+                <p className="text-xs sm:text-sm text-blue-600/70 font-medium">Total Contestants</p>
+                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">{contestants.length}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
+          <div className="bg-gradient-to-br from-white to-blue-50/30 rounded-xl sm:rounded-2xl shadow-lg border border-blue-100/50 p-4 sm:p-6 hover:shadow-xl transition-shadow duration-300">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                 <span className="text-xl sm:text-2xl">🎯</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium">Criteria Count</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{getCurrentEventCriteria().length}</p>
+                <p className="text-xs sm:text-sm text-blue-600/70 font-medium">Criteria Count</p>
+                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">{getCurrentEventCriteria().length}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
+          <div className="bg-gradient-to-br from-white to-green-50/30 rounded-xl sm:rounded-2xl shadow-lg border border-green-100/50 p-4 sm:p-6 hover:shadow-xl transition-shadow duration-300">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-green-100 rounded-full flex items-center justify-center">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg">
                 <span className="text-xl sm:text-2xl">✅</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium">Completed Evaluations</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                <p className="text-xs sm:text-sm text-green-600/70 font-medium">Completed Evaluations</p>
+                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-700 to-green-900 bg-clip-text text-transparent">
                   {contestants.filter(c => {
                     const criteria = getCurrentEventCriteria();
                     return criteria.every(criterion => {
@@ -859,14 +871,14 @@ export default function JudgeDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
+          <div className="bg-gradient-to-br from-white to-orange-50/30 rounded-xl sm:rounded-2xl shadow-lg border border-orange-100/50 p-4 sm:p-6 hover:shadow-xl transition-shadow duration-300">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-orange-100 rounded-full flex items-center justify-center">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg">
                 <span className="text-xl sm:text-2xl">⏳</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium">Pending Evaluations</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                <p className="text-xs sm:text-sm text-orange-600/70 font-medium">Pending Evaluations</p>
+                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-700 to-orange-900 bg-clip-text text-transparent">
                   {contestants.filter(c => {
                     const criteria = getCurrentEventCriteria();
                     return criteria.some(criterion => {

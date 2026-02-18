@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getDocs, collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import PasswordResetVerification from '@/components/PasswordResetVerification';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -765,6 +766,9 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Password Reset Verification */}
+      <PasswordResetVerification />
 
       {/* Recent Activity */}
       <div className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl border border-gray-100 overflow-hidden">

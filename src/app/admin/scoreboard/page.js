@@ -14,6 +14,10 @@ export default function AdminScoreboard() {
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [scores, setScores] = useState([]); // Store individual judge scores
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [isLive, setIsLive] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+  const [updatedContestants, setUpdatedContestants] = useState(new Set()); // Track recently updated contestants
 
   useEffect(() => {
     // Fetch events and auto-select the first ongoing or upcoming event
@@ -55,6 +59,56 @@ export default function AdminScoreboard() {
         ...doc.data()
       }));
       setScores(scoresData);
+      
+      // Trigger contestant recalculation when scores change
+      if (selectedEvent && snapshot.docChanges().length > 0) {
+        const changes = snapshot.docChanges();
+        const relevantChanges = changes.filter(change => 
+          change.doc.data().eventId === selectedEvent.id
+        );
+        
+        if (relevantChanges.length > 0) {
+          console.log(`Admin score update: ${relevantChanges.length} score(s) updated for event ${selectedEvent.id}`);
+          
+          // Track which contestants were updated
+          const updatedIds = new Set();
+          relevantChanges.forEach(change => {
+            const contestantId = change.doc.data().contestantId;
+            if (contestantId) {
+              updatedIds.add(contestantId);
+            }
+          });
+          
+          // Update the tracking set
+          setUpdatedContestants(prev => new Set([...prev, ...updatedIds]));
+          
+          // Clear the updated indicators after 3 seconds
+          setTimeout(() => {
+            setUpdatedContestants(prev => {
+              const newSet = new Set(prev);
+              updatedIds.forEach(id => newSet.delete(id));
+              return newSet;
+            });
+          }, 3000);
+          
+          // Show update notification
+          const updateIndicator = document.createElement('div');
+          updateIndicator.className = 'fixed top-4 right-4 bg-purple-500 text-white px-4 py-2 rounded-lg text-sm z-50 animate-pulse shadow-lg flex items-center gap-2';
+          updateIndicator.innerHTML = `
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>🔄 Admin Score Update</span>
+          `;
+          document.body.appendChild(updateIndicator);
+          
+          setTimeout(() => {
+            if (document.body.contains(updateIndicator)) {
+              document.body.removeChild(updateIndicator);
+            }
+          }, 3000);
+        }
+      }
     });
 
     return () => {
@@ -131,6 +185,9 @@ export default function AdminScoreboard() {
     );
 
     const unsubscribeContestants = onSnapshot(contestantsQuery, (snapshot) => {
+      setConnectionStatus('connected');
+      setLastUpdate(new Date()); // Update last update time
+      
       const contestantsData = snapshot.docs.map(doc => {
         const data = doc.data();
         const contestantId = doc.id;
@@ -164,12 +221,47 @@ export default function AdminScoreboard() {
       }
       
       setLoading(false);
+      
+      // Show real-time update notification
+      if (snapshot.docChanges().length > 0) {
+        const changes = snapshot.docChanges();
+        console.log(`Admin contestant update: ${changes.length} contestant(s) updated`);
+        
+        // Flash a subtle update indicator
+        const updateIndicator = document.createElement('div');
+        updateIndicator.className = 'fixed top-4 right-4 bg-purple-500 text-white px-3 py-1 rounded-lg text-sm z-50 animate-pulse';
+        updateIndicator.textContent = '👤 Contestant Updated';
+        document.body.appendChild(updateIndicator);
+        
+        setTimeout(() => {
+          if (document.body.contains(updateIndicator)) {
+            document.body.removeChild(updateIndicator);
+          }
+        }, 2000);
+      }
+    },
+    (error) => {
+      console.error('Firestore listener error:', error);
+      setConnectionStatus('disconnected');
+      setIsLive(false);
+      
+      // Show error indicator
+      const errorIndicator = document.createElement('div');
+      errorIndicator.className = 'fixed top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-lg text-sm z-50';
+      errorIndicator.textContent = '⚠️ Connection Lost';
+      document.body.appendChild(errorIndicator);
+      
+      setTimeout(() => {
+        if (document.body.contains(errorIndicator)) {
+          document.body.removeChild(errorIndicator);
+        }
+      }, 3000);
     });
 
     return () => {
       unsubscribeContestants();
     };
-  }, [selectedEvent]);
+  }, [selectedEvent, scores]); // Add scores as dependency to recalculate when scores change
 
   const getRankIcon = (rank) => {
     switch (rank) {
@@ -246,9 +338,95 @@ export default function AdminScoreboard() {
               <h1 className="text-2xl font-bold text-gray-900">🏆 Admin Scoreboard</h1>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-gray-600">Live</span>
+              <div className={`flex items-center gap-2 ${
+                connectionStatus === 'connected' && isLive 
+                  ? 'text-green-600' 
+                  : connectionStatus === 'connected' 
+                  ? 'text-yellow-600' 
+                  : 'text-red-600'
+              }`}>
+                <div className={`relative w-3 h-3 rounded-full ${
+                  connectionStatus === 'connected' && isLive 
+                    ? 'bg-green-500 animate-pulse' 
+                    : connectionStatus === 'connected' 
+                    ? 'bg-yellow-500' 
+                    : 'bg-red-500'
+                }`}>
+                  {connectionStatus === 'connected' && isLive && (
+                    <div className="absolute inset-0 rounded-full bg-green-500 animate-ping"></div>
+                  )}
+                </div>
+                <span className="font-medium text-sm">
+                  {connectionStatus === 'connected' && isLive 
+                    ? '🔴 Live' 
+                    : connectionStatus === 'connected' 
+                    ? '🟡 Connected' 
+                    : '🔴 Disconnected'
+                  }
+                </span>
+              </div>
+              <div className="h-4 w-px bg-gray-300"></div>
+              <div className="text-xs text-gray-500">
+                <div className="font-medium">Updated</div>
+                <div>{lastUpdate.toLocaleTimeString()}</div>
+              </div>
               <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Admin View</span>
+            </div>
+            {/* Reconnect Button */}
+            {connectionStatus === 'disconnected' && (
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center gap-2 shadow-lg"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reconnect
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Event Selector */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className="bg-gradient-to-r from-white to-gray-50 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <span className="text-2xl">🎭</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Event Selection</h2>
+                  <p className="text-purple-100 text-sm">Choose an event to view scores</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-purple-100 text-sm font-medium">Total Events</p>
+                <p className="text-3xl font-bold text-white">{events.length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex-1 max-w-full sm:max-w-md">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Event</label>
+                <select
+                  value={selectedEvent?.id || ''}
+                  onChange={(e) => {
+                    const event = events.find(ev => ev.id === e.target.value);
+                    setSelectedEvent(event);
+                  }}
+                  className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                >
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.status === 'ongoing' ? '🎭' : event.status === 'upcoming' ? '📅' : '✅'} {event.eventName} ({event.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -333,13 +511,22 @@ export default function AdminScoreboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {contestants.map((contestant, index) => (
-                    <tr key={contestant.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{getRankIcon(index + 1)}</span>
-                        </div>
-                      </td>
+                  {contestants.map((contestant, index) => {
+                    const isUpdated = updatedContestants.has(contestant.id);
+                    return (
+                      <tr key={contestant.id} className={`hover:bg-gray-50 transition-colors ${
+                        isUpdated ? 'animate-pulse bg-purple-50 border-purple-200' : ''
+                      }`}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{getRankIcon(index + 1)}</span>
+                            {isUpdated && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700 animate-pulse">
+                                🔄 Updated
+                              </span>
+                            )}
+                          </div>
+                        </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
@@ -386,7 +573,8 @@ export default function AdminScoreboard() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

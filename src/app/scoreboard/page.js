@@ -1021,42 +1021,48 @@ export default function LiveScoreboard() {
               {/* 3-Column Grid Layout */}
               <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
                 {/* Column 1 - Image and Basic Info */}
-                <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
-                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="text-xl">👤</span>
-                    Contestant Info
-                  </h5>
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-4 flex flex-col shadow-lg border border-blue-100">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-blue-200">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center text-white text-sm shadow-lg">
+                      👤
+                    </div>
+                    <h5 className="text-lg font-bold text-gray-900">Profile</h5>
+                  </div>
                   
                   {/* Image */}
-                  <div className="flex-shrink-0 relative group mb-4">
+                  <div className="flex-shrink-0 relative group mb-3">
                     {selectedContestant.photo ? (
                       <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-xl opacity-20 blur-lg"></div>
                         <img 
                           src={selectedContestant.photo} 
                           alt={selectedContestant.name}
-                          className="w-full h-[384px] rounded-xl object-contain border-4 border-blue-100 shadow-lg bg-gray-50"
+                          className="relative w-full h-[240px] rounded-xl object-contain border-4 border-white shadow-xl bg-white"
                         />
                         {/* Change Image Button */}
                         <button
                           onClick={() => document.getElementById(`image-upload-${selectedContestant.id}`).click()}
-                          className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+                          className="absolute inset-0 bg-gradient-to-br from-blue-600/80 to-cyan-600/80 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer backdrop-blur-sm"
                           title="Change Image"
                         >
-                          <div className="bg-white rounded-lg p-2">
-                            <span className="text-blue-600 text-xl">📷</span>
+                          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-xl transform hover:scale-110 transition-transform">
+                            <span className="text-blue-600 text-lg">📷</span>
                           </div>
                         </button>
                       </div>
                     ) : (
-                      <div className="w-full h-[384px] rounded-xl bg-blue-100 flex items-center justify-center border-4 border-blue-100 shadow-lg relative group hover:bg-blue-200 transition-colors cursor-pointer"
-                           onClick={() => document.getElementById(`image-upload-${selectedContestant.id}`).click()}>
-                        <span className="text-5xl font-bold text-blue-600">
-                          {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
-                        </span>
-                        {/* Upload Icon Overlay */}
-                        <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <div className="bg-white rounded-lg p-2">
-                            <span className="text-blue-600 text-xl">📷</span>
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-xl opacity-20 blur-lg"></div>
+                        <div className="relative w-full h-[240px] rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center border-4 border-white shadow-xl group hover:from-blue-200 hover:to-cyan-200 transition-all duration-300 cursor-pointer"
+                             onClick={() => document.getElementById(`image-upload-${selectedContestant.id}`).click()}>
+                          <span className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-cyan-600">
+                            {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
+                          </span>
+                          {/* Upload Icon Overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/80 to-cyan-600/80 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer backdrop-blur-sm">
+                            <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-xl transform hover:scale-110 transition-transform">
+                              <span className="text-blue-600 text-lg">📷</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1074,30 +1080,82 @@ export default function LiveScoreboard() {
                   {/* Basic Info */}
                   <div className="flex-1 space-y-3">
                     <div className="text-center">
-                      <h4 className="text-2xl font-bold text-gray-900 mb-2">{selectedContestant.name}</h4>
-                      <p className="text-sm text-gray-600 mb-2">Contestant #{selectedContestant.number || 'N/A'}</p>
-                      <div className="text-xs text-gray-500 bg-blue-50 px-3 py-2 rounded-lg inline-block mb-3">
+                      <h4 className="text-xl font-bold text-gray-900 mb-2 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent leading-tight">
+                        {selectedContestant.name}
+                      </h4>
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-full text-sm font-semibold text-blue-700 mb-3 shadow-sm border border-blue-200">
+                        <span className="text-base">🎯</span>
+                        Contestant #{selectedContestant.number || 'N/A'}
+                      </div>
+                      <div className="text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl inline-block border border-blue-200 shadow-sm">
                         💡 Click photo to upload/change
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-sm text-gray-600">Total Score</div>
-                        <div className="text-lg font-bold text-blue-600">{selectedContestant.totalScore.toFixed(1)}%</div>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      <div className="bg-white/90 backdrop-blur-sm rounded-xl p-3 border border-blue-200 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow">
+                              📊
+                            </div>
+                            <div className="text-sm font-semibold text-gray-700">Total Score</div>
+                          </div>
+                          <div className="text-lg font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                            {selectedContestant.totalScore.toFixed(1)}%
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-sm text-gray-600">Judges</div>
-                        <div className="text-lg font-bold text-blue-600">{selectedContestant.judgeCount || 0}</div>
+                      
+                      <div className="bg-white/90 backdrop-blur-sm rounded-xl p-3 border border-blue-200 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow">
+                              👥
+                            </div>
+                            <div className="text-sm font-semibold text-gray-700">Judges</div>
+                          </div>
+                          <div className="text-lg font-bold text-blue-600">
+                            {selectedContestant.judgeCount || 0}
+                          </div>
+                        </div>
                       </div>
+                      
                       {selectedContestant.totalScore === highestScorer?.totalScore && (
-                        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
-                          <div className="flex items-center justify-center gap-2 text-sm font-medium text-yellow-800">
-                            <span className="text-lg">🏆</span>
-                            Leading
+                        <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-xl p-3 border border-yellow-300 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-7 h-7 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-lg">
+                              🏆
+                            </div>
+                            <span className="text-sm font-bold text-yellow-800">Currently Leading</span>
                           </div>
                         </div>
                       )}
+                      
+                      {/* Additional Stats */}
+                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-3 border border-blue-200 shadow-sm">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600 font-medium">Performance</span>
+                            <span className={`font-bold ${
+                              selectedContestant.totalScore >= 90 ? 'text-green-600' :
+                              selectedContestant.totalScore >= 80 ? 'text-blue-600' :
+                              selectedContestant.totalScore >= 70 ? 'text-yellow-600' :
+                              'text-gray-600'
+                            }`}>
+                              {selectedContestant.totalScore >= 90 ? 'Excellent' :
+                               selectedContestant.totalScore >= 80 ? 'Good' :
+                               selectedContestant.totalScore >= 70 ? 'Average' : 'Needs Improvement'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600 font-medium">Rank</span>
+                            <span className="font-bold text-blue-600">
+                              #{contestants.findIndex(c => c.id === selectedContestant.id) + 1}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

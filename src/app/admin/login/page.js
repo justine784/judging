@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import ForgotPasswordModal from '@/components/ForgotPasswordModal';
+import FirebaseDebug from '@/components/FirebaseDebug';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -103,20 +104,37 @@ export default function AdminLogin() {
     }
 
     try {
+      // Check Firebase auth state first
+      console.log('Current auth state before login:', auth.currentUser);
+      
       // Sign out any existing user to prevent authentication conflicts
       await signOut(auth);
       
+      console.log('Attempting Firebase authentication...');
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       console.log('Login successful:', userCredential.user.email);
+      console.log('User UID:', userCredential.user.uid);
+      console.log('Auth token available:', !!userCredential.user.accessToken);
       
       // Wait a brief moment for auth state to propagate
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Force redirect to dashboard with full page refresh
-      window.location.href = '/admin/dashboard';
+      // Verify user is authenticated before redirect
+      if (auth.currentUser) {
+        console.log('Authentication confirmed, redirecting to dashboard...');
+        // Force redirect to dashboard with full page refresh
+        window.location.href = '/admin/dashboard';
+      } else {
+        throw new Error('Authentication failed - user not found after login');
+      }
     } catch (error) {
-      console.error('Login error details:', error.code, error.message);
+      console.error('Login error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack,
+        email: email
+      });
       
       // Provide more specific error messages
       switch (error.code) {
@@ -134,6 +152,15 @@ export default function AdminLogin() {
           break;
         case 'auth/too-many-requests':
           setError('Too many failed attempts. Please try again later.');
+          break;
+        case 'auth/invalid-credential':
+          setError('Authentication configuration issue. Please ensure Email/Password sign-in method is enabled in Firebase Console. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.');
+          break;
+        case 'auth/api-key-not-authorized':
+          setError('Firebase API key not authorized. Please check your Firebase project settings.');
+          break;
+        case 'auth/app-not-authorized':
+          setError('App not authorized for Firebase. Please check your Firebase configuration.');
           break;
         default:
           setError(`Login failed: ${error.message}`);
@@ -368,6 +395,9 @@ export default function AdminLogin() {
         onClose={() => setShowForgotPassword(false)} 
         userType="admin" 
       />
+      
+      {/* Firebase Debug Component - Only in Development */}
+      <FirebaseDebug />
     </div>
   );
 }

@@ -922,18 +922,7 @@ export default function JudgeDashboard() {
               </div>
             </div>
             
-            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-blue-200">
-              <label className="text-xs sm:text-sm font-medium text-blue-100 block mb-2">Judging Criteria</label>
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                {event.criteria && event.criteria.filter(c => c.enabled).map((criterion, index) => (
-                  <span key={index} className="inline-flex items-center px-2 sm:px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                    <span className="hidden sm:inline">{criterion.name} ({criterion.weight}%)</span>
-                    <span className="sm:hidden">{criterion.name.substring(0, 8)}...</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
+                      </div>
         ))}
 
           {/* Scoring Table */}

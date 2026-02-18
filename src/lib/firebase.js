@@ -14,12 +14,32 @@ const firebaseConfig = {
   measurementId: "G-PKDBVPZQQV"
 };
 
+// Validate Firebase configuration
+const validateFirebaseConfig = () => {
+  const requiredFields = ['apiKey', 'authDomain', 'projectId', 'appId'];
+  for (const field of requiredFields) {
+    if (!firebaseConfig[field]) {
+      throw new Error(`Firebase configuration missing required field: ${field}`);
+    }
+  }
+};
+
+// Validate configuration before initialization
+validateFirebaseConfig();
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services
+// Initialize Firebase services with specific settings
 export const auth = getAuth(app);
+auth.settings = {
+  persistence: 'session', // Use session persistence
+  languageCode: 'en'
+};
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 export default app;
+
+console.log('Firebase initialized successfully');

@@ -8,6 +8,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     // Fetch all events from Firestore
@@ -46,6 +47,21 @@ export default function Home() {
 
     return () => unsubscribe();
   }, []);
+
+  // Filter events based on search query
+  const filteredEvents = events.filter(event => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    
+    return (
+      event.eventName?.toLowerCase().includes(query) ||
+      event.eventDescription?.toLowerCase().includes(query) ||
+      event.venue?.toLowerCase().includes(query) ||
+      event.status?.toLowerCase().includes(query) ||
+      event.date?.toLowerCase().includes(query) ||
+      event.time?.toLowerCase().includes(query)
+    );
+  });
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-white to-blue-50">
       {/* Hero Section */}
@@ -112,10 +128,40 @@ export default function Home() {
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">Live Events</h2>
-                <p className="text-lg text-gray-600">Check out our current and upcoming competitions</p>
+                <p className="text-lg text-gray-600 mb-6">Check out our current and upcoming competitions</p>
+                
+                {/* Search Box */}
+                <div className="max-w-md mx-auto">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400">🔍</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search events by name, description, venue, status..."
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-white shadow-sm"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      >
+                        <span className="text-gray-400 hover:text-gray-600">✕</span>
+                      </button>
+                    )}
+                  </div>
+                  {searchQuery && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      Found {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'} matching "{searchQuery}"
+                    </p>
+                  )}
+                </div>
               </div>
               
-              {events.map((event) => (
+              {filteredEvents.length > 0 ? (
+                filteredEvents.map((event) => (
                 <div key={event.id} className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
                   <div className="text-center mb-6">
                     <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
@@ -201,7 +247,27 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              ) : (
+                <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Events Found</h3>
+                  <p className="text-gray-600">
+                    {searchQuery 
+                      ? `No events found matching "${searchQuery}". Try a different search term.`
+                      : 'No events have been created yet. Check back later for upcoming competitions.'
+                    }
+                  </p>
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Clear search
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
@@ -249,7 +315,7 @@ export default function Home() {
               <p>📱 +63 912 345 6789</p>
             </div>
             <div className="border-t border-gray-700 pt-4 text-sm text-gray-400">
-              <p>@ Developed by BSIT Students – Mindoro State University</p>
+              <p>@ Developed by BSIT Students – Mindoro State University Bongabong Campus</p>
             </div>
           </div>
         </div>

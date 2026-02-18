@@ -1,9 +1,17 @@
 import { getServerSideUser } from '@/lib/auth';
-import { doc, deleteDoc, getDoc, getFirestore } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, deleteDoc, getDoc, getFirestore } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 
 export async function DELETE(request) {
   try {
+    // Check if admin services are available
+    if (!adminDb) {
+      return Response.json(
+        { error: 'Server configuration error. Admin services not available.' },
+        { status: 500 }
+      );
+    }
+
     // Verify the requester is an admin
     const user = await getServerSideUser();
     if (!user || user.role !== 'admin') {
@@ -22,7 +30,7 @@ export async function DELETE(request) {
     }
 
     // Get the judge document to verify it exists
-    const judgeDoc = await getDoc(doc(db, 'judges', judgeId));
+    const judgeDoc = await getDoc(doc(adminDb, 'judges', judgeId));
     
     if (!judgeDoc.exists()) {
       return Response.json({ error: 'Judge not found' }, { status: 404 });
@@ -31,7 +39,7 @@ export async function DELETE(request) {
     const judgeData = judgeDoc.data();
 
     // Delete judge document from Firestore
-    await deleteDoc(doc(db, 'judges', judgeId));
+    await deleteDoc(doc(adminDb, 'judges', judgeId));
     console.log(`Successfully deleted judge ${judgeId} from Firestore`);
 
     return Response.json({ 

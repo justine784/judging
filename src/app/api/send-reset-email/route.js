@@ -1,9 +1,17 @@
 import { adminDb } from '@/lib/firebase-admin';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase-admin/firestore';
 import { auth } from '@/lib/firebase';
 
 export async function POST(request) {
   try {
+    // Check if admin services are available
+    if (!adminDb) {
+      return Response.json(
+        { error: 'Server configuration error. Admin services not available.' },
+        { status: 500 }
+      );
+    }
+
     const { email, referenceNumber, userType } = await request.json();
 
     if (!email || !referenceNumber || !userType) {

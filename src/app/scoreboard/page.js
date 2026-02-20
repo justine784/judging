@@ -78,6 +78,8 @@ export default function LiveScoreboard() {
   const [highestScorer, setHighestScorer] = useState(null);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedRound, setSelectedRound] = useState('all'); // Round filter state
+  const [showFinalRoundsOnly, setShowFinalRoundsOnly] = useState(false); // Final rounds filter state
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isLive, setIsLive] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('connected');
@@ -243,6 +245,131 @@ export default function LiveScoreboard() {
       totalScores,
       completedEvaluations
     };
+  };
+
+  // Function to filter contestants by selected round
+  const filterContestantsByRound = (contestantsList, roundFilter) => {
+    if (!selectedEvent) {
+      return contestantsList;
+    }
+    
+    // Apply final rounds filter if active
+    if (showFinalRoundsOnly) {
+      contestantsList = filterFinalRoundContestants(contestantsList);
+    }
+    
+    // If no specific round filter selected, return the (possibly filtered) list
+    if (roundFilter === 'all') {
+      return contestantsList;
+    }
+    
+    if (!selectedEvent.rounds || selectedEvent.rounds.length === 0) {
+      return contestantsList;
+    }
+    
+    // Find selected round
+    const selectedRoundData = selectedEvent.rounds.find(round => round.name === roundFilter);
+    if (!selectedRoundData) {
+      return contestantsList;
+    }
+    
+    // Show all contestants for this round, but mark eliminated ones
+    return contestantsList.filter(contestant => {
+      // Check if contestant has scores for this specific round
+      const roundScores = scores.filter(score => 
+        score.contestantId === contestant.id && 
+        score.eventId === selectedEvent.id &&
+        score.roundName === roundFilter
+      );
+      
+      // If no round-specific scores, check if they have general scores (for compatibility)
+      if (roundScores.length === 0) {
+        const generalScores = scores.filter(score => 
+          score.contestantId === contestant.id && 
+          score.eventId === selectedEvent.id
+        );
+        return generalScores.length > 0;
+      }
+      
+      return roundScores.length > 0;
+    });
+  };
+
+  // Function to filter final round contestants only
+  const filterFinalRoundContestants = (contestantsList) => {
+    if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) {
+      return contestantsList;
+    }
+    
+    // Find the final round (last enabled round)
+    const finalRound = selectedEvent.rounds
+      .filter(round => round.enabled)
+      .slice(-1)[0];
+    
+    if (!finalRound) {
+      return contestantsList;
+    }
+    
+    // Filter contestants who have scores for final round criteria
+    return contestantsList.filter(contestant => {
+      const finalRoundScores = scores.filter(score => 
+        score.contestantId === contestant.id && 
+        score.eventId === selectedEvent.id &&
+        score.roundName === finalRound.name
+      );
+      
+      // Also check if contestant has final round criteria scores in their data
+      if (finalRoundScores.length === 0 && finalRound.criteria) {
+        return finalRound.criteria.some(criterion => {
+          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+          return contestant[key] !== undefined && contestant[key] > 0;
+        });
+      }
+      
+      return finalRoundScores.length > 0;
+    });
+  };
+
+  // Helper function to get final round name
+  const getFinalRoundName = () => {
+    if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) {
+      return null;
+    }
+    const finalRound = selectedEvent.rounds
+      .filter(round => round.enabled)
+      .slice(-1)[0];
+    return finalRound ? finalRound.name : null;
+  };
+
+  // Helper function to check if contestant is in final round
+  const isContestantInFinalRound = (contestant) => {
+    if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) {
+      return false;
+    }
+    const finalRound = selectedEvent.rounds
+      .filter(round => round.enabled)
+      .slice(-1)[0];
+    
+    if (!finalRound) return false;
+    
+    // Check if contestant has scores for final round
+    const finalRoundScores = scores.filter(score => 
+      score.contestantId === contestant.id && 
+      score.eventId === selectedEvent.id &&
+      score.roundName === finalRound.name
+    );
+    
+    if (finalRoundScores.length > 0) return true;
+    
+    // Also check contestant data for final round criteria
+    if (finalRound.criteria) {
+      return finalRound.criteria.some(criterion => {
+        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        return contestant[key] !== undefined && contestant[key] > 0;
+      });
+    }
+    
+    return false;
   };
 
   // Calculate aggregated scores from all judges for a contestant
@@ -450,7 +577,10 @@ export default function LiveScoreboard() {
     };
   }, [selectedEvent, scores]); // Add scores as dependency to recalculate when scores change
 
-  const getRankIcon = (rank) => {
+  const getRankIcon = (rank, isEliminated) => {
+    if (isEliminated) {
+      return '❌';
+    }
     switch (rank) {
       case 1: return '🥇';
       case 2: return '🥈';
@@ -629,7 +759,7 @@ export default function LiveScoreboard() {
                     <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">
                       Live Scoreboard
                     </h1>
-                    <p className="text-sm text-gray-500 font-medium">Real-time scoring updates</p>
+                    
                   </div>
                 </div>
               </div>
@@ -719,6 +849,7 @@ export default function LiveScoreboard() {
                   onChange={(e) => {
                     const event = events.find(ev => ev.id === e.target.value);
                     setSelectedEvent(event);
+                    setSelectedRound('all'); // Reset round filter when event changes
                   }}
                   className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
                 >
@@ -729,6 +860,51 @@ export default function LiveScoreboard() {
                   ))}
                 </select>
               </div>
+              
+              {/* Round Filter */}
+              {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && (
+                <div className="flex-1 max-w-full sm:max-w-md">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Round</label>
+                  <select
+                    value={selectedRound}
+                    onChange={(e) => setSelectedRound(e.target.value)}
+                    className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                  >
+                    <option value="all">🏆 All Rounds</option>
+                    {selectedEvent.rounds.map((round, index) => (
+                      <option key={index} value={round.name}>
+                        🎯 {round.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Final Rounds Only Filter */}
+              {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && getFinalRoundName() && (
+                <div className="flex-1 max-w-full sm:max-w-xs">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Finalists Only</label>
+                  <div className="flex items-center gap-3 bg-white border-2 border-gray-300 rounded-xl px-4 py-3 shadow-sm hover:border-gray-400 transition-all duration-200">
+                    <button
+                      onClick={() => setShowFinalRoundsOnly(!showFinalRoundsOnly)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 ${
+                        showFinalRoundsOnly ? 'bg-gradient-to-r from-yellow-400 to-orange-400' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                          showFinalRoundsOnly ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-sm font-medium ${
+                      showFinalRoundsOnly ? 'text-orange-600' : 'text-gray-600'
+                    }`}>
+                      {showFinalRoundsOnly ? `${filterFinalRoundContestants(contestants).length} 🏆` : 'All'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -746,7 +922,7 @@ export default function LiveScoreboard() {
                   <div className="flex items-center gap-4 text-blue-100">
                     <div className="flex items-center gap-2">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                       <span>{selectedEvent.date}</span>
                     </div>
@@ -758,6 +934,19 @@ export default function LiveScoreboard() {
                       <span>{selectedEvent.venue}</span>
                     </div>
                   </div>
+                  {/* Current Filter Display */}
+                  {(selectedRound !== 'all' || showFinalRoundsOnly) && (
+                    <div className="bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                      <span className="text-white font-medium text-sm">
+                        {showFinalRoundsOnly && selectedRound === 'all' 
+                          ? `🏆 Finalists Only (${filterFinalRoundContestants(contestants).length})`
+                          : selectedRound !== 'all' 
+                          ? `🎯 Filtered: ${selectedRound}`
+                          : `🏆 Finalists Only (${filterFinalRoundContestants(contestants).length})`
+                        }
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-4 text-center">
@@ -872,17 +1061,19 @@ export default function LiveScoreboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {contestants.map((contestant, index) => {
+                {filterContestantsByRound(contestants, selectedRound).map((contestant, index) => {
                   const rank = index + 1;
                   const rankColorClass = getRankColor(rank);
                   const isRecentlyUpdated = updatedContestants.has(contestant.id);
                   return (
                   <tr key={contestant.id} className={`hover:bg-gray-50 transition-all duration-200 border-l-4 ${rankColorClass} ${
                     rank === 1 ? 'hover:shadow-lg' : ''
-                  } ${isRecentlyUpdated ? 'bg-green-50 animate-pulse' : ''}`}>
+                  } ${isRecentlyUpdated ? 'bg-green-50 animate-pulse' : ''} ${
+                    contestant.eliminated ? 'opacity-60 bg-red-50' : ''
+                  }`}>
                     <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-16 lg:w-20">
                       <div className="flex items-center justify-center">
-                        <span className="text-xl sm:text-2xl lg:text-3xl">{getRankIcon(rank)}</span>
+                        <span className="text-xl sm:text-2xl lg:text-3xl">{getRankIcon(rank, contestant.eliminated)}</span>
                       </div>
                     </td>
                     <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-20 lg:w-32">
@@ -914,6 +1105,11 @@ export default function LiveScoreboard() {
                                 >
                                   {contestant.name || 'Contestant ' + rank}
                                 </button>
+                                {isContestantInFinalRound(contestant) && (
+                                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full shadow-sm" title="Final Round Contestant">
+                                    🏆
+                                  </span>
+                                )}
                                 {isRecentlyUpdated && (
                                   <div className="flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full animate-pulse">
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -925,6 +1121,11 @@ export default function LiveScoreboard() {
                               </div>
                               <div className="flex items-center gap-1 sm:gap-2 mt-1">
                                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">#{contestant.number || rank}</span>
+                                {contestant.eliminated && (
+                                  <span className="inline-flex items-center px-1 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold" title="Eliminated">
+                                    ❌ Eliminated
+                                  </span>
+                                )}
                                 {contestant.photo && (
                                   <span className="inline-flex items-center px-1 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold" title="Has Photo">
                                     📷
@@ -997,9 +1198,9 @@ export default function LiveScoreboard() {
       {/* Contestant Detail Modal */}
       {showModal && selectedContestant && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white shadow-2xl w-full h-full transform transition-all duration-300 scale-100 animate-slide-up">
+          <div className="bg-white shadow-2xl w-full h-full max-h-[100vh] transform transition-all duration-300 scale-100 animate-slide-up flex flex-col">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-4 shadow-lg">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-4 shadow-lg flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="animate-fade-in">
                   <h3 className="text-lg sm:text-xl font-bold text-white">Contestant Details</h3>
@@ -1016,12 +1217,12 @@ export default function LiveScoreboard() {
               </div>
             </div>
 
-            {/* Modal Body - 3-Column Layout */}
-            <div className="p-4 sm:p-6 h-[calc(100vh-80px)] flex flex-col">
-              {/* 3-Column Grid Layout */}
-              <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+            {/* Modal Body - Responsive Layout */}
+            <div className="flex-1 p-4 sm:p-6 overflow-hidden flex flex-col">
+              {/* Mobile-First Stack Layout, Desktop Grid */}
+              <div className="flex-1 lg:grid lg:grid-cols-3 gap-6 h-full overflow-y-auto lg:overflow-hidden">
                 {/* Column 1 - Image and Basic Info */}
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-4 flex flex-col shadow-lg border border-blue-100">
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-4 flex flex-col shadow-lg border border-blue-100 lg:h-auto">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-blue-200">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center text-white text-sm shadow-lg">
                       👤
@@ -1037,7 +1238,7 @@ export default function LiveScoreboard() {
                         <img 
                           src={selectedContestant.photo} 
                           alt={selectedContestant.name}
-                          className="relative w-full h-[240px] rounded-xl object-contain border-4 border-white shadow-xl bg-white"
+                          className="relative w-full h-[200px] sm:h-[240px] rounded-xl object-contain border-4 border-white shadow-xl bg-white"
                         />
                         {/* Change Image Button */}
                         <button
@@ -1053,7 +1254,7 @@ export default function LiveScoreboard() {
                     ) : (
                       <div className="relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-xl opacity-20 blur-lg"></div>
-                        <div className="relative w-full h-[240px] rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center border-4 border-white shadow-xl group hover:from-blue-200 hover:to-cyan-200 transition-all duration-300 cursor-pointer"
+                        <div className="relative w-full h-[200px] sm:h-[240px] rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center border-4 border-white shadow-xl group hover:from-blue-200 hover:to-cyan-200 transition-all duration-300 cursor-pointer"
                              onClick={() => document.getElementById(`image-upload-${selectedContestant.id}`).click()}>
                           <span className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-cyan-600">
                             {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
@@ -1161,7 +1362,7 @@ export default function LiveScoreboard() {
                 </div>
 
                 {/* Column 2 - Criteria Scores */}
-                <div className="bg-gray-50 rounded-xl p-4 overflow-y-auto">
+                <div className="bg-gray-50 rounded-xl p-4 lg:overflow-y-auto">
                   <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-xl">📊</span>
                     Criteria Scores
@@ -1214,7 +1415,7 @@ export default function LiveScoreboard() {
                 </div>
 
                 {/* Column 3 - Judge Breakdown */}
-                <div className="bg-gray-50 rounded-xl p-4 overflow-y-auto">
+                <div className="bg-gray-50 rounded-xl p-4 lg:overflow-y-auto">
                   <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-xl">👥</span>
                     Judge Breakdown

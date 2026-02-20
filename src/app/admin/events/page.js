@@ -27,7 +27,9 @@ export default function EventManagement() {
     time: '',
     venue: '',
     status: 'upcoming',
-    scoresLocked: false
+    scoresLocked: false,
+    hasRounds: false,
+    rounds: []
   });
 
   // Load events from Firestore on component mount
@@ -65,6 +67,41 @@ export default function EventManagement() {
             { name: 'Stage Presence', weight: 30, enabled: true },
             { name: 'Song Interpretation', weight: 20, enabled: true },
             { name: 'Audience Impact', weight: 10, enabled: true }
+          ],
+          rounds: [
+            { 
+              name: 'Preliminary Round', 
+              description: 'Initial audition round', 
+              enabled: true,
+              criteria: [
+                { name: 'Vocal Quality', weight: 40, enabled: true },
+                { name: 'Stage Presence', weight: 30, enabled: true },
+                { name: 'Song Interpretation', weight: 20, enabled: true },
+                { name: 'Audience Impact', weight: 10, enabled: false }
+              ]
+            },
+            { 
+              name: 'Semi-Finals', 
+              description: 'Top 10 contestants', 
+              enabled: true,
+              criteria: [
+                { name: 'Vocal Quality', weight: 35, enabled: true },
+                { name: 'Stage Presence', weight: 35, enabled: true },
+                { name: 'Song Interpretation', weight: 30, enabled: true },
+                { name: 'Audience Impact', weight: 0, enabled: false }
+              ]
+            },
+            { 
+              name: 'Grand Finals', 
+              description: 'Championship round', 
+              enabled: true,
+              criteria: [
+                { name: 'Vocal Quality', weight: 30, enabled: true },
+                { name: 'Stage Presence', weight: 25, enabled: true },
+                { name: 'Song Interpretation', weight: 25, enabled: true },
+                { name: 'Audience Impact', weight: 20, enabled: true }
+              ]
+            }
           ]
         },
         {
@@ -80,6 +117,28 @@ export default function EventManagement() {
             { name: 'Musical Performance', weight: 50, enabled: true },
             { name: 'Stage Presence', weight: 30, enabled: true },
             { name: 'Originality', weight: 20, enabled: true }
+          ],
+          rounds: [
+            { 
+              name: 'Elimination Round', 
+              description: 'Band eliminations', 
+              enabled: true,
+              criteria: [
+                { name: 'Musical Performance', weight: 60, enabled: true },
+                { name: 'Stage Presence', weight: 20, enabled: true },
+                { name: 'Originality', weight: 20, enabled: true }
+              ]
+            },
+            { 
+              name: 'Final Round', 
+              description: 'Championship performance', 
+              enabled: true,
+              criteria: [
+                { name: 'Musical Performance', weight: 40, enabled: true },
+                { name: 'Stage Presence', weight: 30, enabled: true },
+                { name: 'Originality', weight: 30, enabled: true }
+              ]
+            }
           ]
         },
         {
@@ -94,7 +153,8 @@ export default function EventManagement() {
           criteria: [
             { name: 'Vocal Quality', weight: 60, enabled: true },
             { name: 'Song Choice', weight: 40, enabled: true }
-          ]
+          ],
+          rounds: []
         }
       ];
       setEvents(sampleEvents);
@@ -116,10 +176,61 @@ export default function EventManagement() {
   }, [activeDropdown]);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  // Helper functions for managing rounds in form
+  const addFormRound = () => {
+    const newRound = {
+      name: `Round ${formData.rounds.length + 1}`,
+      description: '',
+      enabled: true,
+      criteria: [
+        { name: 'Vocal Quality', weight: 40, enabled: true },
+        { name: 'Stage Presence', weight: 30, enabled: true },
+        { name: 'Song Interpretation', weight: 20, enabled: true },
+        { name: 'Audience Impact', weight: 10, enabled: true }
+      ]
+    };
+    setFormData(prev => ({
+      ...prev,
+      rounds: [...prev.rounds, newRound]
+    }));
+  };
+
+  const removeFormRound = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      rounds: prev.rounds.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateFormRound = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      rounds: prev.rounds.map((round, i) => 
+        i === index ? { ...round, [field]: value } : round
+      )
+    }));
+  };
+
+  const updateFormRoundCriteria = (roundIndex, criteriaIndex, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      rounds: prev.rounds.map((round, i) => 
+        i === roundIndex 
+          ? {
+              ...round,
+              criteria: round.criteria.map((criteria, j) => 
+                j === criteriaIndex ? { ...criteria, [field]: value } : criteria
+              )
+            }
+          : round
+      )
     }));
   };
 
@@ -128,15 +239,18 @@ export default function EventManagement() {
     setError('');
     
     try {
-      // Add default criteria if not provided
+      // Add default criteria if not provided and no rounds are configured
       const eventData = {
         ...formData,
-        criteria: [
-          { name: 'Vocal Quality', weight: 40, enabled: true },
-          { name: 'Stage Presence', weight: 30, enabled: true },
-          { name: 'Song Interpretation', weight: 20, enabled: true },
-          { name: 'Audience Impact', weight: 10, enabled: true }
-        ],
+        criteria: formData.hasRounds && formData.rounds.length > 0 
+          ? [] // Use empty criteria when rounds are configured
+          : [
+              { name: 'Vocal Quality', weight: 40, enabled: true },
+              { name: 'Stage Presence', weight: 30, enabled: true },
+              { name: 'Song Interpretation', weight: 20, enabled: true },
+              { name: 'Audience Impact', weight: 10, enabled: true }
+            ],
+        rounds: formData.hasRounds ? formData.rounds : [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -270,7 +384,20 @@ export default function EventManagement() {
   };
 
   const openCriteriaModal = (event) => {
-    setSelectedEvent(event);
+    const updatedEvent = { ...event };
+    
+    // Ensure rounds have criteria structure
+    if (updatedEvent.rounds && updatedEvent.rounds.length > 0) {
+      updatedEvent.rounds = updatedEvent.rounds.map(round => ({
+        ...round,
+        criteria: round.criteria || updatedEvent.criteria.map(c => ({
+          ...c,
+          enabled: c.enabled
+        }))
+      }));
+    }
+    
+    setSelectedEvent(updatedEvent);
     setShowCriteriaModal(true);
   };
 
@@ -280,29 +407,52 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
+  const handleRoundChange = (index, field, value) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.rounds) {
+      updatedEvent.rounds = [];
+    }
+    updatedEvent.rounds[index][field] = value;
+    setSelectedEvent(updatedEvent);
+  };
+
+  const handleRoundCriteriaChange = (roundIndex, criteriaIndex, field, value) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.rounds || !updatedEvent.rounds[roundIndex].criteria) {
+      return;
+    }
+    updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = value;
+    setSelectedEvent(updatedEvent);
+  };
+
   const handleSaveCriteria = async () => {
     setLoading(true);
     setError('');
     
     try {
-      // Update criteria in Firestore
+      // Update criteria and rounds in Firestore
       const eventRef = doc(db, 'events', selectedEvent.id);
       await updateDoc(eventRef, {
         criteria: selectedEvent.criteria,
+        rounds: selectedEvent.rounds || [],
         updatedAt: serverTimestamp()
       });
       
       // Update local state
       setEvents(events.map(event => 
         event.id === selectedEvent.id 
-          ? { ...event, criteria: selectedEvent.criteria }
+          ? { 
+              ...event, 
+              criteria: selectedEvent.criteria, 
+              rounds: selectedEvent.rounds || []
+            }
           : event
       ));
       
       setShowCriteriaModal(false);
       setSelectedEvent(null);
       
-      alert('Criteria have been saved successfully!');
+      alert('Criteria and rounds have been saved successfully!');
     } catch (error) {
       console.error('Error saving criteria:', error);
       setError('Failed to save criteria. Please try again.');
@@ -327,6 +477,32 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
+  const addRound = () => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.rounds) {
+      updatedEvent.rounds = [];
+    }
+    updatedEvent.rounds.push({
+      name: '',
+      description: '',
+      enabled: true,
+      criteria: selectedEvent.criteria.map(c => ({
+        ...c,
+        enabled: c.enabled // Default to same enabled state as global criteria
+      }))
+    });
+    setSelectedEvent(updatedEvent);
+  };
+
+  const removeRound = (index) => {
+    const updatedEvent = { ...selectedEvent };
+    if (updatedEvent.rounds) {
+      updatedEvent.rounds.splice(index, 1);
+    }
+    setSelectedEvent(updatedEvent);
+  };
+
+  
   const toggleDropdown = (eventId, event) => {
     if (activeDropdown === eventId) {
       setActiveDropdown(null);
@@ -355,7 +531,9 @@ export default function EventManagement() {
       time: '',
       venue: '',
       status: 'upcoming',
-      scoresLocked: false
+      scoresLocked: false,
+      hasRounds: false,
+      rounds: []
     });
   };
 
@@ -970,6 +1148,143 @@ export default function EventManagement() {
                   </select>
                 </div>
 
+                {/* Optional Rounds Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Event Rounds
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="hasRounds"
+                        checked={formData.hasRounds}
+                        onChange={handleInputChange}
+                        className="sr-only peer"
+                      />
+                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <span className="ml-3 text-sm font-medium text-gray-700">
+                        {formData.hasRounds ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {formData.hasRounds && (
+                    <div className="space-y-4">
+                      {formData.rounds.length === 0 ? (
+                        <div className="text-center py-8 px-4 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
+                          <div className="text-4xl mb-2">🏆</div>
+                          <p className="text-gray-600 font-medium mb-1">No rounds configured</p>
+                          <p className="text-sm text-gray-500">Add rounds to structure your competition</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {formData.rounds.map((round, roundIndex) => (
+                            <div key={roundIndex} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                              <div className="flex items-center justify-between mb-4">
+                                <h4 className="font-semibold text-gray-900">Round {roundIndex + 1}</h4>
+                                <button
+                                  onClick={() => removeFormRound(roundIndex)}
+                                  className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                  title="Remove Round"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Round Name
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={round.name}
+                                    onChange={(e) => updateFormRound(roundIndex, 'name', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                                    placeholder="e.g., Preliminary Round"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Description
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={round.description}
+                                    onChange={(e) => updateFormRound(roundIndex, 'description', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                                    placeholder="Brief description"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <h5 className="text-sm font-medium text-gray-700">Criteria for this Round</h5>
+                                {round.criteria.map((criteria, criteriaIndex) => (
+                                  <div key={criteriaIndex} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Criteria Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={criteria.name}
+                                        onChange={(e) => updateFormRoundCriteria(roundIndex, criteriaIndex, 'name', e.target.value)}
+                                        className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
+                                        placeholder="Criteria name"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                                          Weight
+                                        </label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          value={criteria.weight}
+                                          onChange={(e) => updateFormRoundCriteria(roundIndex, criteriaIndex, 'weight', parseInt(e.target.value) || 0)}
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
+                                          placeholder="Weight"
+                                        />
+                                      </div>
+                                      <div className="flex items-center">
+                                        <label className="flex items-center cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={criteria.enabled}
+                                            onChange={(e) => updateFormRoundCriteria(roundIndex, criteriaIndex, 'enabled', e.target.checked)}
+                                            className="sr-only peer"
+                                          />
+                                          <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                          <span className="ml-2 text-xs text-gray-700">Enable</span>
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={addFormRound}
+                        className="w-full py-3 px-4 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <span className="text-xl">➕</span>
+                        <span className="font-medium">Add Round</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Form Actions */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
@@ -1216,8 +1531,8 @@ export default function EventManagement() {
                     <p className="text-sm text-orange-600 mt-2">⚠️ Total weight should equal 100%</p>
                   )}
                 </div>
-              </div>
 
+                
               {/* Form Actions */}
               <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 mt-6">
                 <button
@@ -1236,11 +1551,12 @@ export default function EventManagement() {
                   Cancel
                 </button>
               </div>
+              </div>
             </div>
           </div>
         </div>
       )}
-      </div>
     </div>
+  </div>
   );
 }

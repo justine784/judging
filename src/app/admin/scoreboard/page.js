@@ -13,6 +13,7 @@ export default function AdminScoreboard() {
   const [highestScorer, setHighestScorer] = useState(null);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedRound, setSelectedRound] = useState('all'); // Round filter state
   const [scores, setScores] = useState([]); // Store individual judge scores
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isLive, setIsLive] = useState(true);
@@ -305,6 +306,46 @@ export default function AdminScoreboard() {
     return (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1);
   };
 
+  // Function to filter contestants by selected round
+  const filterContestantsByRound = (contestantsList, roundFilter) => {
+    if (!selectedEvent || roundFilter === 'all') {
+      return contestantsList;
+    }
+    
+    // If event has no rounds, return all contestants
+    if (!selectedEvent.rounds || selectedEvent.rounds.length === 0) {
+      return contestantsList;
+    }
+    
+    // Find the selected round
+    const selectedRoundData = selectedEvent.rounds.find(round => round.name === roundFilter);
+    if (!selectedRoundData) {
+      return contestantsList;
+    }
+    
+    // Filter contestants who have scores for this round
+    return contestantsList.filter(contestant => {
+      // Check if contestant has scores for this specific round
+      const roundScores = scores.filter(score => 
+        score.contestantId === contestant.id && 
+        score.eventId === selectedEvent.id &&
+        score.roundName === roundFilter
+      );
+      
+      // If no round-specific scores, check if they have general scores (for compatibility)
+      if (roundScores.length === 0) {
+        const generalScores = scores.filter(score => 
+          score.contestantId === contestant.id && 
+          score.eventId === selectedEvent.id &&
+          !score.roundName
+        );
+        return generalScores.length > 0;
+      }
+      
+      return roundScores.length > 0;
+    });
+  };
+
   const getContestantCriteriaScore = (contestant, criteriaName) => {
     // Use the aggregated criteria scores calculated from all judges (same as live scoreboard)
     const key = criteriaName.toLowerCase().replace(/\s+/g, '_');
@@ -417,6 +458,7 @@ export default function AdminScoreboard() {
                   onChange={(e) => {
                     const event = events.find(ev => ev.id === e.target.value);
                     setSelectedEvent(event);
+                    setSelectedRound('all'); // Reset round filter when event changes
                   }}
                   className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
                 >
@@ -427,6 +469,25 @@ export default function AdminScoreboard() {
                   ))}
                 </select>
               </div>
+              
+              {/* Round Filter */}
+              {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && (
+                <div className="flex-1 max-w-full sm:max-w-md">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Round</label>
+                  <select
+                    value={selectedRound}
+                    onChange={(e) => setSelectedRound(e.target.value)}
+                    className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                  >
+                    <option value="all">🏆 All Rounds</option>
+                    {selectedEvent.rounds.map((round, index) => (
+                      <option key={index} value={round.name}>
+                        🎯 {round.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -511,7 +572,7 @@ export default function AdminScoreboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {contestants.map((contestant, index) => {
+                  {filterContestantsByRound(contestants, selectedRound).map((contestant, index) => {
                     const isUpdated = updatedContestants.has(contestant.id);
                     return (
                       <tr key={contestant.id} className={`hover:bg-gray-50 transition-colors ${

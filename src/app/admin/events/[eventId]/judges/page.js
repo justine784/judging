@@ -105,8 +105,31 @@ export default function EventJudgeManagement() {
 
   const loadEventJudges = async (id) => {
     try {
-      // For now, use empty array since event-judge assignments are not in Firestore yet
-      setEventJudges([]);
+      // Load judges assigned to this specific event
+      const judgesCollection = collection(db, 'judges');
+      const judgesSnapshot = await getDocs(judgesCollection);
+      const judgesList = judgesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        uid: doc.id,
+        ...doc.data()
+      }));
+      
+      // Filter judges who are assigned to this event
+      const assignedJudges = judgesList.filter(judge => 
+        judge.assignedEvents && judge.assignedEvents.includes(id)
+      );
+      
+      // Transform to event judge format
+      const eventJudgesList = assignedJudges.map(judge => ({
+        id: `${id}-${judge.id}`,
+        judgeId: judge.id,
+        judgeName: judge.name,
+        judgeEmail: judge.email,
+        assignedAt: judge.createdAt || new Date().toISOString(),
+        status: judge.isActive ? 'active' : 'inactive'
+      }));
+      
+      setEventJudges(eventJudgesList);
     } catch (error) {
       console.error('Error loading event judges:', error);
       setEventJudges([]);
@@ -118,23 +141,21 @@ export default function EventJudgeManagement() {
     if (!confirm('Are you sure you want to remove this judge from the event?')) return;
 
     try {
-      // Remove judge from event
+      // Find the event judge
       const eventJudge = eventJudges.find(ej => ej.id === eventJudgeId);
       if (eventJudge) {
-        setEventJudges(eventJudges.filter(ej => ej.id !== eventJudgeId));
-        
         // Update judge's assigned events in Firestore
-        const judge = judges.find(j => j.id === eventJudge.judgeId);
-        if (judge) {
-          const judgeRef = doc(db, 'judges', judge.uid);
-          const judgeDoc = await getDoc(judgeRef);
-          if (judgeDoc.exists()) {
-            const currentData = judgeDoc.data();
-            const assignedEvents = currentData.assignedEvents || [];
-            await updateDoc(judgeRef, {
-              assignedEvents: assignedEvents.filter(id => id !== selectedEvent.id)
-            });
-          }
+        const judgeRef = doc(db, 'judges', eventJudge.judgeId);
+        const judgeDoc = await getDoc(judgeRef);
+        if (judgeDoc.exists()) {
+          const currentData = judgeDoc.data();
+          const assignedEvents = currentData.assignedEvents || [];
+          await updateDoc(judgeRef, {
+            assignedEvents: assignedEvents.filter(id => id !== eventId)
+          });
+          
+          // Reload the event judges list
+          await loadEventJudges(eventId);
         }
       }
     } catch (error) {

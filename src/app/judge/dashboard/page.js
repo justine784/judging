@@ -20,6 +20,9 @@ export default function JudgeDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const [selectedRound, setSelectedRound] = useState('all'); // 'all' or specific round index
+  const [showFinalRoundsOnly, setShowFinalRoundsOnly] = useState(false); // Filter for final rounds only
+  const [selectorKey, setSelectorKey] = useState(0); // Force re-render for selectors
   const [currentContestant, setCurrentContestant] = useState({
     number: 1,
     name: "Maria Cruz",
@@ -272,12 +275,12 @@ export default function JudgeDashboard() {
       // Load current judge's scores
       const judgeScores = await loadJudgeScores(judge.uid || judge.id);
 
-      // Filter contestants to only include those from assigned events
+      // Filter contestants to only include those from assigned events and not eliminated
       // If no events are assigned, show all contestants (fallback for existing judges)
       let assignedContestants;
       if (assignedEventIds.length === 0) {
-        // Fallback: show all contestants if no events are assigned
-        assignedContestants = allContestants.map(contestant => ({
+        // Fallback: show all contestants if no events are assigned, but exclude eliminated ones
+        assignedContestants = allContestants.filter(contestant => !contestant.eliminated).map(contestant => ({
           ...contestant,
           // Add judge's own scores or default to 0
           ...judgeScores[contestant.id],
@@ -287,9 +290,9 @@ export default function JudgeDashboard() {
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
         }));
       } else {
-        // Normal case: filter by assigned events
+        // Normal case: filter by assigned events and exclude eliminated ones
         assignedContestants = allContestants.filter(contestant => 
-          assignedEventIds.includes(contestant.eventId)
+          assignedEventIds.includes(contestant.eventId) && !contestant.eliminated
         ).map(contestant => ({
           ...contestant,
           // Add judge's own scores or default to 0
@@ -350,22 +353,111 @@ export default function JudgeDashboard() {
 
   // Get current event criteria
   const getCurrentEventCriteria = () => {
-    if (!currentEvent || !currentEvent.criteria) return [];
-    return currentEvent.criteria.filter(c => c.enabled);
+    if (!currentEvent) return [];
+    
+    // If rounds are available and a specific round is selected
+    if (currentEvent.rounds && currentEvent.rounds.length > 0 && selectedRound !== 'all') {
+      const roundIndex = parseInt(selectedRound);
+      if (roundIndex >= 0 && roundIndex < currentEvent.rounds.length) {
+        const round = currentEvent.rounds[roundIndex];
+        return round.criteria ? round.criteria.filter(c => c.enabled) : [];
+      }
+    }
+    
+    // Default to main event criteria
+    return currentEvent.criteria ? currentEvent.criteria.filter(c => c.enabled) : [];
   };
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
   };
 
-  const filteredContestants = contestants.filter(contestant => 
-    contestant.eventName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contestant.contestantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contestant.contestantNo?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Helper function to get available rounds from current event
+  const getAvailableRounds = () => {
+    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+      return [];
+    }
+    return currentEvent.rounds.map((round, index) => ({
+      index,
+      name: round.name,
+      enabled: round.enabled
+    })).filter(round => round.enabled);
+  };
+
+  // Helper function to get final round
+  const getFinalRound = () => {
+    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+      return null;
+    }
+    const enabledRounds = currentEvent.rounds.filter(round => round.enabled);
+    return enabledRounds.length > 0 ? enabledRounds[enabledRounds.length - 1] : null;
+  };
+
+  // Helper function to check if current selection is final round
+  const isFinalRoundSelected = () => {
+    if (selectedRound === 'all') return false;
+    const finalRound = getFinalRound();
+    return finalRound && parseInt(selectedRound) === currentEvent.rounds.indexOf(finalRound);
+  };
+
+  // Helper function to check if a contestant is in final round
+  const isContestantInFinalRound = (contestant) => {
+    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+      return false;
+    }
+    const finalRound = getFinalRound();
+    if (!finalRound) return false;
+    
+    // Check if contestant has any scores for final round criteria
+    return finalRound.criteria && finalRound.criteria.some(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      return contestant[key] !== undefined && contestant[key] > 0;
+    });
+  };
+
+  // Helper function to get contestant's round status
+  const getContestantRoundStatus = (contestant) => {
+    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+      return null;
+    }
+    
+    // Check each round to see if contestant has scores
+    for (let i = currentEvent.rounds.length - 1; i >= 0; i--) {
+      const round = currentEvent.rounds[i];
+      if (round.enabled && round.criteria) {
+        const hasScores = round.criteria.some(criterion => {
+          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+          return contestant[key] !== undefined && contestant[key] > 0;
+        });
+        if (hasScores) {
+          const finalRound = getFinalRound();
+          const isFinal = finalRound && currentEvent.rounds.indexOf(finalRound) === i;
+          return { roundName: round.name, isFinal, roundIndex: i };
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  const filteredContestants = contestants.filter(contestant => {
+    // Apply search filter
+    const matchesSearch = contestant.eventName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          contestant.contestantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          contestant.contestantNo?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Apply final rounds filter
+    const matchesFinalRoundFilter = !showFinalRoundsOnly || isContestantInFinalRound(contestant);
+    
+    // Apply elimination filter - exclude eliminated contestants
+    const isNotEliminated = !contestant.eliminated;
+    
+    return matchesSearch && matchesFinalRoundFilter && isNotEliminated;
+  });
 
   const calculateWeightedScore = (contestant, event = null) => {
-    const criteriaToUse = event?.criteria || currentEvent?.criteria || [];
+    // Get criteria based on selected round
+    const criteriaToUse = getCurrentEventCriteria();
     const enabledCriteria = criteriaToUse.filter(c => c.enabled);
     
     if (enabledCriteria.length === 0) return 0;
@@ -475,6 +567,8 @@ export default function JudgeDashboard() {
       // Update quick scores to match the next contestant's saved scores
       const newQuickScores = initializeQuickScores(currentEvent, contestant);
       setQuickScores(newQuickScores);
+      // Force selector re-render
+      setSelectorKey(prev => prev + 1);
     }
   };
 
@@ -492,6 +586,8 @@ export default function JudgeDashboard() {
       // Update quick scores to match current contestant scores based on event criteria
       const newQuickScores = initializeQuickScores(currentEvent, contestant);
       setQuickScores(newQuickScores);
+      // Force selector re-render
+      setSelectorKey(prev => prev + 1);
     }
   };
 
@@ -729,7 +825,8 @@ export default function JudgeDashboard() {
         // Auto-navigate to next contestant if available
         if (currentContestantIndex < contestants.length - 1) {
           setTimeout(() => {
-            goToNextContestant();
+            const nextIndex = currentContestantIndex + 1;
+            selectContestantByIndex(nextIndex);
           }, 500);
         }
       } catch (error) {
@@ -863,8 +960,15 @@ export default function JudgeDashboard() {
                 <span className="text-xl sm:text-2xl">📝</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-blue-600/70 font-medium">Total Contestants</p>
-                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">{contestants.length}</p>
+                <p className="text-xs sm:text-sm text-blue-600/70 font-medium">
+                  {showFinalRoundsOnly ? 'Final Round Contestants' : 'Active Contestants'}
+                </p>
+                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">
+                  {filteredContestants.length}
+                  {showFinalRoundsOnly && contestants.length > filteredContestants.length && (
+                    <span className="text-xs text-blue-500 ml-1">of {contestants.filter(c => !c.eliminated).length}</span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -887,15 +991,34 @@ export default function JudgeDashboard() {
                 <span className="text-xl sm:text-2xl">✅</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-green-600/70 font-medium">Completed Evaluations</p>
+                <p className="text-xs sm:text-sm text-green-600/70 font-medium">
+                  {showFinalRoundsOnly ? 'Final Round Completed' : 'Completed Evaluations'}
+                </p>
                 <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-700 to-green-900 bg-clip-text text-transparent">
-                  {contestants.filter(c => {
+                  {filteredContestants.filter(c => {
                     const criteria = getCurrentEventCriteria();
                     return criteria.every(criterion => {
                       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       return c[key] && c[key] > 0;
                     });
                   }).length}
+                  {showFinalRoundsOnly && contestants.filter(c => !c.eliminated).length > filteredContestants.filter(c => {
+                    const criteria = getCurrentEventCriteria();
+                    return criteria.every(criterion => {
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                      return c[key] && c[key] > 0;
+                    });
+                  }).length && (
+                    <span className="text-xs text-green-500 ml-1">
+                      of {contestants.filter(c => !c.eliminated).filter(c => {
+                        const criteria = getCurrentEventCriteria();
+                        return criteria.every(criterion => {
+                          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                          return c[key] && c[key] > 0;
+                        });
+                      }).length}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -907,15 +1030,34 @@ export default function JudgeDashboard() {
                 <span className="text-xl sm:text-2xl">⏳</span>
               </div>
               <div>
-                <p className="text-xs sm:text-sm text-orange-600/70 font-medium">Pending Evaluations</p>
+                <p className="text-xs sm:text-sm text-orange-600/70 font-medium">
+                  {showFinalRoundsOnly ? 'Final Round Pending' : 'Pending Evaluations'}
+                </p>
                 <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-700 to-orange-900 bg-clip-text text-transparent">
-                  {contestants.filter(c => {
+                  {filteredContestants.filter(c => {
                     const criteria = getCurrentEventCriteria();
                     return criteria.some(criterion => {
                       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       return !c[key] || c[key] === 0;
                     });
                   }).length}
+                  {showFinalRoundsOnly && contestants.filter(c => !c.eliminated).length > filteredContestants.filter(c => {
+                    const criteria = getCurrentEventCriteria();
+                    return criteria.some(criterion => {
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                      return !c[key] || c[key] === 0;
+                    });
+                  }).length && (
+                    <span className="text-xs text-orange-500 ml-1">
+                      of {contestants.filter(c => !c.eliminated).filter(c => {
+                        const criteria = getCurrentEventCriteria();
+                        return criteria.some(criterion => {
+                          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                          return !c[key] || c[key] === 0;
+                        });
+                      }).length}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -963,17 +1105,129 @@ export default function JudgeDashboard() {
                 <h2 className="text-lg sm:text-xl font-bold">📊 Contestant Scoring</h2>
                 <p className="text-blue-100 text-xs sm:text-sm">Evaluate and score contestants</p>
               </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search contestants..."
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                  className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white placeholder-blue-200 text-sm"
-                />
-                <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Final Rounds Filter - Prominent */}
+                {getFinalRound() && (
+                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-2 border border-white/20">
+                    <label className="text-xs font-medium text-blue-100 whitespace-nowrap">Final Rounds Only:</label>
+                    <button
+                      onClick={() => setShowFinalRoundsOnly(!showFinalRoundsOnly)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+                        showFinalRoundsOnly ? 'bg-gradient-to-r from-yellow-400 to-orange-400' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                          showFinalRoundsOnly ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-xs font-medium text-white min-w-[60px] text-right">
+                      {showFinalRoundsOnly ? `${filteredContestants.length} 🏆` : 'All'}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search contestants..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white placeholder-blue-200 text-sm"
+                  />
+                  <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
+                </div>
+                
+                {/* Round Filter */}
+                {getAvailableRounds().length > 0 && (
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <select
+                        value={selectedRound}
+                        onChange={(e) => setSelectedRound(e.target.value)}
+                        className="w-full sm:w-48 px-3 sm:px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white text-sm appearance-none cursor-pointer"
+                      >
+                        <option value="all">📋 All Rounds</option>
+                        {getAvailableRounds().map((round) => (
+                          <option key={round.index} value={round.index}>
+                            {isFinalRoundSelected() && round.index === parseInt(selectedRound) ? '🏆 ' : '🎯 '}{round.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-2 sm:right-3 top-2.5 pointer-events-none">
+                        <svg className="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {/* Final Round Quick Filter */}
+                    {getFinalRound() && (
+                      <button
+                        onClick={() => setSelectedRound(currentEvent.rounds.indexOf(getFinalRound()).toString())}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          isFinalRoundSelected() 
+                            ? 'bg-yellow-400 text-yellow-900 border border-yellow-300' 
+                            : 'bg-blue-50 text-white border border-blue-300 hover:bg-blue-100'
+                        }`}
+                        title="Jump to Final Round"
+                      >
+                        🏆 Final
+                      </button>
+                    )}
+                    
+                    {/* Final Rounds Only Filter */}
+                    {getFinalRound() && (
+                      <button
+                        onClick={() => setShowFinalRoundsOnly(!showFinalRoundsOnly)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          showFinalRoundsOnly 
+                            ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white border border-yellow-300 shadow-lg' 
+                            : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
+                        }`}
+                        title="Show only contestants in final rounds"
+                      >
+                        {showFinalRoundsOnly ? '🏆 All Contestants' : '🎯 Final Rounds Only'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+            
+            {/* Round Info Display */}
+            {selectedRound !== 'all' && currentEvent && currentEvent.rounds && (
+              <div className="mt-3 p-2 bg-blue-50/20 rounded-lg border border-blue-300/30">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-100 text-xs font-medium">Current Round:</span>
+                  <span className="text-white text-sm font-semibold">
+                    {isFinalRoundSelected() ? '🏆 ' : '🎯 '}
+                    {currentEvent.rounds[parseInt(selectedRound)]?.name || `Round ${parseInt(selectedRound) + 1}`}
+                  </span>
+                  {currentEvent.rounds[parseInt(selectedRound)]?.description && (
+                    <span className="text-blue-200 text-xs">
+                      - {currentEvent.rounds[parseInt(selectedRound)].description}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Final Rounds Filter Status */}
+            {showFinalRoundsOnly && (
+              <div className="mt-3 p-2 bg-gradient-to-r from-yellow-50/30 to-orange-50/30 rounded-lg border border-yellow-300/40">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-yellow-100 text-xs font-medium">🏆 Filter Active:</span>
+                    <span className="text-white text-sm font-semibold">Final Rounds Only</span>
+                  </div>
+                  <span className="text-yellow-200 text-xs">
+                    {filteredContestants.length} of {contestants.length} contestants
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
           
           {contestants.length > 0 ? (
@@ -1002,6 +1256,9 @@ export default function JudgeDashboard() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Rank</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">No.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  {showFinalRoundsOnly && (
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Round</th>
+                  )}
                   {getCurrentEventCriteria().map((criterion, index) => (
                     <th key={index} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <div className="hidden sm:block">{criterion.name} ({criterion.weight}%)</div>
@@ -1022,8 +1279,33 @@ export default function JudgeDashboard() {
                     </td>
                     <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{contestant.contestantNo}</td>
                     <td className="px-4 py-3 text-xs sm:text-sm text-gray-900">
-                      <div className="truncate">{contestant.contestantName}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="truncate">{contestant.contestantName}</div>
+                        {getContestantRoundStatus(contestant)?.isFinal && (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full shadow-sm" title="Final Round Contestant">
+                            🏆
+                          </span>
+                        )}
+                      </div>
                     </td>
+                    {showFinalRoundsOnly && (
+                      <td className="px-4 py-3 text-center">
+                        {(() => {
+                          const roundStatus = getContestantRoundStatus(contestant);
+                          return roundStatus ? (
+                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                              roundStatus.isFinal 
+                                ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {roundStatus.isFinal ? '🏆 ' : '🎯 '}{roundStatus.roundName}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          );
+                        })()}
+                      </td>
+                    )}
                     {getCurrentEventCriteria().map((criterion, index) => {
                       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       const score = contestant[key] || 0;
@@ -1055,19 +1337,36 @@ export default function JudgeDashboard() {
             </div>
           ) : (
             <div className="text-center py-8 sm:py-12">
-              <div className="text-4xl sm:text-6xl mb-4">👥</div>
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No contestants found</h3>
+              <div className="text-4xl sm:text-6xl mb-4">
+                {showFinalRoundsOnly ? '🏆' : '👥'}
+              </div>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
+                {showFinalRoundsOnly ? 'No finalists found' : 'No contestants found'}
+              </h3>
               <p className="text-xs sm:text-sm text-gray-500 mb-4">
-                {assignedEvents.length === 0 
-                  ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
-                  : "No contestants have been added to your assigned events yet."
+                {showFinalRoundsOnly 
+                  ? `No contestants have been scored in the final rounds yet. ${contestants.length > 0 ? `Try showing all ${contestants.length} contestants to score finalists first.` : 'Add contestants and score them in earlier rounds first.'}`
+                  : assignedEvents.length === 0 
+                    ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
+                    : "No contestants have been added to your assigned events yet."
                 }
               </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 max-w-md mx-auto">
+              {showFinalRoundsOnly && contestants.length > 0 && (
+                <button
+                  onClick={() => setShowFinalRoundsOnly(false)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <span>👥</span>
+                  Show All Contestants
+                </button>
+              )}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 max-w-md mx-auto mt-4">
                 <p className="text-xs sm:text-sm text-yellow-800">
-                  <strong>Note:</strong> {assignedEvents.length === 0 
-                    ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
-                    : "Contestants will appear here once they are added to events you're assigned to judge."
+                  <strong>Tip:</strong> {showFinalRoundsOnly 
+                    ? "Finalists appear here once they have scores for final round criteria. Score contestants in earlier rounds first, then they'll appear as finalists."
+                    : assignedEvents.length === 0 
+                      ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
+                      : "Contestants will appear here once they are added to events you're assigned to judge."
                   }
                 </p>
               </div>
@@ -1112,7 +1411,7 @@ export default function JudgeDashboard() {
             {/* Contestant Selector */}
             <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
               <select
-              key={`mobile-selector-${currentContestantIndex}`}
+              key={`mobile-selector-${selectorKey}`}
               value={currentContestantIndex}
               onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
@@ -1238,7 +1537,7 @@ export default function JudgeDashboard() {
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Select Contestant</label>
                   <select
-                    key={`desktop-selector-${currentContestantIndex}`}
+                    key={`desktop-selector-${selectorKey}`}
                     value={currentContestantIndex}
                     onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"

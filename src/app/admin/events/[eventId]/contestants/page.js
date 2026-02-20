@@ -13,6 +13,8 @@ export default function EventContestants() {
   const [showRoundModal, setShowRoundModal] = useState(false);
   const [currentRound, setCurrentRound] = useState('preliminary');
   const [event, setEvent] = useState(null);
+  const [showActionsDropdown, setShowActionsDropdown] = useState(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const router = useRouter();
   const params = useParams();
   const eventId = params.eventId;
@@ -32,6 +34,18 @@ export default function EventContestants() {
     loadEvent();
     loadContestants();
   }, [eventId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showActionsDropdown && !event.target.closest('.dropdown-menu')) {
+        setShowActionsDropdown(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showActionsDropdown]);
 
   const loadEvent = async () => {
     try {
@@ -366,6 +380,47 @@ export default function EventContestants() {
     setShowRoundModal(true);
   };
 
+  const handleGoToFinalRounds = async () => {
+    try {
+      // Update all non-eliminated contestants to finalists
+      const contestantsToUpdate = contestants.filter(c => c.status !== 'eliminated');
+      
+      for (const contestant of contestantsToUpdate) {
+        await updateDoc(doc(db, 'contestants', contestant.id), {
+          status: 'finalist'
+        });
+      }
+      
+      // Update event to final round
+      await updateDoc(doc(db, 'events', eventId), {
+        currentRound: 'final'
+      });
+      
+      setCurrentRound('final');
+      loadContestants();
+      alert('Successfully advanced to Final Rounds!');
+    } catch (error) {
+      console.error('Error going to final rounds:', error);
+      alert('Failed to advance to final rounds. Please try again.');
+    }
+  };
+
+  const toggleDropdown = (contestantId, event) => {
+    if (showActionsDropdown === contestantId) {
+      setShowActionsDropdown(null);
+    } else {
+      const rect = event.target.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      setDropdownPosition({
+        top: rect.bottom + scrollTop + 4,
+        right: window.innerWidth - rect.right - scrollLeft + 4
+      });
+      setShowActionsDropdown(contestantId);
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Page Header */}
@@ -474,30 +529,60 @@ export default function EventContestants() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="relative dropdown-menu">
                       <button
-                        onClick={() => openEditModal(contestant)}
-                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-all duration-200 group"
-                        title="Edit Contestant"
+                        onClick={(e) => toggleDropdown(contestant.id, e)}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                        title="More actions"
                       >
-                        <span className="group-hover:scale-110 transition-transform">✏️</span>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
                       </button>
-                      {contestant.status !== 'eliminated' && currentRound !== 'completed' && (
-                        <button
-                          onClick={() => handleEliminateContestant(contestant.id)}
-                          className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200 group"
-                          title="Eliminate Contestant"
+
+                      {/* Dropdown Menu */}
+                      {showActionsDropdown === contestant.id && (
+                        <div 
+                          className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999]"
+                          style={{
+                            top: `${dropdownPosition.top}px`,
+                            right: `${dropdownPosition.right}px`
+                          }}
                         >
-                          <span className="group-hover:scale-110 transition-transform">❌</span>
-                        </button>
+                          <button
+                            onClick={() => { openEditModal(contestant); setShowActionsDropdown(null); }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <span className="text-blue-600">✏️</span>
+                            Edit Contestant
+                          </button>
+                          {contestant.status !== 'eliminated' && currentRound !== 'completed' && (
+                            <button
+                              onClick={() => { handleEliminateContestant(contestant.id); setShowActionsDropdown(null); }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <span>❌</span>
+                              Eliminate Contestant
+                            </button>
+                          )}
+                          {currentRound !== 'final' && currentRound !== 'completed' && contestant.status !== 'eliminated' && (
+                            <button
+                              onClick={() => { handleGoToFinalRounds(); setShowActionsDropdown(null); }}
+                              className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                            >
+                              <span>🏆</span>
+                              Go to Final Rounds
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { handleDeleteContestant(contestant.id); setShowActionsDropdown(null); }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <span>🗑️</span>
+                            Remove Contestant
+                          </button>
+                        </div>
                       )}
-                      <button
-                        onClick={() => handleDeleteContestant(contestant.id)}
-                        className="p-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-700 transition-all duration-200 group"
-                        title="Remove Contestant"
-                      >
-                        <span className="group-hover:scale-110 transition-transform">🗑️</span>
-                      </button>
                     </div>
                   </td>
                 </tr>

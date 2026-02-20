@@ -348,6 +348,19 @@ export default function JudgeDashboard() {
       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
       scores[key] = contestant ? (contestant[key] || 0) : 0;
     });
+    
+    // If this is a final round and contestant has first round scores, auto-calculate
+    if (contestant && isFinalRoundSelected()) {
+      const firstRoundAverage = calculateFirstRoundAverage(contestant);
+      if (firstRoundAverage > 0) {
+        // Auto-populate all final round criteria with the first round average
+        event.criteria.filter(c => c.enabled).forEach(criterion => {
+          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+          scores[key] = firstRoundAverage;
+        });
+      }
+    }
+    
     return scores;
   };
 
@@ -438,6 +451,78 @@ export default function JudgeDashboard() {
     }
     
     return null;
+  };
+
+  // Helper function to get first round criteria scores for a contestant
+  const getFirstRoundScores = (contestant) => {
+    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+      return {};
+    }
+    
+    // Get the FIRST round (index 0) specifically
+    const firstRound = currentEvent.rounds[0];
+    if (!firstRound || !firstRound.criteria || !firstRound.enabled) {
+      return {};
+    }
+    
+    const scores = {};
+    firstRound.criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      scores[key] = contestant[key] || 0;
+    });
+    
+    return scores;
+  };
+
+  // Helper function to calculate average of first round scores for final round criteria
+  const calculateFirstRoundAverage = (contestant) => {
+    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+      return 0;
+    }
+    
+    // Get the FIRST round (index 0) specifically, not just any enabled round
+    const firstRound = currentEvent.rounds[0];
+    if (!firstRound || !firstRound.criteria || !firstRound.enabled) {
+      return 0;
+    }
+    
+    let totalScore = 0;
+    let count = 0;
+    
+    firstRound.criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      const score = contestant[key] || 0;
+      if (score > 0) {
+        totalScore += score;
+        count++;
+      }
+    });
+    
+    return count > 0 ? totalScore / count : 0;
+  };
+
+  // Auto-calculate final round scores based on first round average
+  const autoCalculateFinalRoundScores = () => {
+    if (!isFinalRoundSelected() || !contestants[currentContestantIndex]) {
+      return;
+    }
+    
+    const contestant = contestants[currentContestantIndex];
+    const firstRoundAverage = calculateFirstRoundAverage(contestant);
+    const currentCriteria = getCurrentEventCriteria();
+    
+    const autoScores = {};
+    currentCriteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      autoScores[key] = firstRoundAverage;
+    });
+    
+    setQuickScores(prev => ({
+      ...prev,
+      ...autoScores
+    }));
+    
+    alert(`Final round scores auto-calculated based on first round average: ${firstRoundAverage.toFixed(1)}`);
   };
 
   const filteredContestants = contestants.filter(contestant => {
@@ -743,10 +828,34 @@ export default function JudgeDashboard() {
   };
 
   const saveQuickScores = async () => {
+    console.log('🔍 Save Scores Debug - Starting...');
+    console.log('🔍 Current Contestant Index:', currentContestantIndex);
+    console.log('🔍 Contestants Length:', contestants.length);
+    console.log('🔍 User:', user ? 'Logged in' : 'Not logged in');
+    console.log('🔍 Current Event:', currentEvent ? 'Loaded' : 'Not loaded');
+    
     if (contestants[currentContestantIndex] && user && currentEvent) {
       try {
+        // Check if scores are locked
+        if (currentEvent && currentEvent.scoresLocked) {
+          console.log('🔒 Scores are locked');
+          alert('Scoring is locked for this event. Please contact the administrator.');
+          return;
+        }
+        
+        // Check if event is upcoming
+        if (currentEvent && currentEvent.status === 'upcoming') {
+          console.log('📅 Event is upcoming');
+          alert('Scoring is not available for upcoming events. Please wait until the event is ongoing.');
+          return;
+        }
+        
         const contestant = contestants[currentContestantIndex];
         const totalScore = parseFloat(calculateQuickTotal());
+        
+        console.log('📊 Contestant:', contestant.contestantName);
+        console.log('📊 Total Score:', totalScore);
+        console.log('📊 Quick Scores:', quickScores);
         
         // Save score to Firestore scores collection
         const scoreData = {
@@ -764,13 +873,20 @@ export default function JudgeDashboard() {
           timestamp: new Date().toISOString()
         };
         
+        console.log('💾 Saving score data:', scoreData);
+        
+        // Generate unique document ID
+        const documentId = `${user.uid}_${contestant.id}_${Date.now()}`;
+        console.log('📝 Document ID:', documentId);
+        
         // Save to scores collection
-        await setDoc(doc(db, 'scores', `${user.uid}_${contestant.id}_${Date.now()}`), scoreData);
+        await setDoc(doc(db, 'scores', documentId), scoreData);
+        console.log('✅ Score saved successfully to Firestore!');
         
         // Don't update contestant document directly to maintain score privacy between judges
         // Only update local state for the current judge's view
         
-        // Update local state - update the current contestant with their new scores
+        // Update local state - update current contestant with their new scores
         const updatedContestants = contestants.map((c, index) => {
           if (index === currentContestantIndex) {
             // Merge the quick scores with the contestant data
@@ -830,8 +946,24 @@ export default function JudgeDashboard() {
           }, 500);
         }
       } catch (error) {
-        console.error('Error saving scores:', error);
-        alert('Error saving scores. Please try again.');
+        console.error('❌ Error saving scores:', error);
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
+        
+        // Provide specific error messages based on error type
+        let errorMessage = 'Error saving scores. Please try again.';
+        
+        if (error.code === 'permission-denied') {
+          errorMessage = 'Permission denied. You may not have access to save scores for this event.';
+        } else if (error.code === 'unavailable') {
+          errorMessage = 'Service unavailable. Please check your internet connection and try again.';
+        } else if (error.code === 'deadline-exceeded') {
+          errorMessage = 'Request timeout. Please try again.';
+        } else if (error.message.includes('scoresLocked')) {
+          errorMessage = 'Scores are locked for this event. Please contact the administrator.';
+        }
+        
+        alert(errorMessage);
       }
     }
   };
@@ -1425,6 +1557,27 @@ export default function JudgeDashboard() {
             </div>
 
           {/* Line 2: Quick Scoring */}
+          {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0">
+                  <span className="text-2xl">🚫</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-red-800">
+                    {currentEvent.scoresLocked ? 'Scoring Locked' : 'Event Not Started'}
+                  </h4>
+                  <p className="text-xs text-red-600 mt-1">
+                    {currentEvent.scoresLocked 
+                      ? 'The administrator has locked scoring for this event. Please contact the administrator for assistance.'
+                      : 'This event has not started yet. Scoring will be available when the event status changes to "ongoing".'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Quick Scoring</h3>
@@ -1462,7 +1615,10 @@ export default function JudgeDashboard() {
                         step="0.1"
                         value={score}
                         onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                        className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer`}
+                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                        className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
+                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                       />
                       <input
                         type="number"
@@ -1471,7 +1627,10 @@ export default function JudgeDashboard() {
                         step="0.1"
                         value={score}
                         onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                        className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-sm font-medium"
+                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                        className={`w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-sm font-medium ${
+                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' ? 'bg-gray-100 cursor-not-allowed' : ''
+                        }`}
                       />
                     </div>
                     <div className="mt-2 text-xs text-gray-500 text-right">
@@ -1492,6 +1651,29 @@ export default function JudgeDashboard() {
                 <span className="text-2xl font-bold text-green-800">{calculateQuickTotal()}</span>
               </div>
             </div>
+
+            {/* Auto-Calculate Button for Final Rounds */}
+            {isFinalRoundSelected() && (
+              <div className="mt-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <span className="text-sm font-semibold text-yellow-800">🏆 Final Round Auto-Calculate</span>
+                    <div className="text-xs text-yellow-600">Calculate scores based on first round average</div>
+                  </div>
+                </div>
+                <button
+                  onClick={autoCalculateFinalRoundScores}
+                  disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                  className={`w-full px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm ${
+                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white'
+                  }`}
+                >
+                  🔄 Auto-Calculate from 1st Round
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Line 3: Action Buttons */}
@@ -1500,7 +1682,12 @@ export default function JudgeDashboard() {
             <div className="grid grid-cols-1 gap-2">
               <button
                 onClick={saveQuickScores}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
+                disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                className={`px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm ${
+                  !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
               >
                 💾 Save Scores
               </button>
@@ -1679,11 +1866,39 @@ export default function JudgeDashboard() {
                     </div>
                   </div>
 
+                  {/* Auto-Calculate Button for Final Rounds */}
+                  {isFinalRoundSelected() && (
+                    <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-bold text-yellow-800">🏆 Final Round Auto-Calculate</h3>
+                          <p className="text-sm text-yellow-600">Calculate scores based on first round average</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={autoCalculateFinalRoundScores}
+                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                        className={`w-full px-6 py-3 rounded-lg transition-colors font-medium shadow-lg ${
+                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white'
+                        }`}
+                      >
+                        🔄 Auto-Calculate from 1st Round
+                      </button>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex gap-4">
                     <button
                       onClick={saveQuickScores}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
+                      disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                      className={`flex-1 px-6 py-3 rounded-lg transition-colors font-medium shadow-lg ${
+                        !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                      }`}
                     >
                       💾 Save Scores
                     </button>

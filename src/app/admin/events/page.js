@@ -343,7 +343,22 @@ export default function EventManagement() {
     
     try {
       const event = events.find(e => e.id === eventId);
-      if (!event) return;
+      
+      // Prevent locking scores if event is upcoming
+      if (event.status === 'upcoming' && !event.scoresLocked) {
+        setError('Cannot lock scores for upcoming events. Please change event status to "ongoing" first.');
+        alert('Cannot lock scores for upcoming events. Please change event status to "ongoing" first.');
+        setLoading(false);
+        return;
+      }
+      
+      // Prevent unlocking scores if event is finished
+      if (event.status === 'finished' && event.scoresLocked) {
+        setError('Cannot unlock scores for finished events.');
+        alert('Cannot unlock scores for finished events.');
+        setLoading(false);
+        return;
+      }
       
       // Update in Firestore
       const eventRef = doc(db, 'events', eventId);

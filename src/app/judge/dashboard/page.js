@@ -20,9 +20,9 @@ export default function JudgeDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
-  const [selectedRound, setSelectedRound] = useState('all'); // 'all' or specific round index
-  const [showFinalRoundsOnly, setShowFinalRoundsOnly] = useState(false); // Filter for final rounds only
   const [selectorKey, setSelectorKey] = useState(0); // Force re-render for selectors
+  const [usingFinalRoundCriteria, setUsingFinalRoundCriteria] = useState(false); // Track if using final round criteria
+  const [originalEventCriteria, setOriginalEventCriteria] = useState(null); // Store original criteria
   const [currentContestant, setCurrentContestant] = useState({
     number: 1,
     name: "Maria Cruz",
@@ -304,7 +304,8 @@ export default function JudgeDashboard() {
         }));
       }
 
-      setContestants(assignedContestants);
+      const rankedContestants = updateRankings(assignedContestants);
+      setContestants(rankedContestants);
       
       // Set initial current contestant and initialize quick scores
       if (assignedContestants.length > 0) {
@@ -339,27 +340,39 @@ export default function JudgeDashboard() {
     }));
   };
 
+  // Helper function to get criteria key with proper prefix for final rounds
+  const getCriteriaKey = (criterionName, useFinalRoundPrefix = false) => {
+    const baseKey = criterionName.toLowerCase().replace(/\s+/g, '_');
+    return useFinalRoundPrefix ? `final_${baseKey}` : baseKey;
+  };
+
   // Initialize quick scores based on event criteria
   const initializeQuickScores = (event, contestant = null) => {
     if (!event || !event.criteria) return {};
     
     const scores = {};
-    event.criteria.filter(c => c.enabled).forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      scores[key] = contestant ? (contestant[key] || 0) : 0;
-    });
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
     
-    // If this is a final round and contestant has first round scores, auto-calculate
-    if (contestant && isFinalRoundSelected()) {
-      const firstRoundAverage = calculateFirstRoundAverage(contestant);
-      if (firstRoundAverage > 0) {
-        // Auto-populate all final round criteria with the first round average
-        event.criteria.filter(c => c.enabled).forEach(criterion => {
-          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-          scores[key] = firstRoundAverage;
-        });
+    // Initialize scores for current criteria only (don't mix with first round scores)
+    event.criteria.filter(c => c.enabled).forEach(criterion => {
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+      
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+      
+      if (isFirstRoundAverage && contestant) {
+        // For "AVERAGE OF THE 1ST ROUND", use the saved value if it exists, otherwise calculate
+        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        scores[key] = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+      } else if (usingFinalRoundCriteria) {
+        // When using final round criteria, check for existing final round scores first
+        const finalRoundKey = getCriteriaKey(criterion.name, true);
+        scores[key] = contestant ? (contestant[finalRoundKey] || 0) : 0;
+      } else {
+        // For main criteria, use existing score or default to 0
+        scores[key] = contestant ? (contestant[key] || 0) : 0;
       }
-    }
+    });
     
     return scores;
   };
@@ -367,15 +380,6 @@ export default function JudgeDashboard() {
   // Get current event criteria
   const getCurrentEventCriteria = () => {
     if (!currentEvent) return [];
-    
-    // If rounds are available and a specific round is selected
-    if (currentEvent.rounds && currentEvent.rounds.length > 0 && selectedRound !== 'all') {
-      const roundIndex = parseInt(selectedRound);
-      if (roundIndex >= 0 && roundIndex < currentEvent.rounds.length) {
-        const round = currentEvent.rounds[roundIndex];
-        return round.criteria ? round.criteria.filter(c => c.enabled) : [];
-      }
-    }
     
     // Default to main event criteria
     return currentEvent.criteria ? currentEvent.criteria.filter(c => c.enabled) : [];
@@ -385,17 +389,6 @@ export default function JudgeDashboard() {
     setSearchTerm(e.target.value);
   };
 
-  // Helper function to get available rounds from current event
-  const getAvailableRounds = () => {
-    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
-      return [];
-    }
-    return currentEvent.rounds.map((round, index) => ({
-      index,
-      name: round.name,
-      enabled: round.enabled
-    })).filter(round => round.enabled);
-  };
 
   // Helper function to get final round
   const getFinalRound = () => {
@@ -406,12 +399,6 @@ export default function JudgeDashboard() {
     return enabledRounds.length > 0 ? enabledRounds[enabledRounds.length - 1] : null;
   };
 
-  // Helper function to check if current selection is final round
-  const isFinalRoundSelected = () => {
-    if (selectedRound === 'all') return false;
-    const finalRound = getFinalRound();
-    return finalRound && parseInt(selectedRound) === currentEvent.rounds.indexOf(finalRound);
-  };
 
   // Helper function to check if a contestant is in final round
   const isContestantInFinalRound = (contestant) => {
@@ -474,8 +461,36 @@ export default function JudgeDashboard() {
     return scores;
   };
 
-  // Helper function to calculate average of first round scores for final round criteria
+  // Helper function to calculate total weighted score of first round scores for final round criteria
   const calculateFirstRoundAverage = (contestant) => {
+    // When using final round criteria, return the main criteria total score
+    if (usingFinalRoundCriteria && contestant.totalWeightedScore) {
+      return contestant.totalWeightedScore;
+    }
+    
+    // For main criteria mode, check if we have a saved average value first
+    const averageKey = 'average_of_the_1st_round';
+    if (contestant[averageKey] !== undefined) {
+      return contestant[averageKey];
+    }
+    
+    // If no saved value and we have final round scores, calculate from final round
+    if (!usingFinalRoundCriteria && currentEvent && currentEvent.rounds && currentEvent.rounds.length > 0) {
+      // Get the FIRST round (index 0) for calculating average, not the final round
+      const firstRound = currentEvent.rounds[0];
+      if (firstRound && firstRound.criteria) {
+        let totalWeightedScore = 0;
+        firstRound.criteria.forEach(criterion => {
+          const key = getCriteriaKey(criterion.name, false); // Use main criteria keys for first round
+          const score = contestant[key] || 0;
+          const weight = criterion.weight / 100;
+          totalWeightedScore += score * weight;
+        });
+        return totalWeightedScore;
+      }
+    }
+    
+    // Fallback: try to calculate from first round if available
     if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
       return 0;
     }
@@ -486,44 +501,18 @@ export default function JudgeDashboard() {
       return 0;
     }
     
-    let totalScore = 0;
-    let count = 0;
+    let totalWeightedScore = 0;
     
     firstRound.criteria.forEach(criterion => {
       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
       const score = contestant[key] || 0;
-      if (score > 0) {
-        totalScore += score;
-        count++;
-      }
+      const weight = criterion.weight / 100;
+      totalWeightedScore += score * weight;
     });
     
-    return count > 0 ? totalScore / count : 0;
+    return totalWeightedScore;
   };
 
-  // Auto-calculate final round scores based on first round average
-  const autoCalculateFinalRoundScores = () => {
-    if (!isFinalRoundSelected() || !contestants[currentContestantIndex]) {
-      return;
-    }
-    
-    const contestant = contestants[currentContestantIndex];
-    const firstRoundAverage = calculateFirstRoundAverage(contestant);
-    const currentCriteria = getCurrentEventCriteria();
-    
-    const autoScores = {};
-    currentCriteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      autoScores[key] = firstRoundAverage;
-    });
-    
-    setQuickScores(prev => ({
-      ...prev,
-      ...autoScores
-    }));
-    
-    alert(`Final round scores auto-calculated based on first round average: ${firstRoundAverage.toFixed(1)}`);
-  };
 
   const filteredContestants = contestants.filter(contestant => {
     // Apply search filter
@@ -531,26 +520,45 @@ export default function JudgeDashboard() {
                           contestant.contestantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           contestant.contestantNo?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Apply final rounds filter
-    const matchesFinalRoundFilter = !showFinalRoundsOnly || isContestantInFinalRound(contestant);
-    
     // Apply elimination filter - exclude eliminated contestants
     const isNotEliminated = !contestant.eliminated;
     
-    return matchesSearch && matchesFinalRoundFilter && isNotEliminated;
+    return matchesSearch && isNotEliminated;
   });
 
   const calculateWeightedScore = (contestant, event = null) => {
     // Get criteria based on selected round
     const criteriaToUse = getCurrentEventCriteria();
     const enabledCriteria = criteriaToUse.filter(c => c.enabled);
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
     
     if (enabledCriteria.length === 0) return 0;
     
+    // For main criteria mode, total score should be average of 1st round from final round
+    if (!usingFinalRoundCriteria) {
+      return calculateFirstRoundAverage(contestant).toFixed(1);
+    }
+    
+    // For final round mode, calculate weighted sum of all criteria
     let totalScore = 0;
     enabledCriteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      const score = contestant[key] || 0;
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+      
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                             criterion.name.toUpperCase().includes('1ST') && 
+                             criterion.name.toUpperCase().includes('ROUND');
+      
+      let score;
+      if (isFirstRoundAverage) {
+        // For "AVERAGE OF THE 1ST ROUND", use original key (not prefixed) and saved value if it exists, otherwise calculate
+        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+      } else {
+        // For other criteria, use stored score with appropriate prefix
+        score = contestant[key] || 0;
+      }
+      
       const weight = criterion.weight / 100;
       totalScore += score * weight;
     });
@@ -587,10 +595,11 @@ export default function JudgeDashboard() {
     setEditingContestant(contestant);
     const criteria = getCurrentEventCriteria();
     const editFormData = {};
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
     
     // Add criteria scores to form data
     criteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       editFormData[key] = contestant[key] || 0;
     });
     
@@ -719,10 +728,27 @@ export default function JudgeDashboard() {
     const criteria = getCurrentEventCriteria();
     if (criteria.length === 0) return '0.0';
     
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
     let totalScore = 0;
     criteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      const score = quickScores[key] || 0;
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+      
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                             criterion.name.toUpperCase().includes('1ST') && 
+                             criterion.name.toUpperCase().includes('ROUND');
+      
+      let score;
+      if (isFirstRoundAverage && contestants[currentContestantIndex]) {
+        // For "AVERAGE OF THE 1ST ROUND", use the saved value if it exists, otherwise calculate
+        const contestant = contestants[currentContestantIndex];
+        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+      } else {
+        // For other criteria, use quickScores value
+        score = quickScores[key] || 0;
+      }
+      
       const weight = criterion.weight / 100;
       totalScore += score * weight;
     });
@@ -751,8 +777,24 @@ export default function JudgeDashboard() {
         const criteria = getCurrentEventCriteria();
         let totalScore = 0;
         criteria.forEach(criterion => {
-          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-          const score = contestant[key] || 0;
+          const useFinalRoundPrefix = usingFinalRoundCriteria;
+          const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+          
+          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+          const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                 criterion.name.toUpperCase().includes('1ST') && 
+                                 criterion.name.toUpperCase().includes('ROUND');
+          
+          let score;
+          if (isFirstRoundAverage) {
+            // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+            const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+            score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+          } else {
+            // For other criteria, use stored score with appropriate prefix
+            score = contestant[key] || 0;
+          }
+          
           const weight = criterion.weight / 100;
           totalScore += score * weight;
         });
@@ -771,8 +813,24 @@ export default function JudgeDashboard() {
           const criteria = getCurrentEventCriteria();
           let totalScore = 0;
           criteria.forEach(criterion => {
-            const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-            const score = contestant[key] || 0;
+            const useFinalRoundPrefix = usingFinalRoundCriteria;
+            const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+            
+            // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+            const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                   criterion.name.toUpperCase().includes('1ST') && 
+                                   criterion.name.toUpperCase().includes('ROUND');
+            
+            let score;
+            if (isFirstRoundAverage) {
+              // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+              const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+            } else {
+              // For other criteria, use stored score with appropriate prefix
+              score = contestant[key] || 0;
+            }
+            
             const weight = criterion.weight / 100;
             totalScore += score * weight;
           });
@@ -795,8 +853,25 @@ export default function JudgeDashboard() {
           
           // Add individual criteria scores to the score data
           criteria.forEach(criterion => {
-            const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-            scoreData.scores[key] = contestant[key] || 0;
+            const useFinalRoundPrefix = usingFinalRoundCriteria;
+            const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+            
+            // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+            const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                   criterion.name.toUpperCase().includes('1ST') && 
+                                   criterion.name.toUpperCase().includes('ROUND');
+            
+            let score;
+            if (isFirstRoundAverage) {
+              // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+              const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+            } else {
+              // For other criteria, use stored score with appropriate prefix
+              score = contestant[key] || 0;
+            }
+            
+            scoreData.scores[key] = score;
           });
           
           // Save to scores collection
@@ -858,6 +933,23 @@ export default function JudgeDashboard() {
         console.log('📊 Quick Scores:', quickScores);
         
         // Save score to Firestore scores collection
+        // Create scores object with correct first round total
+        const scoresToSave = { ...quickScores };
+        
+        // Check if we have "AVERAGE OF THE 1ST ROUND" criterion
+        const currentCriteria = getCurrentEventCriteria();
+        const averageCriterion = currentCriteria.find(criterion => 
+          criterion.name.toUpperCase().includes('AVERAGE') && 
+          criterion.name.toUpperCase().includes('1ST') && 
+          criterion.name.toUpperCase().includes('ROUND')
+        );
+        
+        if (averageCriterion) {
+          const averageKey = averageCriterion.name.toLowerCase().replace(/\s+/g, '_');
+          // Preserve the original average of the 1st round value - never change it
+          scoresToSave[averageKey] = contestant[averageKey] || 0;
+        }
+        
         const scoreData = {
           contestantId: contestant.id,
           contestantName: contestant.contestantName,
@@ -867,7 +959,7 @@ export default function JudgeDashboard() {
           judgeId: user.uid,
           judgeName: user.displayName || user.email,
           judgeEmail: user.email,
-          scores: quickScores,
+          scores: scoresToSave,
           criteria: getCurrentEventCriteria(),
           totalScore: totalScore,
           timestamp: new Date().toISOString()
@@ -889,12 +981,58 @@ export default function JudgeDashboard() {
         // Update local state - update current contestant with their new scores
         const updatedContestants = contestants.map((c, index) => {
           if (index === currentContestantIndex) {
-            // Merge the quick scores with the contestant data
-            const updatedContestant = { 
-              ...c, 
-              ...quickScores,
-              totalWeightedScore: parseFloat(totalScore.toFixed(1))
-            };
+            // Handle scoring for current contestant
+            let updatedContestant;
+            
+            // Create updated scores object
+            const updatedScores = { ...quickScores };
+            
+            // Check if we have "AVERAGE OF THE 1ST ROUND" criterion
+            const currentCriteria = getCurrentEventCriteria();
+            const averageCriterion = currentCriteria.find(criterion => 
+              criterion.name.toUpperCase().includes('AVERAGE') && 
+              criterion.name.toUpperCase().includes('1ST') && 
+              criterion.name.toUpperCase().includes('ROUND')
+            );
+            
+            if (averageCriterion) {
+              const averageKey = averageCriterion.name.toLowerCase().replace(/\s+/g, '_');
+              // Preserve the original average of the 1st round value - never change it
+              updatedScores[averageKey] = contestant[averageKey] || 0;
+            }
+            
+            // When using final round criteria, only update final round criteria scores
+            // Preserve main criteria scores by not overwriting them
+            if (usingFinalRoundCriteria) {
+              // Only update the final round criteria fields, keep main criteria intact
+              updatedContestant = { 
+                ...c, 
+                // Only update final round criteria scores with prefixed keys
+                ...Object.fromEntries(
+                  Object.entries(updatedScores).map(([key, value]) => {
+                    // For final round mode, ensure we use prefixed keys for storage
+                    if (usingFinalRoundCriteria && !key.startsWith('final_')) {
+                      const criterion = currentCriteria.find(c => 
+                        getCriteriaKey(c.name, false) === key
+                      );
+                      if (criterion) {
+                        const finalKey = getCriteriaKey(criterion.name, true);
+                        return [finalKey, value];
+                      }
+                    }
+                    return [key, value];
+                  })
+                ),
+                totalWeightedScore: parseFloat(totalScore.toFixed(1))
+              };
+            } else {
+              // For main criteria, update all scores as before
+              updatedContestant = { 
+                ...c, 
+                ...updatedScores,
+                totalWeightedScore: parseFloat(totalScore.toFixed(1))
+              };
+            }
             
             // Update the current contestant state as well
             setCurrentContestant(prev => ({
@@ -905,20 +1043,42 @@ export default function JudgeDashboard() {
             
             return updatedContestant;
           } else {
-            // Calculate weighted total for other contestants with their existing scores
-            const criteria = getCurrentEventCriteria();
-            let totalScore = 0;
-            criteria.forEach(criterion => {
-              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-              const score = c[key] || 0;
-              const weight = criterion.weight / 100;
-              totalScore += score * weight;
-            });
-            
-            return { 
-              ...c,
-              totalWeightedScore: parseFloat(totalScore.toFixed(1))
-            };
+            // For other contestants, don't recalculate totals when using final round criteria
+            // This preserves their main criteria scores
+            if (usingFinalRoundCriteria) {
+              return { ...c };
+            } else {
+              // Calculate weighted total for other contestants with their existing scores (main criteria only)
+              const criteria = getCurrentEventCriteria();
+              const useFinalRoundPrefix = usingFinalRoundCriteria;
+              let totalScore = 0;
+              criteria.forEach(criterion => {
+                const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                
+                // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                       criterion.name.toUpperCase().includes('1ST') && 
+                                       criterion.name.toUpperCase().includes('ROUND');
+                
+                let score;
+                if (isFirstRoundAverage) {
+                  // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                  const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                  score = c[originalKey] !== undefined ? c[originalKey] : calculateFirstRoundAverage(c);
+                } else {
+                  // For other criteria, use existing score with appropriate prefix
+                  score = c[key] || 0;
+                }
+                
+                const weight = criterion.weight / 100;
+                totalScore += score * weight;
+              });
+              
+              return { 
+                ...c,
+                totalWeightedScore: parseFloat(totalScore.toFixed(1))
+              };
+            }
           }
         });
         
@@ -1093,13 +1253,10 @@ export default function JudgeDashboard() {
               </div>
               <div>
                 <p className="text-xs sm:text-sm text-blue-600/70 font-medium">
-                  {showFinalRoundsOnly ? 'Final Round Contestants' : 'Active Contestants'}
+                  Active Contestants
                 </p>
                 <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">
                   {filteredContestants.length}
-                  {showFinalRoundsOnly && contestants.length > filteredContestants.length && (
-                    <span className="text-xs text-blue-500 ml-1">of {contestants.filter(c => !c.eliminated).length}</span>
-                  )}
                 </p>
               </div>
             </div>
@@ -1124,7 +1281,7 @@ export default function JudgeDashboard() {
               </div>
               <div>
                 <p className="text-xs sm:text-sm text-green-600/70 font-medium">
-                  {showFinalRoundsOnly ? 'Final Round Completed' : 'Completed Evaluations'}
+                  Completed Evaluations
                 </p>
                 <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-700 to-green-900 bg-clip-text text-transparent">
                   {filteredContestants.filter(c => {
@@ -1134,62 +1291,6 @@ export default function JudgeDashboard() {
                       return c[key] && c[key] > 0;
                     });
                   }).length}
-                  {showFinalRoundsOnly && contestants.filter(c => !c.eliminated).length > filteredContestants.filter(c => {
-                    const criteria = getCurrentEventCriteria();
-                    return criteria.every(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                      return c[key] && c[key] > 0;
-                    });
-                  }).length && (
-                    <span className="text-xs text-green-500 ml-1">
-                      of {contestants.filter(c => !c.eliminated).filter(c => {
-                        const criteria = getCurrentEventCriteria();
-                        return criteria.every(criterion => {
-                          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                          return c[key] && c[key] > 0;
-                        });
-                      }).length}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-white to-orange-50/30 rounded-xl sm:rounded-2xl shadow-lg border border-orange-100/50 p-4 sm:p-6 hover:shadow-xl transition-shadow duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg">
-                <span className="text-xl sm:text-2xl">⏳</span>
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-orange-600/70 font-medium">
-                  {showFinalRoundsOnly ? 'Final Round Pending' : 'Pending Evaluations'}
-                </p>
-                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-700 to-orange-900 bg-clip-text text-transparent">
-                  {filteredContestants.filter(c => {
-                    const criteria = getCurrentEventCriteria();
-                    return criteria.some(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                      return !c[key] || c[key] === 0;
-                    });
-                  }).length}
-                  {showFinalRoundsOnly && contestants.filter(c => !c.eliminated).length > filteredContestants.filter(c => {
-                    const criteria = getCurrentEventCriteria();
-                    return criteria.some(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                      return !c[key] || c[key] === 0;
-                    });
-                  }).length && (
-                    <span className="text-xs text-orange-500 ml-1">
-                      of {contestants.filter(c => !c.eliminated).filter(c => {
-                        const criteria = getCurrentEventCriteria();
-                        return criteria.some(criterion => {
-                          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                          return !c[key] || c[key] === 0;
-                        });
-                      }).length}
-                    </span>
-                  )}
                 </p>
               </div>
             </div>
@@ -1238,28 +1339,6 @@ export default function JudgeDashboard() {
                 <p className="text-blue-100 text-xs sm:text-sm">Evaluate and score contestants</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                {/* Final Rounds Filter - Prominent */}
-                {getFinalRound() && (
-                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-2 border border-white/20">
-                    <label className="text-xs font-medium text-blue-100 whitespace-nowrap">Final Rounds Only:</label>
-                    <button
-                      onClick={() => setShowFinalRoundsOnly(!showFinalRoundsOnly)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300 ${
-                        showFinalRoundsOnly ? 'bg-gradient-to-r from-yellow-400 to-orange-400' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-                          showFinalRoundsOnly ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                    <span className="text-xs font-medium text-white min-w-[60px] text-right">
-                      {showFinalRoundsOnly ? `${filteredContestants.length} 🏆` : 'All'}
-                    </span>
-                  </div>
-                )}
-                
                 <div className="relative">
                   <input
                     type="text"
@@ -1271,103 +1350,80 @@ export default function JudgeDashboard() {
                   <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
                 </div>
                 
-                {/* Round Filter */}
-                {getAvailableRounds().length > 0 && (
-                  <div className="flex gap-2">
-                    <div className="relative">
-                      <select
-                        value={selectedRound}
-                        onChange={(e) => setSelectedRound(e.target.value)}
-                        className="w-full sm:w-48 px-3 sm:px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white text-sm appearance-none cursor-pointer"
-                      >
-                        <option value="all">📋 All Rounds</option>
-                        {getAvailableRounds().map((round) => (
-                          <option key={round.index} value={round.index}>
-                            {isFinalRoundSelected() && round.index === parseInt(selectedRound) ? '🏆 ' : '🎯 '}{round.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-2 sm:right-3 top-2.5 pointer-events-none">
-                        <svg className="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </div>
-                    
-                    {/* Final Round Quick Filter */}
-                    {getFinalRound() && (
-                      <button
-                        onClick={() => setSelectedRound(currentEvent.rounds.indexOf(getFinalRound()).toString())}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          isFinalRoundSelected() 
-                            ? 'bg-yellow-400 text-yellow-900 border border-yellow-300' 
-                            : 'bg-blue-50 text-white border border-blue-300 hover:bg-blue-100'
-                        }`}
-                        title="Jump to Final Round"
-                      >
-                        🏆 Final
-                      </button>
-                    )}
-                    
-                    {/* Final Rounds Only Filter */}
-                    {getFinalRound() && (
-                      <button
-                        onClick={() => setShowFinalRoundsOnly(!showFinalRoundsOnly)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          showFinalRoundsOnly 
-                            ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white border border-yellow-300 shadow-lg' 
-                            : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
-                        }`}
-                        title="Show only contestants in final rounds"
-                      >
-                        {showFinalRoundsOnly ? '🏆 All Contestants' : '🎯 Final Rounds Only'}
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
-            
-            {/* Round Info Display */}
-            {selectedRound !== 'all' && currentEvent && currentEvent.rounds && (
-              <div className="mt-3 p-2 bg-blue-50/20 rounded-lg border border-blue-300/30">
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-100 text-xs font-medium">Current Round:</span>
-                  <span className="text-white text-sm font-semibold">
-                    {isFinalRoundSelected() ? '🏆 ' : '🎯 '}
-                    {currentEvent.rounds[parseInt(selectedRound)]?.name || `Round ${parseInt(selectedRound) + 1}`}
-                  </span>
-                  {currentEvent.rounds[parseInt(selectedRound)]?.description && (
-                    <span className="text-blue-200 text-xs">
-                      - {currentEvent.rounds[parseInt(selectedRound)].description}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Final Rounds Filter Status */}
-            {showFinalRoundsOnly && (
-              <div className="mt-3 p-2 bg-gradient-to-r from-yellow-50/30 to-orange-50/30 rounded-lg border border-yellow-300/40">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-yellow-100 text-xs font-medium">🏆 Filter Active:</span>
-                    <span className="text-white text-sm font-semibold">Final Rounds Only</span>
-                  </div>
-                  <span className="text-yellow-200 text-xs">
-                    {filteredContestants.length} of {contestants.length} contestants
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
           
           {contestants.length > 0 ? (
             <div className="overflow-x-auto overflow-y-hidden max-w-full">
-              {/* Horizontal scroll indicator - Mobile only */}
-              <div className="flex justify-between items-center mb-2 px-2 lg:hidden">
-                <div className="text-sm text-gray-500 font-medium">← Scroll for more criteria →</div>
-                <div className="flex gap-2">
+              {/* Table Controls */}
+              <div className="flex justify-between items-center mb-4 px-2">
+                <div className="flex items-center gap-2">
+                  {/* Final Rounds Button */}
+                  {getFinalRound() && !usingFinalRoundCriteria && (
+                    <button
+                      onClick={() => {
+                        const finalRound = getFinalRound();
+                        if (finalRound && finalRound.criteria) {
+                          // Store original criteria
+                          setOriginalEventCriteria(currentEvent.criteria);
+                          
+                          // Update current event criteria to use final round criteria
+                          const updatedEvent = {
+                            ...currentEvent,
+                            criteria: finalRound.criteria
+                          };
+                          setCurrentEvent(updatedEvent);
+                          setUsingFinalRoundCriteria(true);
+                          setSelectorKey(prev => prev + 1); // Force re-render
+                          
+                          // Reinitialize quick scores for the new criteria
+                          if (contestants[currentContestantIndex]) {
+                            const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                            setQuickScores(newQuickScores);
+                          }
+                          
+                          alert(`🏆 Final Rounds Mode Activated\n\nSwitched to final round criteria.\nYou can now score contestants independently using the final round criteria.`);
+                        }
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-yellow-900 rounded-lg hover:from-yellow-500 hover:to-orange-500 transition-all duration-200 text-sm font-medium shadow-lg border border-yellow-300"
+                      title="Switch to Final Rounds scoring criteria"
+                    >
+                      🏆 Final Rounds
+                    </button>
+                  )}
+                  
+                  {/* Back to Main Criteria Button */}
+                  {usingFinalRoundCriteria && (
+                    <button
+                      onClick={() => {
+                        if (originalEventCriteria) {
+                          // Restore original criteria
+                          const updatedEvent = {
+                            ...currentEvent,
+                            criteria: originalEventCriteria
+                          };
+                          setCurrentEvent(updatedEvent);
+                          setUsingFinalRoundCriteria(false);
+                          setSelectorKey(prev => prev + 1); // Force re-render
+                          
+                          // Reinitialize quick scores for the restored criteria
+                          if (contestants[currentContestantIndex]) {
+                            const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                            setQuickScores(newQuickScores);
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-lg border border-blue-300"
+                      title="Switch back to main scoring criteria"
+                    >
+                      📋 Main Criteria
+                    </button>
+                  )}
+                </div>
+                
+                {/* Horizontal scroll indicator - Mobile only */}
+                <div className="flex gap-2 lg:hidden">
                   <button 
                     onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: -200, behavior: 'smooth' })}
                     className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-blue-700 transition-colors"
@@ -1385,12 +1441,31 @@ export default function JudgeDashboard() {
               <table key={`contestants-table-${contestants.length}`} className="w-full min-w-[800px] judge-scoring-table">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th colSpan="2" className="px-4 py-2 text-left">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Scoring Mode:</span>
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                        usingFinalRoundCriteria 
+                          ? 'bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border border-yellow-300' 
+                          : 'bg-blue-100 text-blue-800 border border-blue-300'
+                      }`}>
+                        {usingFinalRoundCriteria ? '🏆 Final Rounds' : '📋 Main Criteria'}
+                      </span>
+                    </div>
+                  </th>
+                  <th colSpan="100%" className="px-4 py-2 text-right">
+                    <span className="text-xs text-gray-500">
+                      {usingFinalRoundCriteria 
+                        ? 'Scoring contestants using final round criteria' 
+                        : 'Scoring contestants using main event criteria'
+                      }
+                    </span>
+                  </th>
+                </tr>
+                <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Rank</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">No.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  {showFinalRoundsOnly && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Round</th>
-                  )}
                   {getCurrentEventCriteria().map((criterion, index) => (
                     <th key={index} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <div className="hidden sm:block">{criterion.name} ({criterion.weight}%)</div>
@@ -1420,27 +1495,22 @@ export default function JudgeDashboard() {
                         )}
                       </div>
                     </td>
-                    {showFinalRoundsOnly && (
-                      <td className="px-4 py-3 text-center">
-                        {(() => {
-                          const roundStatus = getContestantRoundStatus(contestant);
-                          return roundStatus ? (
-                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                              roundStatus.isFinal 
-                                ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white' 
-                                : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {roundStatus.isFinal ? '🏆 ' : '🎯 '}{roundStatus.roundName}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-400">-</span>
-                          );
-                        })()}
-                      </td>
-                    )}
                     {getCurrentEventCriteria().map((criterion, index) => {
-                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                      const score = contestant[key] || 0;
+                      const useFinalRoundPrefix = usingFinalRoundCriteria;
+                      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                      
+                      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                      
+                      // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                      let score;
+                      if (isFirstRoundAverage) {
+                        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                        score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+                      } else {
+                        score = contestant[key] || 0;
+                      }
+                      
                       const colors = ['bg-blue-100 text-blue-800', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
                       const colorClass = colors[index % colors.length];
                       return (
@@ -1470,35 +1540,22 @@ export default function JudgeDashboard() {
           ) : (
             <div className="text-center py-8 sm:py-12">
               <div className="text-4xl sm:text-6xl mb-4">
-                {showFinalRoundsOnly ? '🏆' : '👥'}
+                👥
               </div>
               <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
-                {showFinalRoundsOnly ? 'No finalists found' : 'No contestants found'}
+                No contestants found
               </h3>
               <p className="text-xs sm:text-sm text-gray-500 mb-4">
-                {showFinalRoundsOnly 
-                  ? `No contestants have been scored in the final rounds yet. ${contestants.length > 0 ? `Try showing all ${contestants.length} contestants to score finalists first.` : 'Add contestants and score them in earlier rounds first.'}`
-                  : assignedEvents.length === 0 
-                    ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
-                    : "No contestants have been added to your assigned events yet."
+                {assignedEvents.length === 0 
+                  ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
+                  : "No contestants have been added to your assigned events yet."
                 }
               </p>
-              {showFinalRoundsOnly && contestants.length > 0 && (
-                <button
-                  onClick={() => setShowFinalRoundsOnly(false)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <span>👥</span>
-                  Show All Contestants
-                </button>
-              )}
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 max-w-md mx-auto mt-4">
                 <p className="text-xs sm:text-sm text-yellow-800">
-                  <strong>Tip:</strong> {showFinalRoundsOnly 
-                    ? "Finalists appear here once they have scores for final round criteria. Score contestants in earlier rounds first, then they'll appear as finalists."
-                    : assignedEvents.length === 0 
-                      ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
-                      : "Contestants will appear here once they are added to events you're assigned to judge."
+                  <strong>Tip:</strong> {assignedEvents.length === 0 
+                    ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
+                    : "Contestants will appear here once they are added to events you're assigned to judge."
                   }
                 </p>
               </div>
@@ -1587,22 +1644,44 @@ export default function JudgeDashboard() {
             </div>
             <div className="space-y-4">
               {getCurrentEventCriteria().map((criterion, index) => {
-                const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                const score = quickScores[key] || 0;
+                const useFinalRoundPrefix = usingFinalRoundCriteria;
+                const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                
+                // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                
+                // For "AVERAGE OF THE 1ST ROUND", show saved value if it exists, otherwise use quickScores
+                let score;
+                if (isFirstRoundAverage && contestants[currentContestantIndex]) {
+                  const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                  score = contestants[currentContestantIndex][originalKey] !== undefined 
+                    ? contestants[currentContestantIndex][originalKey] 
+                    : calculateFirstRoundAverage(contestants[currentContestantIndex]);
+                } else {
+                  score = quickScores[key] || 0;
+                }
+                  
                 const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
                 const color = colors[index % colors.length];
                 
                 return (
                   <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                      <label className="text-sm font-semibold text-gray-800 flex-1">
-                        {criterion.name}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                      <div className="flex items-center gap-2 flex-1">
+                        <label className="text-sm font-semibold text-gray-800">
+                          {criterion.name}
+                        </label>
+                        {isFirstRoundAverage && (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full" title="This score is locked and cannot be changed">
+                            🔒 Locked
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
                           {criterion.weight}%
                         </span>
-                        <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-2 py-1 rounded`}>
+                        <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-3 py-1 rounded-full`}>
                           {score.toFixed(1)}
                         </span>
                       </div>
@@ -1615,9 +1694,9 @@ export default function JudgeDashboard() {
                         step="0.1"
                         value={score}
                         onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
                         className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' ? 'opacity-50 cursor-not-allowed' : ''
+                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                       />
                       <input
@@ -1627,9 +1706,9 @@ export default function JudgeDashboard() {
                         step="0.1"
                         value={score}
                         onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
                         className={`w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-sm font-medium ${
-                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' ? 'bg-gray-100 cursor-not-allowed' : ''
+                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
                         }`}
                       />
                     </div>
@@ -1652,28 +1731,32 @@ export default function JudgeDashboard() {
               </div>
             </div>
 
-            {/* Auto-Calculate Button for Final Rounds */}
-            {isFinalRoundSelected() && (
-              <div className="mt-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-200">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="text-sm font-semibold text-yellow-800">🏆 Final Round Auto-Calculate</span>
-                    <div className="text-xs text-yellow-600">Calculate scores based on first round average</div>
-                  </div>
-                </div>
-                <button
-                  onClick={autoCalculateFinalRoundScores}
-                  disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                  className={`w-full px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm ${
-                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white'
-                  }`}
-                >
-                  🔄 Auto-Calculate from 1st Round
-                </button>
-              </div>
-            )}
+            {/* Action Buttons */}
+            <div className="mt-4">
+              <button
+                onClick={saveQuickScores}
+                disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                className={`w-full px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm ${
+                  !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                💾 Save Scores
+              </button>
+              <button
+                onClick={() => openEditModal(contestants[currentContestantIndex])}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
+              >
+                ✏️ Advanced Edit
+              </button>
+              <button
+                onClick={openSubmitModal}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
+              >
+                📤 Submit to Admin
+              </button>
+            </div>
           </div>
 
           {/* Line 3: Action Buttons */}
@@ -1768,23 +1851,36 @@ export default function JudgeDashboard() {
                 {/* Current Scores */}
                 {contestants[currentContestantIndex] && (
                   <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Current Scores</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      {usingFinalRoundCriteria ? 'First Round Average' : 'Current Scores'}
+                    </label>
                     <div className="space-y-2">
-                      {getCurrentEventCriteria().map((criterion, index) => {
-                        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                        const score = contestants[currentContestantIndex]?.[key] || 0;
-                        const colors = ['text-blue-800', 'text-pink-800', 'text-blue-800', 'text-green-800', 'text-yellow-800'];
-                        const colorClass = colors[index % colors.length];
-                        return (
-                          <div key={index} className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">{criterion.name}:</span>
-                            <span className={`font-medium ${colorClass}`}>{score.toFixed(1)}</span>
-                          </div>
-                        );
-                      })}
+                      {usingFinalRoundCriteria ? (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">First Round Average:</span>
+                          <span className="font-medium text-blue-800">
+                            {quickScores.firstRoundAverage ? quickScores.firstRoundAverage.toFixed(1) : '0.0'}
+                          </span>
+                        </div>
+                      ) : (
+                        getCurrentEventCriteria().map((criterion, index) => {
+                          const useFinalRoundPrefix = usingFinalRoundCriteria;
+                          const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                          const score = contestants[currentContestantIndex]?.[key] || 0;
+                          const colors = ['text-blue-800', 'text-pink-800', 'text-blue-800', 'text-green-800', 'text-yellow-800'];
+                          const colorClass = colors[index % colors.length];
+                          return (
+                            <div key={index} className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">{criterion.name}:</span>
+                              <span className={`font-medium ${colorClass}`}>{score.toFixed(1)}</span>
+                            </div>
+                          );
+                        })
+                      )}
+                      
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-medium text-gray-700">Total:</span>
-                        <span className="font-bold text-green-800">{(contestants[currentContestantIndex]?.totalWeightedScore || 0).toFixed(1)}</span>
+                        <span className="font-bold text-green-800">{calculateQuickTotal()}</span>
                       </div>
                     </div>
                   </div>
@@ -1805,17 +1901,39 @@ export default function JudgeDashboard() {
                 {/* Scoring Criteria */}
                 <div className="space-y-6">
                   {getCurrentEventCriteria().map((criterion, index) => {
-                    const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                    const score = quickScores[key] || 0;
+                    const useFinalRoundPrefix = usingFinalRoundCriteria;
+                    const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                    
+                    // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                    const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                    
+                    // For "AVERAGE OF THE 1ST ROUND", show saved value if it exists, otherwise use quickScores
+                    let score;
+                    if (isFirstRoundAverage && contestants[currentContestantIndex]) {
+                      const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                      score = contestants[currentContestantIndex][originalKey] !== undefined 
+                        ? contestants[currentContestantIndex][originalKey] 
+                        : calculateFirstRoundAverage(contestants[currentContestantIndex]);
+                    } else {
+                      score = quickScores[key] || 0;
+                    }
+                      
                     const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
                     const color = colors[index % colors.length];
                     
                     return (
                       <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                         <div className="flex items-center justify-between mb-3">
-                          <label className="text-base font-semibold text-gray-800">
-                            {criterion.name}
-                          </label>
+                          <div className="flex items-center gap-2">
+                            <label className="text-base font-semibold text-gray-800">
+                              {criterion.name}
+                            </label>
+                            {isFirstRoundAverage && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full" title="This score is locked and cannot be changed">
+                                🔒 Locked
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
                               {criterion.weight}%
@@ -1833,7 +1951,10 @@ export default function JudgeDashboard() {
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            className={`flex-1 h-3 bg-${color}-200 rounded-lg appearance-none cursor-pointer`}
+                            disabled={isFirstRoundAverage}
+                            className={`flex-1 h-3 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
+                              isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                           />
                           <input
                             type="number"
@@ -1842,7 +1963,10 @@ export default function JudgeDashboard() {
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center font-semibold text-base"
+                            disabled={isFirstRoundAverage}
+                            className={`w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center font-semibold text-base ${
+                              isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
                         <div className="mt-3 text-sm text-gray-500 text-right font-medium">
@@ -1865,29 +1989,6 @@ export default function JudgeDashboard() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Auto-Calculate Button for Final Rounds */}
-                  {isFinalRoundSelected() && (
-                    <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="text-lg font-bold text-yellow-800">🏆 Final Round Auto-Calculate</h3>
-                          <p className="text-sm text-yellow-600">Calculate scores based on first round average</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={autoCalculateFinalRoundScores}
-                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                        className={`w-full px-6 py-3 rounded-lg transition-colors font-medium shadow-lg ${
-                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white'
-                        }`}
-                      >
-                        🔄 Auto-Calculate from 1st Round
-                      </button>
-                    </div>
-                  )}
 
                   {/* Action Buttons */}
                   <div className="flex gap-4">
@@ -1941,7 +2042,8 @@ export default function JudgeDashboard() {
             <form onSubmit={(e) => { e.preventDefault(); handleEditContestant(); }} className="space-y-4">
               {/* Dynamic Criteria Fields */}
               {getCurrentEventCriteria().map((criterion, index) => {
-                const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                const useFinalRoundPrefix = usingFinalRoundCriteria;
+                const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                 return (
                   <div key={index}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1965,7 +2067,8 @@ export default function JudgeDashboard() {
               <div className="bg-gray-50 p-3 rounded-lg">
                 <div className="text-sm text-gray-600">
                   {getCurrentEventCriteria().map((criterion, index) => {
-                    const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                    const useFinalRoundPrefix = usingFinalRoundCriteria;
+                    const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                     const score = formData[key] || 0;
                     const weighted = (score * criterion.weight / 100).toFixed(1);
                     return (

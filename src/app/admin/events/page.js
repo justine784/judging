@@ -27,14 +27,64 @@ export default function EventManagement() {
     time: '',
     venue: '',
     status: 'upcoming',
-    scoresLocked: false,
-    hasRounds: false,
-    rounds: []
+    scoresLocked: false
   });
 
   // Load events from Firestore on component mount
   useEffect(() => {
     loadEvents();
+  }, []);
+
+  // Real-time status update effect
+  useEffect(() => {
+    const updateEventStatuses = () => {
+      setEvents(prevEvents => 
+        prevEvents.map(event => {
+          const eventDateTime = new Date(`${event.date} ${event.time}`);
+          const now = new Date();
+          
+          // Calculate end time (assume 4 hours after start time)
+          const eventEndTime = new Date(eventDateTime.getTime() + (4 * 60 * 60 * 1000));
+          
+          let newStatus = event.status;
+          
+          // Don't change status if event is manually set to finished
+          if (event.status !== 'finished') {
+            if (now >= eventDateTime && now <= eventEndTime) {
+              newStatus = 'ongoing';
+            } else if (now > eventEndTime) {
+              newStatus = 'finished';
+            } else {
+              newStatus = 'upcoming';
+            }
+          }
+          
+          // Update in Firestore if status changed
+          if (newStatus !== event.status) {
+            const eventRef = doc(db, 'events', event.id);
+            updateDoc(eventRef, {
+              status: newStatus,
+              updatedAt: serverTimestamp()
+            }).catch(error => {
+              console.error('Error updating event status:', error);
+            });
+          }
+          
+          return {
+            ...event,
+            status: newStatus
+          };
+        })
+      );
+    };
+
+    // Update immediately
+    updateEventStatuses();
+    
+    // Set up interval to check every minute
+    const interval = setInterval(updateEventStatuses, 60000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Load events function
@@ -186,74 +236,23 @@ export default function EventManagement() {
     }));
   };
 
-  // Helper functions for managing rounds in form
-  const addFormRound = () => {
-    const newRound = {
-      name: `Round ${formData.rounds.length + 1}`,
-      description: '',
-      enabled: true,
-      criteria: [
-        { name: 'Vocal Quality', weight: 40, enabled: true },
-        { name: 'Stage Presence', weight: 30, enabled: true },
-        { name: 'Song Interpretation', weight: 20, enabled: true },
-        { name: 'Audience Impact', weight: 10, enabled: true }
-      ]
-    };
-    setFormData(prev => ({
-      ...prev,
-      rounds: [...prev.rounds, newRound]
-    }));
-  };
-
-  const removeFormRound = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      rounds: prev.rounds.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateFormRound = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      rounds: prev.rounds.map((round, i) => 
-        i === index ? { ...round, [field]: value } : round
-      )
-    }));
-  };
-
-  const updateFormRoundCriteria = (roundIndex, criteriaIndex, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      rounds: prev.rounds.map((round, i) => 
-        i === roundIndex 
-          ? {
-              ...round,
-              criteria: round.criteria.map((criteria, j) => 
-                j === criteriaIndex ? { ...criteria, [field]: value } : criteria
-              )
-            }
-          : round
-      )
-    }));
-  };
-
+  
   const handleAddEvent = async () => {
     setLoading(true);
     setError('');
     
     try {
-      // Add default criteria if not provided and no rounds are configured
+      // Add default criteria if not provided
       const eventData = {
         ...formData,
-        criteria: formData.hasRounds && formData.rounds.length > 0 
-          ? [] // Use empty criteria when rounds are configured
-          : [
-              { name: 'Vocal Quality', weight: 40, enabled: true },
-              { name: 'Stage Presence', weight: 30, enabled: true },
-              { name: 'Song Interpretation', weight: 20, enabled: true },
-              { name: 'Audience Impact', weight: 10, enabled: true }
-            ],
-        rounds: formData.hasRounds ? formData.rounds : [],
+        criteria: [
+          { name: 'Vocal Quality', weight: 40, enabled: true },
+          { name: 'Stage Presence', weight: 30, enabled: true },
+          { name: 'Song Interpretation', weight: 20, enabled: true },
+          { name: 'Audience Impact', weight: 10, enabled: true }
+        ],
+        rounds: [],
+        hasRounds: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -404,6 +403,32 @@ export default function EventManagement() {
   const openCriteriaModal = (event) => {
     const updatedEvent = { ...event };
     
+    // Initialize categorized criteria if not present
+    if (!updatedEvent.criteriaCategories && updatedEvent.criteria) {
+      // Convert legacy criteria to categorized structure
+      updatedEvent.criteriaCategories = [
+        {
+          name: 'General Criteria',
+          totalWeight: 100,
+          scoringType: 'percentage', // Default scoring type
+          subCriteria: updatedEvent.criteria.map(c => ({
+            name: c.name,
+            weight: c.weight,
+            description: '',
+            enabled: c.enabled
+          }))
+        }
+      ];
+    }
+    
+    // Ensure existing categories have scoringType field
+    if (updatedEvent.criteriaCategories) {
+      updatedEvent.criteriaCategories = updatedEvent.criteriaCategories.map(category => ({
+        ...category,
+        scoringType: category.scoringType || 'percentage' // Default to percentage if not set
+      }));
+    }
+    
     // Ensure rounds have criteria structure
     if (updatedEvent.rounds && updatedEvent.rounds.length > 0) {
       updatedEvent.rounds = updatedEvent.rounds.map(round => ({
@@ -418,6 +443,11 @@ export default function EventManagement() {
     // Add grading type if not present (default to percentage)
     if (!updatedEvent.gradingType) {
       updatedEvent.gradingType = 'percentage';
+    }
+    
+    // Initialize default category scoring type if not present
+    if (!updatedEvent.defaultCategoryScoringType) {
+      updatedEvent.defaultCategoryScoringType = 'percentage';
     }
     
     setSelectedEvent(updatedEvent);
@@ -479,63 +509,47 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
-  const handleRoundChange = (index, field, value) => {
-    const updatedEvent = { ...selectedEvent };
-    if (!updatedEvent.rounds) {
-      updatedEvent.rounds = [];
-    }
-    updatedEvent.rounds[index][field] = value;
-    setSelectedEvent(updatedEvent);
-  };
-
-  const handleRoundCriteriaChange = (roundIndex, criteriaIndex, field, value) => {
-    const updatedEvent = { ...selectedEvent };
-    if (!updatedEvent.rounds || !updatedEvent.rounds[roundIndex].criteria) {
-      return;
-    }
-    
-    // Special validation for weight field
-    if (field === 'weight') {
-      const currentWeight = parseInt(value) || 0;
-      const round = updatedEvent.rounds[roundIndex];
-      
-      // Calculate total weight of all enabled criteria in this round except the current one
-      const otherCriteriaWeight = round.criteria.reduce((sum, criterion, i) => {
-        if (i !== criteriaIndex && criterion.enabled) {
-          return sum + (criterion.weight || 0);
-        }
-        return sum;
-      }, 0);
-      
-      // Check if adding this weight would exceed 100
-      if (otherCriteriaWeight + currentWeight > 100) {
-        // Calculate the maximum allowed weight for this criteria
-        const maxAllowedWeight = Math.max(0, 100 - otherCriteriaWeight);
-        
-        // Show warning and cap the value
-        alert(`Warning: Total weight for this round cannot exceed 100%. Maximum allowed weight for this criteria is ${maxAllowedWeight}%.`);
-        updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = maxAllowedWeight;
-      } else {
-        updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = currentWeight;
-      }
-    } else {
-      updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = value;
-    }
-    
-    setSelectedEvent(updatedEvent);
-  };
-
+  
   const handleSaveCriteria = async () => {
     setLoading(true);
     setError('');
     
     try {
+      // Validate that total category weights equal 100%
+      if (selectedEvent.criteriaCategories) {
+        const totalWeight = selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0);
+        if (totalWeight !== 100) {
+          setError(`Total category weights must equal 100%. Current total: ${totalWeight}%`);
+          return;
+        }
+        
+        // Validate that each category's sub-criteria weights equal the category total (if sub-criteria exist)
+        for (let i = 0; i < selectedEvent.criteriaCategories.length; i++) {
+          const category = selectedEvent.criteriaCategories[i];
+          
+          // Skip validation if category has no sub-criteria
+          if (!category.subCriteria || category.subCriteria.length === 0) {
+            continue;
+          }
+          
+          const subCriteriaTotal = category.subCriteria.reduce((sum, sub) => sum + (sub.enabled !== false ? sub.weight : 0), 0);
+          
+          if (subCriteriaTotal !== (category.totalWeight || 0)) {
+            setError(`Category "${category.name || 'Category ' + (i + 1)}" sub-criteria weights must equal category total (${category.totalWeight || 0}%). Current total: ${subCriteriaTotal}%`);
+            return;
+          }
+        }
+      }
+      
       // Update criteria and rounds in Firestore
       const eventRef = doc(db, 'events', selectedEvent.id);
       await updateDoc(eventRef, {
-        criteria: selectedEvent.criteria,
+        criteriaCategories: selectedEvent.criteriaCategories || [],
+        criteria: selectedEvent.criteria || [], // Keep legacy criteria for compatibility
         rounds: selectedEvent.rounds || [],
+        hasRounds: selectedEvent.hasRounds || false,
         gradingType: selectedEvent.gradingType || 'percentage',
+        defaultCategoryScoringType: selectedEvent.defaultCategoryScoringType || 'percentage',
         updatedAt: serverTimestamp()
       });
       
@@ -544,9 +558,12 @@ export default function EventManagement() {
         event.id === selectedEvent.id 
           ? { 
               ...event, 
-              criteria: selectedEvent.criteria, 
+              criteriaCategories: selectedEvent.criteriaCategories || [],
+              criteria: selectedEvent.criteria || [], // Keep legacy criteria for compatibility
               rounds: selectedEvent.rounds || [],
-              gradingType: selectedEvent.gradingType || 'percentage'
+              hasRounds: selectedEvent.hasRounds || false,
+              gradingType: selectedEvent.gradingType || 'percentage',
+              defaultCategoryScoringType: selectedEvent.defaultCategoryScoringType || 'percentage'
             }
           : event
       ));
@@ -554,7 +571,7 @@ export default function EventManagement() {
       setShowCriteriaModal(false);
       setSelectedEvent(null);
       
-      alert('Criteria and rounds have been saved successfully!');
+      alert('Criteria, categories, and rounds have been saved successfully!');
     } catch (error) {
       console.error('Error saving criteria:', error);
       setError('Failed to save criteria. Please try again.');
@@ -607,6 +624,185 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
+  // Categorized criteria management functions
+  const addCategory = () => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.criteriaCategories) {
+      updatedEvent.criteriaCategories = [];
+    }
+    
+    // Calculate remaining weight
+    const currentTotal = updatedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0);
+    const remainingWeight = 100 - currentTotal;
+    
+    updatedEvent.criteriaCategories.push({
+      name: '',
+      totalWeight: Math.min(10, remainingWeight), // Default to 10% or remaining weight
+      scoringType: updatedEvent.defaultCategoryScoringType || 'percentage', // Use default scoring type
+      subCriteria: []
+    });
+    
+    setSelectedEvent(updatedEvent);
+  };
+
+  const removeCategory = (categoryIndex) => {
+    const updatedEvent = { ...selectedEvent };
+    if (updatedEvent.criteriaCategories) {
+      updatedEvent.criteriaCategories.splice(categoryIndex, 1);
+    }
+    setSelectedEvent(updatedEvent);
+  };
+
+  const handleCategoryChange = (categoryIndex, field, value) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.criteriaCategories) {
+      updatedEvent.criteriaCategories = [];
+    }
+    
+    // Special validation for totalWeight field
+    if (field === 'totalWeight') {
+      const currentWeight = parseInt(value) || 0;
+      const otherCategoriesWeight = updatedEvent.criteriaCategories.reduce((sum, cat, i) => {
+        if (i !== categoryIndex) {
+          return sum + (cat.totalWeight || 0);
+        }
+        return sum;
+      }, 0);
+      
+      // Check if adding this weight would exceed 100
+      if (otherCategoriesWeight + currentWeight > 100) {
+        const maxAllowedWeight = Math.max(0, 100 - otherCategoriesWeight);
+        alert(`Warning: Total category weights cannot exceed 100%. Maximum allowed weight for this category is ${maxAllowedWeight}%.`);
+        updatedEvent.criteriaCategories[categoryIndex][field] = maxAllowedWeight;
+      } else {
+        updatedEvent.criteriaCategories[categoryIndex][field] = currentWeight;
+      }
+    } else {
+      updatedEvent.criteriaCategories[categoryIndex][field] = value;
+    }
+    
+    setSelectedEvent(updatedEvent);
+  };
+
+  const addSubCriteria = (categoryIndex) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.criteriaCategories || !updatedEvent.criteriaCategories[categoryIndex]) {
+      return;
+    }
+    
+    const category = updatedEvent.criteriaCategories[categoryIndex];
+    if (!category.subCriteria) {
+      category.subCriteria = [];
+    }
+    
+    // Calculate remaining weight for this category
+    const currentTotal = category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0);
+    const remainingWeight = (category.totalWeight || 0) - currentTotal;
+    
+    category.subCriteria.push({
+      name: '',
+      weight: Math.min(1, remainingWeight), // Default to 1% or remaining weight
+      description: '',
+      enabled: true
+    });
+    
+    setSelectedEvent(updatedEvent);
+  };
+
+  const removeSubCriteria = (categoryIndex, subIndex) => {
+    const updatedEvent = { ...selectedEvent };
+    if (updatedEvent.criteriaCategories && updatedEvent.criteriaCategories[categoryIndex]) {
+      const category = updatedEvent.criteriaCategories[categoryIndex];
+      if (category.subCriteria) {
+        category.subCriteria.splice(subIndex, 1);
+      }
+    }
+    setSelectedEvent(updatedEvent);
+  };
+
+  const handleSubCriteriaChange = (categoryIndex, subIndex, field, value) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.criteriaCategories || !updatedEvent.criteriaCategories[categoryIndex]) {
+      return;
+    }
+    
+    const category = updatedEvent.criteriaCategories[categoryIndex];
+    if (!category.subCriteria) {
+      category.subCriteria = [];
+    }
+    
+    // Special validation for weight field
+    if (field === 'weight') {
+      const currentWeight = parseInt(value) || 0;
+      const otherSubCriteriaWeight = category.subCriteria.reduce((sum, sub, i) => {
+        if (i !== subIndex && sub.enabled !== false) {
+          return sum + (sub.weight || 0);
+        }
+        return sum;
+      }, 0);
+      
+      // Check if adding this weight would exceed category total
+      if (otherSubCriteriaWeight + currentWeight > (category.totalWeight || 0)) {
+        const maxAllowedWeight = Math.max(0, (category.totalWeight || 0) - otherSubCriteriaWeight);
+        alert(`Warning: Sub-criteria weights cannot exceed category total (${category.totalWeight || 0}%). Maximum allowed weight for this sub-criteria is ${maxAllowedWeight}%.`);
+        category.subCriteria[subIndex][field] = maxAllowedWeight;
+      } else {
+        category.subCriteria[subIndex][field] = currentWeight;
+      }
+    } else {
+      category.subCriteria[subIndex][field] = value;
+    }
+    
+    setSelectedEvent(updatedEvent);
+  };
+
+  // Rounds management functions
+  const handleRoundChange = (index, field, value) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.rounds) {
+      updatedEvent.rounds = [];
+    }
+    updatedEvent.rounds[index][field] = value;
+    setSelectedEvent(updatedEvent);
+  };
+
+  const handleRoundCriteriaChange = (roundIndex, criteriaIndex, field, value) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.rounds || !updatedEvent.rounds[roundIndex].criteria) {
+      return;
+    }
+    
+    // Special validation for weight field
+    if (field === 'weight') {
+      const currentWeight = parseInt(value) || 0;
+      const round = updatedEvent.rounds[roundIndex];
+      
+      // Calculate total weight of all enabled criteria in this round except current one
+      const otherCriteriaWeight = round.criteria.reduce((sum, criterion, i) => {
+        if (i !== criteriaIndex && criterion.enabled) {
+          return sum + (criterion.weight || 0);
+        }
+        return sum;
+      }, 0);
+      
+      // Check if adding this weight would exceed 100
+      if (otherCriteriaWeight + currentWeight > 100) {
+        // Calculate the maximum allowed weight for this criteria
+        const maxAllowedWeight = Math.max(0, 100 - otherCriteriaWeight);
+        
+        // Show warning and cap the value
+        alert(`Warning: Total weight for this round cannot exceed 100%. Maximum allowed weight for this criteria is ${maxAllowedWeight}%.`);
+        updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = maxAllowedWeight;
+      } else {
+        updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = currentWeight;
+      }
+    } else {
+      updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = value;
+    }
+    
+    setSelectedEvent(updatedEvent);
+  };
+
   const addRound = () => {
     const updatedEvent = { ...selectedEvent };
     if (!updatedEvent.rounds) {
@@ -618,7 +814,7 @@ export default function EventManagement() {
       enabled: true,
       criteria: selectedEvent.criteria.map(c => ({
         ...c,
-        enabled: c.enabled // Default to same enabled state as global criteria
+        enabled: c.enabled
       }))
     });
     setSelectedEvent(updatedEvent);
@@ -632,6 +828,53 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
+  const addRoundCriteria = (roundIndex) => {
+    const updatedEvent = { ...selectedEvent };
+    if (!updatedEvent.rounds || !updatedEvent.rounds[roundIndex]) {
+      return;
+    }
+    
+    const round = updatedEvent.rounds[roundIndex];
+    if (!round.criteria) {
+      round.criteria = [];
+    }
+    
+    // Check if we're in percentage mode and already at 100%
+    if (updatedEvent.gradingType === 'percentage') {
+      const currentTotal = round.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0);
+      
+      if (currentTotal >= 100) {
+        alert('Cannot add new criteria: Total weight has already reached 100%. Please reduce existing criteria weights or disable some criteria first.');
+        return;
+      }
+      
+      // Calculate remaining weight
+      const remainingWeight = 100 - currentTotal;
+      
+      // Create new criteria with appropriate default weight
+      round.criteria.push({
+        name: '',
+        weight: Math.min(10, remainingWeight), // Default to 10% or remaining weight, whichever is smaller
+        enabled: true
+      });
+      
+      // Show info about remaining weight
+      if (remainingWeight < 10) {
+        alert(`Note: Only ${remainingWeight}% weight remaining. New criteria will be set to ${Math.min(10, remainingWeight)}%.`);
+      }
+    } else {
+      // For points mode, just add with default 0 weight
+      round.criteria.push({
+        name: '',
+        weight: 0,
+        enabled: true
+      });
+    }
+    
+    setSelectedEvent(updatedEvent);
+  };
+
+  
   
   const toggleDropdown = (eventId, event) => {
     if (activeDropdown === eventId) {
@@ -661,9 +904,7 @@ export default function EventManagement() {
       time: '',
       venue: '',
       status: 'upcoming',
-      scoresLocked: false,
-      hasRounds: false,
-      rounds: []
+      scoresLocked: false
     });
   };
 
@@ -683,6 +924,14 @@ export default function EventManagement() {
       case 'finished': return '✅';
       default: return '📋';
     }
+  };
+
+  // Check if event is currently ongoing based on schedule
+  const isEventCurrentlyOngoing = (event) => {
+    const eventDateTime = new Date(`${event.date} ${event.time}`);
+    const now = new Date();
+    const eventEndTime = new Date(eventDateTime.getTime() + (4 * 60 * 60 * 1000));
+    return now >= eventDateTime && now <= eventEndTime;
   };
 
   return (
@@ -870,15 +1119,23 @@ export default function EventManagement() {
                       <p className="text-xs text-gray-500">ID: #{event.id.toString().padStart(4, '0')}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => toggleDropdown(event.id, e)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
-                    title="More actions"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                    </svg>
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    {event.status === 'ongoing' && isEventCurrentlyOngoing(event) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 animate-pulse">
+                        <span>🔴</span>
+                        LIVE
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => toggleDropdown(event.id, e)}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
+                      title="More actions"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Event Description */}
@@ -919,10 +1176,10 @@ export default function EventManagement() {
                         <span>{getStatusIcon(event.status)}</span>
                         {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                       </span>
-                      {event.scoresLocked && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                          <span>🔒</span>
-                          Locked
+                      {event.status === 'ongoing' && isEventCurrentlyOngoing(event) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 animate-pulse">
+                          <span>�</span>
+                          LIVE NOW
                         </span>
                       )}
                     </div>
@@ -953,13 +1210,6 @@ export default function EventManagement() {
                       >
                         <span className="text-green-600">👥</span>
                         Contestants
-                      </button>
-                      <button
-                        onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
-                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
-                      >
-                        <span className="text-orange-600">🏆</span>
-                        Rounds
                       </button>
                       <button
                         onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
@@ -1045,6 +1295,12 @@ export default function EventManagement() {
                           <span>{getStatusIcon(event.status)}</span>
                           {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                         </span>
+                        {event.status === 'ongoing' && isEventCurrentlyOngoing(event) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 animate-pulse">
+                            <span>🔴</span>
+                            LIVE NOW
+                          </span>
+                        )}
                         {event.scoresLocked && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
                             <span>🔒</span>
@@ -1094,13 +1350,6 @@ export default function EventManagement() {
                             >
                               <span className="text-green-600">👥</span>
                               Manage Contestants
-                            </button>
-                            <button
-                              onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <span className="text-orange-600">🏆</span>
-                              Manage Rounds
                             </button>
                             <button
                               onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
@@ -1278,143 +1527,7 @@ export default function EventManagement() {
                   </select>
                 </div>
 
-                {/* Optional Rounds Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Event Rounds
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="hasRounds"
-                        checked={formData.hasRounds}
-                        onChange={handleInputChange}
-                        className="sr-only peer"
-                      />
-                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      <span className="ml-3 text-sm font-medium text-gray-700">
-                        {formData.hasRounds ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </label>
-                  </div>
-
-                  {formData.hasRounds && (
-                    <div className="space-y-4">
-                      {formData.rounds.length === 0 ? (
-                        <div className="text-center py-8 px-4 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
-                          <div className="text-4xl mb-2">🏆</div>
-                          <p className="text-gray-600 font-medium mb-1">No rounds configured</p>
-                          <p className="text-sm text-gray-500">Add rounds to structure your competition</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {formData.rounds.map((round, roundIndex) => (
-                            <div key={roundIndex} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                              <div className="flex items-center justify-between mb-4">
-                                <h4 className="font-semibold text-gray-900">Round {roundIndex + 1}</h4>
-                                <button
-                                  onClick={() => removeFormRound(roundIndex)}
-                                  className="text-red-500 hover:text-red-700 transition-colors p-1"
-                                  title="Remove Round"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Round Name
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={round.name}
-                                    onChange={(e) => updateFormRound(roundIndex, 'name', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                                    placeholder="e.g., Preliminary Round"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={round.description}
-                                    onChange={(e) => updateFormRound(roundIndex, 'description', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                                    placeholder="Brief description"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="space-y-3">
-                                <h5 className="text-sm font-medium text-gray-700">Criteria for this Round</h5>
-                                {round.criteria.map((criteria, criteriaIndex) => (
-                                  <div key={criteriaIndex} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                                    <div className="sm:col-span-2">
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                                        Criteria Name
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={criteria.name}
-                                        onChange={(e) => updateFormRoundCriteria(roundIndex, criteriaIndex, 'name', e.target.value)}
-                                        className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
-                                        placeholder="Criteria name"
-                                      />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                          Weight
-                                        </label>
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max="100"
-                                          value={criteria.weight}
-                                          onChange={(e) => updateFormRoundCriteria(roundIndex, criteriaIndex, 'weight', parseInt(e.target.value) || 0)}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
-                                          placeholder="Weight"
-                                        />
-                                      </div>
-                                      <div className="flex items-center">
-                                        <label className="flex items-center cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={criteria.enabled}
-                                            onChange={(e) => updateFormRoundCriteria(roundIndex, criteriaIndex, 'enabled', e.target.checked)}
-                                            className="sr-only peer"
-                                          />
-                                          <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                                          <span className="ml-2 text-xs text-gray-700">Enable</span>
-                                        </label>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={addFormRound}
-                        className="w-full py-3 px-4 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex items-center justify-center gap-2"
-                      >
-                        <span className="text-xl">➕</span>
-                        <span className="font-medium">Add Round</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
+                
                 {/* Form Actions */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
@@ -1567,15 +1680,15 @@ export default function EventManagement() {
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-5 rounded-t-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-white">Manage Criteria</h3>
-                  <p className="text-purple-100 text-sm mt-1">Configure judging criteria for {selectedEvent.eventName}</p>
+                  <p className="text-blue-100 text-sm mt-1">Configure judging criteria for {selectedEvent.eventName}</p>
                 </div>
                 <button
                   onClick={() => { setShowCriteriaModal(false); setSelectedEvent(null); }}
-                  className="text-white hover:text-purple-200 transition-colors p-1"
+                  className="text-white hover:text-blue-200 transition-colors p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1583,34 +1696,23 @@ export default function EventManagement() {
                 </button>
               </div>
               
-              {/* Grading Type Toggle */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-white font-medium text-sm">Grading Type</label>
-                    <p className="text-purple-100 text-xs mt-1">Choose how judges will score contestants</p>
+              {/* Instructions */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
                   </div>
-                  <div className="flex items-center bg-white/20 rounded-lg p-1">
-                    <button
-                      onClick={() => handleGradingTypeChange('percentage')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                        selectedEvent.gradingType === 'percentage'
-                          ? 'bg-white text-purple-600 shadow-sm'
-                          : 'text-white hover:text-purple-200'
-                      }`}
-                    >
-                      Percentage
-                    </button>
-                    <button
-                      onClick={() => handleGradingTypeChange('points')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                        selectedEvent.gradingType === 'points'
-                          ? 'bg-white text-purple-600 shadow-sm'
-                          : 'text-white hover:text-purple-200'
-                      }`}
-                    >
-                      Points
-                    </button>
+                  <div className="text-white">
+                    <h4 className="font-medium text-sm mb-2">Scoring System Instructions</h4>
+                    <ul className="text-blue-100 text-xs space-y-1">
+                      <li>• Set the default scoring type (Percentage or Points) using the selector next to "Add Category"</li>
+                      <li>• All categories will use the same scoring type for consistency</li>
+                      <li>• Configure category weights and sub-criteria for each judging category</li>
+                      <li>• Total category weights must equal 100%</li>
+                      <li>• Sub-criteria weights within each category must equal the category total</li>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -1618,125 +1720,256 @@ export default function EventManagement() {
 
             {/* Modal Body */}
             <div className="p-6">
-              <div className="space-y-4">
-                {selectedEvent.criteria.map((criterion, index) => (
-                  <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-900">Criteria {index + 1}</h4>
+              <div className="space-y-6">
+                {/* Categories Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-gray-900">Criteria Categories</h4>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700">Default Scoring:</label>
+                        <select
+                          value={selectedEvent.defaultCategoryScoringType || 'percentage'}
+                          onChange={(e) => {
+                            const updatedEvent = { ...selectedEvent };
+                            updatedEvent.defaultCategoryScoringType = e.target.value;
+                            setSelectedEvent(updatedEvent);
+                          }}
+                          className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="points">Points</option>
+                        </select>
+                      </div>
                       <button
-                        onClick={() => removeCriteria(index)}
-                        className="text-red-500 hover:text-red-700 transition-colors"
-                        title="Remove Criteria"
+                        onClick={addCategory}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        <span className="text-sm">➕</span>
+                        Add Category
                       </button>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Criteria Name</label>
-                        <input
-                          type="text"
-                          value={criterion.name}
-                          onChange={(e) => handleCriteriaChange(index, 'name', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                          placeholder="Enter criteria name"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {selectedEvent.gradingType === 'percentage' ? 'Weight (%)' : 'Max Points'}
-                        </label>
-                        <input
-                          type="number"
-                          value={criterion.weight}
-                          onChange={(e) => handleCriteriaChange(index, 'weight', parseInt(e.target.value) || 0)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200 ${
-                            selectedEvent.gradingType === 'percentage' && 
-                            selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) > 100
-                              ? 'border-red-300 bg-red-50'
-                              : selectedEvent.gradingType === 'percentage' && 
-                                selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
-                              ? 'border-yellow-300 bg-yellow-50'
-                              : 'border-gray-300 bg-white'
-                          }`}
-                          placeholder={selectedEvent.gradingType === 'percentage' ? 'Weight %' : 'Max Points'}
-                          min="0"
-                          max="100"
-                        />
-                        <p className="text-xs mt-1">
-                          {selectedEvent.gradingType === 'percentage' ? (
-                            <span className={
-                              selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) > 100
-                                ? 'text-red-600 font-medium'
-                                : selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
-                                ? 'text-yellow-600 font-medium'
-                                : 'text-gray-500'
-                            }>
-                              {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) > 100
-                                ? `⚠️ Exceeds limit by ${selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) - 100}%`
-                                : selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
-                                ? '✅ Exactly 100%'
-                                : `Percentage of total score (${selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}% used)`
-                              }
-                            </span>
-                          ) : (
-                            <span className="text-gray-500">Maximum points for this criteria</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={criterion.enabled}
-                            onChange={(e) => handleCriteriaChange(index, 'enabled', e.target.checked)}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Enabled</span>
-                        </label>
-                      </div>
-                    </div>
                   </div>
-                ))}
 
-                {/* Add Criteria Button */}
-                <button
-                  onClick={addCriteria}
-                  className="w-full py-3 px-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  <span className="text-xl">➕</span>
-                  Add New Criteria
-                </button>
+                  {selectedEvent.criteriaCategories && selectedEvent.criteriaCategories.length > 0 ? (
+                    selectedEvent.criteriaCategories.map((category, categoryIndex) => (
+                      <div key={categoryIndex} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                              {categoryIndex + 1}
+                            </div>
+                            <div>
+                              <h5 className="font-semibold text-gray-900 text-lg">{category.name || `Category ${categoryIndex + 1}`}</h5>
+                              <div className="flex items-center gap-3 text-sm text-gray-600">
+                                <span>
+                                  {category.scoringType === 'percentage' ? 'Total Weight:' : 'Total Points:'} <span className="font-bold text-blue-600">{category.totalWeight || 0}{category.scoringType === 'percentage' ? '%' : ' pts'}</span>
+                                </span>
+                                <span className="text-gray-400">•</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {category.scoringType === 'percentage' ? 'Percentage' : 'Points'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => removeCategory(categoryIndex)}
+                            className="text-red-500 hover:text-red-700 transition-colors p-1"
+                            title="Remove Category"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
 
-                {/* Total Weight Display */}
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
+                            <input
+                              type="text"
+                              value={category.name || ''}
+                              onChange={(e) => handleCategoryChange(categoryIndex, 'name', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                              placeholder="e.g., Performance Criteria"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              {category.scoringType === 'percentage' ? 'Total Weight (%)' : 'Total Points'}
+                            </label>
+                            <input
+                              type="number"
+                              value={category.totalWeight || 0}
+                              onChange={(e) => handleCategoryChange(categoryIndex, 'totalWeight', parseInt(e.target.value) || 0)}
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200 ${
+                                selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) > 100
+                                  ? 'border-red-300 bg-red-50'
+                                  : selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) === 100
+                                  ? 'border-green-300 bg-green-50'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                              placeholder="10"
+                              min="0"
+                              max="100"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Sub-criteria for this category */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h6 className="text-sm font-medium text-gray-700">Sub-Criteria</h6>
+                            <button
+                              onClick={() => addSubCriteria(categoryIndex)}
+                              className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                            >
+                              <span className="text-xs">➕</span>
+                              Add Sub-Criteria
+                            </button>
+                          </div>
+
+                          {category.subCriteria && category.subCriteria.map((subCriterion, subIndex) => (
+                            <div key={subIndex} className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-700">
+                                  {subCriterion.name || `Sub-Criteria ${subIndex + 1}`}
+                                </span>
+                                <button
+                                  onClick={() => removeSubCriteria(categoryIndex, subIndex)}
+                                  className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                  title="Remove Sub-Criteria"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Sub-Criteria Name</label>
+                                  <input
+                                    type="text"
+                                    value={subCriterion.name || ''}
+                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'name', e.target.value)}
+                                    className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
+                                    placeholder="e.g., PERFORMANCE"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    {category.scoringType === 'percentage' ? 'Weight (%)' : 'Max Points'}
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={subCriterion.weight || 0}
+                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'weight', parseInt(e.target.value) || 0)}
+                                    className={`w-full px-2 py-1.5 border rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs ${
+                                      category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) > (category.totalWeight || 0)
+                                        ? 'border-red-300 bg-red-50'
+                                        : category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) === (category.totalWeight || 0)
+                                        ? 'border-green-300 bg-green-50'
+                                        : 'border-gray-300 bg-white'
+                                    }`}
+                                    placeholder="3"
+                                    min="0"
+                                    max={category.totalWeight || 0}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="mt-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                                <textarea
+                                  value={subCriterion.description || ''}
+                                  onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'description', e.target.value)}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs resize-none"
+                                  placeholder="e.g., Precision and Coordination, Fluency, Alignment, Balance, Focus, Projection, Rhythmic and Spatial"
+                                  rows="2"
+                                />
+                              </div>
+
+                              <div className="flex items-center mt-2">
+                                <label className="flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={subCriterion.enabled !== false}
+                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'enabled', e.target.checked)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-1 text-xs text-gray-700">Enabled</span>
+                                </label>
+                              </div>
+                            </div>
+                          ))}
+
+                          {(!category.subCriteria || category.subCriteria.length === 0) && (
+                            <div className="text-center py-4 px-3 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                              <p className="text-sm text-gray-500">No sub-criteria added yet</p>
+                              <p className="text-xs text-gray-400 mt-1">Click "Add Sub-Criteria" to get started</p>
+                            </div>
+                          )}
+
+                          <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium text-blue-900">Category Total:</span>
+                              <span className={
+                                "text-sm font-bold " + (
+                                  (!category.subCriteria || category.subCriteria.length === 0) || 
+                                  category.subCriteria.reduce((sum, sub) => sum + (sub.enabled !== false ? sub.weight : 0), 0) === (category.totalWeight || 0)
+                                    ? 'text-green-600'
+                                    : 'text-orange-600'
+                                )
+                              }>
+                                {(!category.subCriteria || category.subCriteria.length === 0) ? 
+                                  (category.totalWeight || 0) + (category.scoringType === 'percentage' ? '%' : ' pts') :
+                                  category.subCriteria.reduce((sum, sub) => sum + (sub.enabled !== false ? sub.weight : 0), 0) + (category.scoringType === 'percentage' ? '%' : ' pts')
+                                }
+                                <span className="text-xs text-gray-600 ml-1">
+                                  of {category.totalWeight || 0}{category.scoringType === 'percentage' ? '%' : ' pts'}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 px-4 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
+                      <div className="text-4xl mb-2">📋</div>
+                      <p className="text-gray-600 font-medium mb-1">No categories configured</p>
+                      <p className="text-sm text-gray-500">Add categories to structure your judging criteria</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Overall Total Weight Display */}
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-blue-900">
-                      {selectedEvent.gradingType === 'percentage' ? 'Total Weight:' : 'Total Points:'}
+                      Overall Total {selectedEvent.criteriaCategories && selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? 'Points:' : 'Weight:'}
                     </span>
-                    <span className={`font-bold ${
-                      selectedEvent.gradingType === 'percentage' && 
-                      selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
+                    <span className={`font-bold text-lg ${
+                      selectedEvent.criteriaCategories ? 
+                      selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) === 100
                         ? 'text-green-600'
-                        : 'text-orange-600'
+                        : 'text-red-600'
+                      : 'text-red-600'
                     }`}>
-                      {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}
-                      {selectedEvent.gradingType === 'percentage' ? '%' : ' pts'}
+                      {selectedEvent.criteriaCategories ? 
+                        selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) : 0}
+                      {selectedEvent.criteriaCategories && selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? ' pts' : '%'}
                     </span>
                   </div>
-                  {selectedEvent.gradingType === 'percentage' && 
-                   selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) !== 100 && (
-                    <p className="text-sm text-orange-600 mt-2">⚠️ Total weight should equal 100%</p>
-                  )}
-                  {selectedEvent.gradingType === 'points' && (
-                    <p className="text-sm text-blue-600 mt-2">
-                      📊 Total maximum score: {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)} points
+                  {selectedEvent.criteriaCategories && 
+                   selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) !== 100 && (
+                    <p className="text-sm text-red-600 mt-2">
+                      ⚠️ Total category {selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? 'points' : 'weights'} must equal 100{selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? ' points' : '%'}
                     </p>
                   )}
                 </div>
+              </div>
 
                 {/* Rounds Management Section */}
                 <div className="border-t border-gray-200 pt-6">
@@ -1755,8 +1988,8 @@ export default function EventManagement() {
                           if (e.target.checked && (!updatedEvent.rounds || updatedEvent.rounds.length === 0)) {
                             updatedEvent.rounds = [
                               {
-                                name: 'Round 1',
-                                description: 'First round of competition',
+                                name: 'Final Round',
+                                description: 'Championship round',
                                 enabled: true,
                                 criteria: updatedEvent.criteria.map(c => ({ ...c, enabled: c.enabled }))
                               }
@@ -1766,7 +1999,7 @@ export default function EventManagement() {
                         }}
                         className="sr-only peer"
                       />
-                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[&quot;&quot;] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                       <span className="ml-3 text-sm font-medium text-gray-700">
                         {selectedEvent.hasRounds ? 'Enabled' : 'Disabled'}
                       </span>
@@ -1799,7 +2032,7 @@ export default function EventManagement() {
                                   value={round.name || ''}
                                   onChange={(e) => handleRoundChange(roundIndex, 'name', e.target.value)}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                                  placeholder="e.g., Preliminary Round, Final Round"
+                                  placeholder="e.g., Final Round, Championship Round"
                                 />
                               </div>
                               <div>
@@ -1868,6 +2101,15 @@ export default function EventManagement() {
                                 </div>
                               ))}
                               
+                              {/* Add Criteria Button for Final Round */}
+                              <button
+                                onClick={() => addRoundCriteria(roundIndex)}
+                                className="w-full py-2 px-3 border-2 border-dashed border-green-300 rounded-lg text-green-600 hover:border-green-400 hover:bg-green-50 transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                              >
+                                <span className="text-lg">➕</span>
+                                Add Criteria for Final Round
+                              </button>
+                              
                               <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm font-medium text-blue-900">
@@ -1892,7 +2134,7 @@ export default function EventManagement() {
 
                       <button
                         onClick={addRound}
-                        className="w-full py-3 px-4 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex items-center justify-center gap-2"
+                        className="w-full py-3 px-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-2"
                       >
                         <span className="text-xl">➕</span>
                         <span className="font-medium">Add Round</span>
@@ -1906,7 +2148,7 @@ export default function EventManagement() {
               <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 mt-6">
                 <button
                   onClick={handleSaveCriteria}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 px-6 rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                 >
                   <span className="flex items-center justify-center gap-2">
                     <span>💾</span>
@@ -1919,7 +2161,6 @@ export default function EventManagement() {
                 >
                   Cancel
                 </button>
-              </div>
               </div>
             </div>
           </div>

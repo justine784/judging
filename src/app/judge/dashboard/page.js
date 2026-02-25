@@ -38,6 +38,8 @@ export default function JudgeDashboard() {
   const [slideDirection, setSlideDirection] = useState('right'); // 'left' or 'right' for slide animation
   const [isAnimating, setIsAnimating] = useState(false);
   const [isFormLocked, setIsFormLocked] = useState(false); // Track if scoring form is locked
+  const [scoredContestants, setScoredContestants] = useState(new Set()); // Track which contestants have been scored in main criteria
+  const [scoredContestantsFinal, setScoredContestantsFinal] = useState(new Set()); // Track which contestants have been scored in final rounds
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
@@ -179,6 +181,14 @@ export default function JudgeDashboard() {
         const updatedJudgeData = docSnapshot.data();
         setJudgeData(updatedJudgeData);
         
+        // Load scored contestants from judge data
+        if (updatedJudgeData.scoredContestants) {
+          setScoredContestants(new Set(updatedJudgeData.scoredContestants));
+        }
+        if (updatedJudgeData.scoredContestantsFinal) {
+          setScoredContestantsFinal(new Set(updatedJudgeData.scoredContestantsFinal));
+        }
+        
         // Check if assignedEvents changed
         const currentEvents = judgeData?.assignedEvents || [];
         const newEvents = updatedJudgeData.assignedEvents || [];
@@ -283,13 +293,35 @@ export default function JudgeDashboard() {
       let assignedContestants;
       if (assignedEventIds.length === 0) {
         // Fallback: show all contestants if no events are assigned, but exclude eliminated ones
-        assignedContestants = allContestants.filter(contestant => !contestant.eliminated).map(contestant => ({
+        assignedContestants = allContestants.filter(contestant => {
+          console.log('Processing contestant (fallback):', {
+            id: contestant.id,
+            contestantType: contestant.contestantType,
+            displayName: contestant.displayName,
+            groupName: contestant.groupName,
+            firstName: contestant.firstName,
+            lastName: contestant.lastName,
+            contestantName: contestant.contestantName
+          });
+          return !contestant.eliminated;
+        }).map(contestant => ({
           ...contestant,
           // Add judge's own scores or default to 0
           ...judgeScores[contestant.id],
           // Add the fields expected by the judge dashboard
           contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
-          contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
+          contestantName: (() => {
+            const finalName = contestant.displayName || 
+              (contestant.contestantType === 'group' 
+                ? contestant.groupName || 'Unknown Group'
+                : `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || 'Unknown Solo');
+            console.log('Final contestant name constructed:', {
+              original: contestant,
+              finalName: finalName,
+              contestantType: contestant.contestantType
+            });
+            return finalName;
+          })(),
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
         })).sort((a, b) => {
           const numA = parseInt(a.contestantNo) || 0;
@@ -298,15 +330,37 @@ export default function JudgeDashboard() {
         });
       } else {
         // Normal case: filter by assigned events and exclude eliminated ones
-        assignedContestants = allContestants.filter(contestant => 
-          assignedEventIds.includes(contestant.eventId) && !contestant.eliminated
-        ).map(contestant => ({
+        assignedContestants = allContestants.filter(contestant => {
+          console.log('Processing contestant (normal):', {
+            id: contestant.id,
+            contestantType: contestant.contestantType,
+            displayName: contestant.displayName,
+            groupName: contestant.groupName,
+            firstName: contestant.firstName,
+            lastName: contestant.lastName,
+            contestantName: contestant.contestantName,
+            eventId: contestant.eventId,
+            assignedEventIds: assignedEventIds
+          });
+          return assignedEventIds.includes(contestant.eventId) && !contestant.eliminated;
+        }).map(contestant => ({
           ...contestant,
           // Add judge's own scores or default to 0
           ...judgeScores[contestant.id],
           // Add the fields expected by the judge dashboard
           contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
-          contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
+          contestantName: (() => {
+            const finalName = contestant.displayName || 
+              (contestant.contestantType === 'group' 
+                ? contestant.groupName || 'Unknown Group'
+                : `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || 'Unknown Solo');
+            console.log('Final contestant name constructed:', {
+              original: contestant,
+              finalName: finalName,
+              contestantType: contestant.contestantType
+            });
+            return finalName;
+          })(),
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
         })).sort((a, b) => {
           const numA = parseInt(a.contestantNo) || 0;
@@ -326,7 +380,8 @@ export default function JudgeDashboard() {
           name: firstContestant.contestantName || 'Unknown',
           category: firstContestant.category || 'Vocal Performance',
           performanceOrder: firstContestant.performanceOrder || 1,
-          photo: null
+          photo: null,
+          contestantType: firstContestant.contestantType || 'solo'
         });
         
         // Initialize quick scores for the first contestant after a small delay to ensure currentEvent is set
@@ -398,6 +453,19 @@ export default function JudgeDashboard() {
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
+  };
+
+  // Check if current contestant has been scored
+  const isCurrentContestantScored = () => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant || !currentContestant.id) return false;
+    
+    // Check the appropriate scored set based on current scoring mode
+    if (usingFinalRoundCriteria) {
+      return scoredContestantsFinal.has(currentContestant.id);
+    } else {
+      return scoredContestants.has(currentContestant.id);
+    }
   };
 
 
@@ -542,6 +610,7 @@ export default function JudgeDashboard() {
     const criteriaToUse = getCurrentEventCriteria();
     const enabledCriteria = criteriaToUse.filter(c => c.enabled);
     const useFinalRoundPrefix = usingFinalRoundCriteria;
+    const isPointsGrading = currentEvent?.gradingType === 'points';
     
     if (enabledCriteria.length === 0) return 0;
     
@@ -570,8 +639,14 @@ export default function JudgeDashboard() {
         score = contestant[key] || 0;
       }
       
-      const weight = criterion.weight / 100;
-      totalScore += score * weight;
+      if (isPointsGrading) {
+        // For points grading, just sum the scores (no weighting needed)
+        totalScore += score;
+      } else {
+        // For percentage grading, apply weight
+        const weight = criterion.weight / 100;
+        totalScore += score * weight;
+      }
     });
     
     return totalScore.toFixed(1);
@@ -649,7 +724,8 @@ export default function JudgeDashboard() {
         name: contestant.contestantName,
         category: contestant.category || 'Vocal Performance',
         performanceOrder: contestant.performanceOrder || newIndex + 1,
-        photo: null
+        photo: null,
+        contestantType: contestant.contestantType || 'solo'
       });
       // Update quick scores to match the previous contestant's saved scores
       const newQuickScores = initializeQuickScores(currentEvent, contestant);
@@ -667,7 +743,8 @@ export default function JudgeDashboard() {
         name: contestant.contestantName,
         category: contestant.category || 'Vocal Performance',
         performanceOrder: contestant.performanceOrder || newIndex + 1,
-        photo: null
+        photo: null,
+        contestantType: contestant.contestantType || 'solo'
       });
       // Update quick scores to match the next contestant's saved scores
       const newQuickScores = initializeQuickScores(currentEvent, contestant);
@@ -698,7 +775,8 @@ export default function JudgeDashboard() {
           name: contestant.contestantName,
           category: contestant.category || 'Vocal Performance',
           performanceOrder: contestant.performanceOrder || index + 1,
-          photo: null
+          photo: null,
+          contestantType: contestant.contestantType || 'solo'
         });
         // Update quick scores to match current contestant scores based on event criteria
         const newQuickScores = initializeQuickScores(currentEvent, contestant);
@@ -757,6 +835,8 @@ export default function JudgeDashboard() {
     
     const useFinalRoundPrefix = usingFinalRoundCriteria;
     let totalScore = 0;
+    const isPointsGrading = currentEvent?.gradingType === 'points';
+    
     criteria.forEach(criterion => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
@@ -776,12 +856,21 @@ export default function JudgeDashboard() {
         score = quickScores[key] || 0;
       }
       
-      const weight = criterion.weight / 100;
-      totalScore += score * weight;
+      if (isPointsGrading) {
+        // For points grading, just sum the scores (no weighting needed)
+        totalScore += score;
+      } else {
+        // For percentage grading, apply weight
+        const weight = criterion.weight / 100;
+        totalScore += score * weight;
+      }
     });
     
-    // Cap total at 100
-    totalScore = Math.min(totalScore, 100);
+    // Cap total at maximum
+    const maxScore = isPointsGrading 
+      ? criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+      : 100;
+    totalScore = Math.min(totalScore, maxScore);
     
     return totalScore.toFixed(1);
   };
@@ -940,6 +1029,14 @@ export default function JudgeDashboard() {
     console.log('🔍 Current Event:', currentEvent ? 'Loaded' : 'Not loaded');
     
     if (contestants[currentContestantIndex] && user && currentEvent) {
+      // Add confirmation warning
+      const contestant = contestants[currentContestantIndex];
+      const confirmMessage = `Are you sure you want to save scores for ${contestant.contestantName}?\n\n⚠️ WARNING: Once saved, you will NOT be able to modify these scores again for this contestant.\n\nThis action cannot be undone.`;
+      
+      if (!confirm(confirmMessage)) {
+        return;
+      }
+      
       try {
         // Check if scores are locked
         if (currentEvent && currentEvent.scoresLocked) {
@@ -1120,6 +1217,29 @@ export default function JudgeDashboard() {
         
         // Also update quickScores to ensure consistency
         setQuickScores(prev => ({ ...prev }));
+        
+        // Mark current contestant as scored in the appropriate set and persist to Firestore
+        if (contestant.id) {
+          if (usingFinalRoundCriteria) {
+            const newScoredFinal = new Set([...scoredContestantsFinal, contestant.id]);
+            setScoredContestantsFinal(newScoredFinal);
+            
+            // Update Firestore with final rounds scored contestants
+            const judgeRef = doc(db, 'judges', user.uid);
+            await updateDoc(judgeRef, {
+              scoredContestantsFinal: Array.from(newScoredFinal)
+            });
+          } else {
+            const newScored = new Set([...scoredContestants, contestant.id]);
+            setScoredContestants(newScored);
+            
+            // Update Firestore with main criteria scored contestants
+            const judgeRef = doc(db, 'judges', user.uid);
+            await updateDoc(judgeRef, {
+              scoredContestants: Array.from(newScored)
+            });
+          }
+        }
         
         // Show success message
         const hasNextContestant = currentContestantIndex < contestants.length - 1;
@@ -1369,7 +1489,7 @@ export default function JudgeDashboard() {
                 <p className="text-blue-100 text-xs sm:text-sm">Evaluate and score contestants</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative">
+                <div className="relative flex-1 sm:flex-initial">
                   <input
                     type="text"
                     placeholder="Search contestants..."
@@ -1380,6 +1500,67 @@ export default function JudgeDashboard() {
                   <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
                 </div>
                 
+                {/* Final Rounds Button */}
+                {getFinalRound() && !usingFinalRoundCriteria && (
+                  <button
+                    onClick={() => {
+                      const finalRound = getFinalRound();
+                      if (finalRound && finalRound.criteria) {
+                        // Store original criteria
+                        setOriginalEventCriteria(currentEvent.criteria);
+                        
+                        // Update current event criteria to use final round criteria
+                        const updatedEvent = {
+                          ...currentEvent,
+                          criteria: finalRound.criteria
+                        };
+                        setCurrentEvent(updatedEvent);
+                        setUsingFinalRoundCriteria(true);
+                        setSelectorKey(prev => prev + 1); // Force re-render
+                        
+                        // Reinitialize quick scores for the new criteria
+                        if (contestants[currentContestantIndex]) {
+                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                          setQuickScores(newQuickScores);
+                        }
+                        
+                        alert(`🏆 Final Rounds Mode Activated\n\nSwitched to final round criteria.\nYou can now score contestants independently using the final round criteria.`);
+                      }
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-yellow-900 rounded-lg hover:from-yellow-500 hover:to-orange-500 transition-all duration-200 text-sm font-medium shadow-lg border border-yellow-300 whitespace-nowrap"
+                    title="Switch to Final Rounds scoring criteria"
+                  >
+                    🏆 Final Rounds
+                  </button>
+                )}
+                
+                {/* Back to Main Criteria Button */}
+                {usingFinalRoundCriteria && (
+                  <button
+                    onClick={() => {
+                      if (originalEventCriteria) {
+                        // Restore original criteria
+                        const updatedEvent = {
+                          ...currentEvent,
+                          criteria: originalEventCriteria
+                        };
+                        setCurrentEvent(updatedEvent);
+                        setUsingFinalRoundCriteria(false);
+                        setSelectorKey(prev => prev + 1); // Force re-render
+                        
+                        // Reinitialize quick scores for the restored criteria
+                        if (contestants[currentContestantIndex]) {
+                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                          setQuickScores(newQuickScores);
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-lg border border-blue-300 whitespace-nowrap"
+                    title="Switch back to main scoring criteria"
+                  >
+                    📋 Main Criteria
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1389,67 +1570,14 @@ export default function JudgeDashboard() {
               {/* Table Controls */}
               <div className="flex justify-between items-center mb-4 px-2">
                 <div className="flex items-center gap-2">
-                  {/* Final Rounds Button */}
-                  {getFinalRound() && !usingFinalRoundCriteria && (
-                    <button
-                      onClick={() => {
-                        const finalRound = getFinalRound();
-                        if (finalRound && finalRound.criteria) {
-                          // Store original criteria
-                          setOriginalEventCriteria(currentEvent.criteria);
-                          
-                          // Update current event criteria to use final round criteria
-                          const updatedEvent = {
-                            ...currentEvent,
-                            criteria: finalRound.criteria
-                          };
-                          setCurrentEvent(updatedEvent);
-                          setUsingFinalRoundCriteria(true);
-                          setSelectorKey(prev => prev + 1); // Force re-render
-                          
-                          // Reinitialize quick scores for the new criteria
-                          if (contestants[currentContestantIndex]) {
-                            const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
-                            setQuickScores(newQuickScores);
-                          }
-                          
-                          alert(`🏆 Final Rounds Mode Activated\n\nSwitched to final round criteria.\nYou can now score contestants independently using the final round criteria.`);
-                        }
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-yellow-900 rounded-lg hover:from-yellow-500 hover:to-orange-500 transition-all duration-200 text-sm font-medium shadow-lg border border-yellow-300"
-                      title="Switch to Final Rounds scoring criteria"
-                    >
-                      🏆 Final Rounds
-                    </button>
-                  )}
-                  
-                  {/* Back to Main Criteria Button */}
-                  {usingFinalRoundCriteria && (
-                    <button
-                      onClick={() => {
-                        if (originalEventCriteria) {
-                          // Restore original criteria
-                          const updatedEvent = {
-                            ...currentEvent,
-                            criteria: originalEventCriteria
-                          };
-                          setCurrentEvent(updatedEvent);
-                          setUsingFinalRoundCriteria(false);
-                          setSelectorKey(prev => prev + 1); // Force re-render
-                          
-                          // Reinitialize quick scores for the restored criteria
-                          if (contestants[currentContestantIndex]) {
-                            const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
-                            setQuickScores(newQuickScores);
-                          }
-                        }
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-lg border border-blue-300"
-                      title="Switch back to main scoring criteria"
-                    >
-                      📋 Main Criteria
-                    </button>
-                  )}
+                  {/* Scoring mode indicator */}
+                  <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
+                    usingFinalRoundCriteria 
+                      ? 'bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border border-yellow-300' 
+                      : 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 border border-blue-300'
+                  }`}>
+                    {usingFinalRoundCriteria ? '🏆 Final Rounds Mode' : '📋 Main Criteria Mode'}
+                  </span>
                 </div>
                 
                 {/* Horizontal scroll indicator - Mobile only */}
@@ -1469,46 +1597,36 @@ export default function JudgeDashboard() {
                 </div>
               </div>
               <table key={`contestants-table-${contestants.length}`} className="w-full min-w-[800px] judge-scoring-table">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
                 <tr>
-                  <th colSpan="2" className="px-4 py-2 text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Scoring Mode:</span>
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                        usingFinalRoundCriteria 
-                          ? 'bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border border-yellow-300' 
-                          : 'bg-blue-100 text-blue-800 border border-blue-300'
-                      }`}>
-                        {usingFinalRoundCriteria ? '🏆 Final Rounds' : '📋 Main Criteria'}
-                      </span>
-                    </div>
-                  </th>
-                  <th colSpan="100%" className="px-4 py-2 text-right">
-                    <span className="text-xs text-gray-500">
-                      {usingFinalRoundCriteria 
-                        ? 'Scoring contestants using final round criteria' 
-                        : 'Scoring contestants using main event criteria'
-                      }
-                    </span>
-                  </th>
-                </tr>
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Rank</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">No.</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">Rank</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">No.</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[120px]">Contestant</th>
                   {getCurrentEventCriteria().map((criterion, index) => (
-                    <th key={index} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="hidden sm:block">{criterion.name} ({criterion.weight}%)</div>
-                      <div className="sm:hidden">{criterion.name.substring(0, 6)}...</div>
+                    <th key={index} className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[100px]">
+                      <div className="hidden sm:block">
+                        <div className="font-medium">{criterion.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">({criterion.weight}%)</div>
+                      </div>
+                      <div className="sm:hidden text-xs">
+                        {criterion.name.length > 8 ? criterion.name.substring(0, 8) + '...' : criterion.name}
+                        <div className="text-xs text-gray-500">({criterion.weight}%)</div>
+                      </div>
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Status</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Status</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredContestants.map((contestant) => (
-                  <tr key={contestant.id} className="hover:bg-gray-50">
+                {filteredContestants.map((contestant) => {
+                  const isScored = contestant.id && (
+                    usingFinalRoundCriteria ? 
+                    scoredContestantsFinal.has(contestant.id) : 
+                    scoredContestants.has(contestant.id)
+                  );
+                  return (
+                  <tr key={contestant.id} className={`hover:bg-gray-50 transition-colors ${isScored ? 'bg-green-50' : ''}`}>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-bold ${getRankColor(contestant.rank)}`}>
                         {contestant.rank}
@@ -1517,9 +1635,28 @@ export default function JudgeDashboard() {
                     <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{contestant.contestantNo}</td>
                     <td className="px-4 py-3 text-xs sm:text-sm text-gray-900">
                       <div className="flex items-center gap-2">
-                        <div className="truncate">{contestant.contestantName}</div>
+                        <div className="truncate font-medium">{contestant.contestantName}</div>
+                        {contestant.contestantType === 'group' ? (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full" title="Group Contestant">
+                            👥
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
+                            🎤
+                          </span>
+                        )}
                         {getContestantRoundStatus(contestant)?.isFinal && (
                           <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full shadow-sm" title="Final Round Contestant">
+                            🏆
+                          </span>
+                        )}
+                        {contestant.id && scoredContestants.has(contestant.id) && (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Main Criteria Scored">
+                            📋
+                          </span>
+                        )}
+                        {contestant.id && scoredContestantsFinal.has(contestant.id) && (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full" title="Final Rounds Scored">
                             🏆
                           </span>
                         )}
@@ -1543,16 +1680,17 @@ export default function JudgeDashboard() {
                       
                       const colors = ['bg-blue-100 text-blue-800', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
                       const colorClass = colors[index % colors.length];
+                      const hasScore = score > 0;
                       return (
                         <td key={index} className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-medium ${colorClass} rounded-full`}>
+                          <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-gray-500'} rounded-full ${hasScore ? 'shadow-sm' : ''}`}>
                             {score.toFixed(1)}
                           </span>
                         </td>
                       );
                     })}
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-bold bg-green-100 text-green-800 rounded-full">
+                      <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-bold ${(contestant.totalWeightedScore || 0) > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'} rounded-full ${(contestant.totalWeightedScore || 0) > 0 ? 'shadow-sm' : ''}`}>
                         {(contestant.totalWeightedScore || 0).toFixed(1)}
                       </span>
                     </td>
@@ -1563,7 +1701,8 @@ export default function JudgeDashboard() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             </div>
@@ -1608,7 +1747,23 @@ export default function JudgeDashboard() {
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-2xl font-bold truncate transition-all duration-300">{currentContestant.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold truncate transition-all duration-300">{currentContestant.name}</h2>
+                    {currentContestant.contestantType === 'group' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 rounded-full flex-shrink-0" title="Group Contestant">
+                        👥 Group
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex-shrink-0" title="Solo Contestant">
+                        🎤 Solo
+                      </span>
+                    )}
+                    {isCurrentContestantScored() && (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full flex-shrink-0">
+                        ✅ Scored
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-blue-100 truncate transition-all duration-300">#{currentContestant.number}</p>
                 </div>
                 <span className="text-sm font-bold bg-white/20 px-3 py-1 rounded-full whitespace-nowrap ml-2">
@@ -1710,7 +1865,7 @@ export default function JudgeDashboard() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                           <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
-                            {criterion.weight}%
+                            {currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
                           </span>
                           <span className={`text-sm font-bold text-${color}-600`}>
                             {score.toFixed(1)}
@@ -1721,30 +1876,33 @@ export default function JudgeDashboard() {
                         <input
                           type="range"
                           min="0"
-                          max="100"
+                          max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                           step="0.1"
                           value={score}
                           onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
+                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
                           className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                            isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
+                            isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         />
                         <input
                           type="number"
                           min="0"
-                          max="100"
+                          max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                           step="0.1"
                           value={score}
                           onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
+                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
                           className={`w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-xs font-medium ${
-                            !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
+                            !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'bg-gray-100 cursor-not-allowed' : ''
                           }`}
                         />
                       </div>
                       <div className="mt-1 text-xs text-gray-500 text-right">
-                        → {(score * criterion.weight / 100).toFixed(2)} points
+                        → {currentEvent?.gradingType === 'points' 
+                          ? score.toFixed(2)
+                          : (score * criterion.weight / 100).toFixed(2)
+                        } points
                       </div>
                     </div>
                   );
@@ -1756,13 +1914,23 @@ export default function JudgeDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-semibold text-gray-700">Total Weighted Score</span>
-                    <div className="text-xs text-gray-500">Maximum 100.0</div>
+                    <div className="text-xs text-gray-500">
+                      Maximum {currentEvent?.gradingType === 'points' 
+                        ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                        : '100.0'
+                      }
+                    </div>
                   </div>
                   <span className="text-2xl font-bold text-green-800">{calculateQuickTotal()}</span>
                 </div>
-                {parseFloat(calculateQuickTotal()) >= 100 && (
+                {((currentEvent?.gradingType === 'points' 
+                      ? parseFloat(calculateQuickTotal()) >= currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                      : parseFloat(calculateQuickTotal()) >= 100)) && (
                   <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-2 border border-amber-200">
-                    ⚠️ Score capped at maximum of 100
+                    ⚠️ Score capped at maximum of {currentEvent?.gradingType === 'points' 
+                      ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                      : '100'
+                    }
                   </div>
                 )}
               </div>
@@ -1771,14 +1939,14 @@ export default function JudgeDashboard() {
               <div className="space-y-2">
                 <button
                   onClick={saveQuickScores}
-                  disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                  disabled={isCurrentContestantScored() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
                   className={`w-full px-4 py-2 rounded-lg transition-colors font-medium shadow-lg text-sm ${
-                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                    isCurrentContestantScored() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
                       ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                       : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
-                  💾 Save Scores
+                  💾 {isCurrentContestantScored() ? 'Score Saved' : 'Save Scores'}
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1803,9 +1971,16 @@ export default function JudgeDashboard() {
           </div>
 
           {/* Navigation Hints */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center mb-3">
             <p className="text-xs text-blue-800 font-medium">
               ← Swipe to move between contestants →
+            </p>
+          </div>
+
+          {/* Scoring Tip */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+            <p className="text-xs text-amber-800 font-medium">
+              💡 <strong>Tip:</strong> Once you save scores for a contestant, you won't be able to modify them again. Make sure your scores are final before saving!
             </p>
           </div>
         </div>
@@ -1819,7 +1994,23 @@ export default function JudgeDashboard() {
             <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <h2 className="text-4xl font-bold">{currentContestant.name}</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-4xl font-bold">{currentContestant.name}</h2>
+                    {currentContestant.contestantType === 'group' ? (
+                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full" title="Group Contestant">
+                        👥 Group
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
+                        🎤 Solo
+                      </span>
+                    )}
+                    {isCurrentContestantScored() && (
+                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-green-100 text-green-800 rounded-full">
+                        ✅ Scored
+                      </span>
+                    )}
+                  </div>
                   <p className="text-blue-100 text-sm mt-1">#{currentContestant.number} • Performance #{currentContestant.performanceOrder}</p>
                 </div>
                 <div className="text-right">
@@ -1971,7 +2162,7 @@ export default function JudgeDashboard() {
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0 ml-2">
                             <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
-                              {criterion.weight}%
+                              {currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
                             </span>
                             <span className={`text-lg font-bold text-${color}-600 bg-${color}-50 px-3 py-1 rounded-full`}>
                               {score.toFixed(1)}
@@ -1982,30 +2173,35 @@ export default function JudgeDashboard() {
                           <input
                             type="range"
                             min="0"
-                            max="100"
+                            max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isFormLocked || isFirstRoundAverage}
+                            disabled={isFormLocked || isFirstRoundAverage || isCurrentContestantScored()}
                             className={`flex-1 h-3 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                              isFormLocked || isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
+                              isFormLocked || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                           />
                           <input
                             type="number"
                             min="0"
-                            max="100"
+                            max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isFormLocked || isFirstRoundAverage}
+                            disabled={isFormLocked || isFirstRoundAverage || isCurrentContestantScored()}
                             className={`w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center font-semibold text-base ${
-                              isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
+                              isFirstRoundAverage || isCurrentContestantScored() ? 'bg-gray-100 cursor-not-allowed' : ''
                             }`}
                           />
                         </div>
                         <div className="mt-3 text-sm text-gray-600 text-right font-medium">
-                          Weighted contribution: <span className="text-blue-700 font-bold">{(score * criterion.weight / 100).toFixed(1)}</span> points
+                          Weighted contribution: <span className="text-blue-700 font-bold">
+                            {currentEvent?.gradingType === 'points' 
+                              ? (score * (criterion.weight / (currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)))).toFixed(1)
+                              : (score * criterion.weight / 100).toFixed(1)
+                            } points
+                          </span>
                         </div>
                       </div>
                     );
@@ -2021,12 +2217,22 @@ export default function JudgeDashboard() {
                     </div>
                     <div className="text-right">
                       <div className="text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">{calculateQuickTotal()}</div>
-                      <div className="text-sm text-gray-500">Maximum 100.0</div>
+                      <div className="text-sm text-gray-500">
+                        Maximum {currentEvent?.gradingType === 'points' 
+                          ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                          : '100.0'
+                        }
+                      </div>
                     </div>
                   </div>
-                  {parseFloat(calculateQuickTotal()) >= 100 && (
+                  {((currentEvent?.gradingType === 'points' 
+                      ? parseFloat(calculateQuickTotal()) >= currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                      : parseFloat(calculateQuickTotal()) >= 100)) && (
                     <div className="text-sm text-amber-800 bg-amber-50 px-3 py-2 rounded border border-amber-300">
-                      ⚠️ Score capped at maximum of 100. Adjust individual criterion scores to increase the total.
+                      ⚠️ Score capped at maximum of {currentEvent?.gradingType === 'points' 
+                        ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                        : '100.0'
+                      }. Adjust individual criterion scores to increase the total.
                     </div>
                   )}
                 </div>
@@ -2035,14 +2241,14 @@ export default function JudgeDashboard() {
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={saveQuickScores}
-                    disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                    disabled={isCurrentContestantScored() || isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
                     className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
-                      isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                      isCurrentContestantScored() || isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
                         ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                         : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
                     }`}
                   >
-                    <span>💾</span> Save Scores
+                    <span>💾</span> {isCurrentContestantScored() ? 'Score Saved' : 'Save Scores'}
                   </button>
                   <button
                     onClick={() => setIsFormLocked(!isFormLocked)}
@@ -2064,8 +2270,11 @@ export default function JudgeDashboard() {
 
                 {/* Help Text */}
                 <div className="bg-blue-50 border-l-4 border-blue-500 rounded p-4 mt-4">
-                  <p className="text-xs text-blue-800">
+                  <p className="text-xs text-blue-800 mb-2">
                     <strong>💡 Tip:</strong> Use the range slider for quick adjustments or the number field for precise values. Weights are applied automatically to calculate the total score.
+                  </p>
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                    <strong>⚠️ Important:</strong> Once you save scores for a contestant, you won't be able to modify them again. Make sure your scores are final before saving!
                   </p>
                 </div>
               </div>

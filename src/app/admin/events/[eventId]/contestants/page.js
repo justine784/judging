@@ -29,7 +29,7 @@ export default function EventContestants() {
     contactNumber: '',
     contestantType: 'solo', // 'solo' or 'group'
     groupName: '',
-    groupMembers: []
+    groupLeader: ''
   });
 
   // Load event and contestants data
@@ -145,6 +145,18 @@ export default function EventContestants() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Special validation for contact number
+    if (name === 'contactNumber') {
+      // Only allow digits and limit to 11 characters
+      const digitsOnly = value.replace(/\D/g, '').slice(0, 11);
+      setFormData(prev => ({
+        ...prev,
+        [name]: digitsOnly
+      }));
+      return;
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -179,7 +191,7 @@ export default function EventContestants() {
       contestantData.displayName = `${formData.firstName} ${formData.lastName}`;
     } else {
       contestantData.groupName = formData.groupName;
-      contestantData.groupMembers = formData.groupMembers;
+      contestantData.groupLeader = formData.groupLeader;
       contestantData.displayName = formData.groupName;
     }
 
@@ -222,6 +234,9 @@ export default function EventContestants() {
         updateData.firstName = formData.firstName;
         updateData.lastName = formData.lastName;
         updateData.age = formData.age;
+      } else {
+        updateData.groupName = formData.groupName;
+        updateData.groupLeader = formData.groupLeader;
       }
 
       // Update in Firestore
@@ -271,7 +286,9 @@ export default function EventContestants() {
       age: contestant.age,
       address: contestant.address,
       contactNumber: contestant.contactNumber,
-      contestantType: contestant.contestantType || 'solo'
+      contestantType: contestant.contestantType || 'solo',
+      groupName: contestant.groupName || '',
+      groupLeader: contestant.groupLeader || ''
     });
     setShowEditModal(true);
   };
@@ -286,7 +303,7 @@ export default function EventContestants() {
       contactNumber: '',
       contestantType: 'solo',
       groupName: '',
-      groupMembers: []
+      groupLeader: ''
     });
   };
 
@@ -554,10 +571,19 @@ export default function EventContestants() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">
-                      {contestant.firstName} {contestant.lastName}
+                      {contestant.contestantType === 'group' ? (
+                        <div>
+                          <div className="font-bold text-purple-600">{contestant.groupName}</div>
+                          <div className="text-xs text-gray-500">Leader: {contestant.groupLeader}</div>
+                        </div>
+                      ) : (
+                        `${contestant.firstName} ${contestant.lastName}`
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{contestant.age}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {contestant.contestantType === 'group' ? 'Group' : contestant.age}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-900">{contestant.address}</td>
                   <td className="px-6 py-4 text-sm text-gray-900">{contestant.contactNumber}</td>
                   <td className="px-6 py-4">
@@ -776,87 +802,18 @@ export default function EventContestants() {
                     />
                     
                     <div className="mt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="block text-sm font-semibold text-gray-700">
-                          Group Members <span className="text-red-500">*</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              groupMembers: [...prev.groupMembers, { name: '', age: '' }]
-                            }));
-                          }}
-                          className="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center gap-1"
-                        >
-                          <span className="text-lg">➕</span>
-                          Add Member
-                        </button>
-                      </div>
-                      
-                      {formData.groupMembers.map((member, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Member Name</label>
-                            <input
-                              type="text"
-                              value={member.name}
-                              onChange={(e) => {
-                                const updatedMembers = [...formData.groupMembers];
-                                updatedMembers[index].name = e.target.value;
-                                setFormData(prev => ({ ...prev, groupMembers: updatedMembers }));
-                              }}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
-                              placeholder="Member name"
-                              required
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <div className="flex-1">
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Age</label>
-                              <input
-                                type="number"
-                                value={member.age}
-                                onChange={(e) => {
-                                  const updatedMembers = [...formData.groupMembers];
-                                  updatedMembers[index].age = e.target.value;
-                                  setFormData(prev => ({ ...prev, groupMembers: updatedMembers }));
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
-                                placeholder="Age"
-                                min="1"
-                                max="100"
-                                required
-                              />
-                            </div>
-                            <div className="flex items-end">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    groupMembers: prev.groupMembers.filter((_, i) => i !== index)
-                                  }));
-                                }}
-                                className="p-2 text-red-500 hover:text-red-700 transition-colors"
-                                title="Remove Member"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {formData.groupMembers.length === 0 && (
-                        <div className="text-center py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-                          <p className="text-gray-500 text-sm">No group members added yet</p>
-                          <p className="text-gray-400 text-xs mt-1">Click "Add Member" to add group members</p>
-                        </div>
-                      )}
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Group Leader Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="groupLeader"
+                        value={formData.groupLeader}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        placeholder="Enter group leader name"
+                        required
+                      />
                     </div>
                   </div>
                 )}
@@ -888,6 +845,9 @@ export default function EventContestants() {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
                     placeholder="09XX-XXX-XXXX"
+                    maxLength="11"
+                    pattern="[0-9]{11}"
+                    title="Contact number must be exactly 11 digits"
                     required
                   />
                 </div>
@@ -993,6 +953,38 @@ export default function EventContestants() {
                   </div>
                 )}
 
+                {/* Group Fields */}
+                {formData.contestantType === 'group' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Group Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="groupName"
+                        value={formData.groupName}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Group Leader Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="groupLeader"
+                        value={formData.groupLeader}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Address <span className="text-red-500">*</span>
@@ -1017,6 +1009,10 @@ export default function EventContestants() {
                     value={formData.contactNumber}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    placeholder="09XX-XXX-XXXX"
+                    maxLength="11"
+                    pattern="[0-9]{11}"
+                    title="Contact number must be exactly 11 digits"
                     required
                   />
                 </div>

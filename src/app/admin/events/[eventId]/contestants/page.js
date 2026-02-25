@@ -26,7 +26,10 @@ export default function EventContestants() {
     lastName: '',
     age: '',
     address: '',
-    contactNumber: ''
+    contactNumber: '',
+    contestantType: 'solo', // 'solo' or 'group'
+    groupName: '',
+    groupMembers: []
   });
 
   // Load event and contestants data
@@ -153,27 +156,50 @@ export default function EventContestants() {
     const eventDetails = await getDoc(doc(db, 'events', eventId));
     const eventName = eventDetails.exists() ? eventDetails.data().eventName : 'Unknown Event';
     
-    const newContestant = {
+    // Prepare contestant data based on type
+    const contestantData = {
       eventId: eventId,
-      eventName: eventName, // Add eventName field
-      ...formData,
+      eventName: eventName,
+      contestantNumber: formData.contestantNumber,
+      address: formData.address,
+      contactNumber: formData.contactNumber,
+      contestantType: formData.contestantType,
       status: 'registered'
     };
+
+    // Add age only for solo contestants
+    if (formData.contestantType === 'solo') {
+      contestantData.age = formData.age;
+    }
+
+    // Add type-specific data
+    if (formData.contestantType === 'solo') {
+      contestantData.firstName = formData.firstName;
+      contestantData.lastName = formData.lastName;
+      contestantData.displayName = `${formData.firstName} ${formData.lastName}`;
+    } else {
+      contestantData.groupName = formData.groupName;
+      contestantData.groupMembers = formData.groupMembers;
+      contestantData.displayName = formData.groupName;
+    }
 
     try {
       // Save to Firestore
       const contestantRef = doc(collection(db, 'contestants'));
-      await setDoc(contestantRef, newContestant);
+      await setDoc(contestantRef, contestantData);
       
-      console.log('Contestant added successfully:', newContestant);
+      console.log('Contestant added successfully:', contestantData);
       
-      // Update local state with the document ID
-      setContestants([...contestants, { ...newContestant, id: contestantRef.id }]);
+      // Update local state with document ID
+      setContestants([...contestants, { ...contestantData, id: contestantRef.id }]);
       setShowAddModal(false);
       resetForm();
       
       // Show success message
-      alert(`Contestant "${formData.firstName} ${formData.lastName}" has been added successfully!`);
+      const contestantName = formData.contestantType === 'solo' 
+        ? `${formData.firstName} ${formData.lastName}`
+        : formData.groupName;
+      alert(`Contestant "${contestantName}" has been added successfully!`);
       
     } catch (error) {
       console.error('Error adding contestant:', error);
@@ -184,16 +210,23 @@ export default function EventContestants() {
     if (!editingContestant) return;
 
     try {
-      // Update in Firestore
-      const contestantRef = doc(db, 'contestants', editingContestant.id);
-      await updateDoc(contestantRef, {
+      // Prepare update data based on contestant type
+      const updateData = {
         contestantNumber: formData.contestantNumber,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        age: formData.age,
         address: formData.address,
         contactNumber: formData.contactNumber
-      });
+      };
+
+      // Add solo-specific fields
+      if (formData.contestantType === 'solo') {
+        updateData.firstName = formData.firstName;
+        updateData.lastName = formData.lastName;
+        updateData.age = formData.age;
+      }
+
+      // Update in Firestore
+      const contestantRef = doc(db, 'contestants', editingContestant.id);
+      await updateDoc(contestantRef, updateData);
       
       console.log('Contestant updated successfully:', editingContestant);
       
@@ -237,7 +270,8 @@ export default function EventContestants() {
       lastName: contestant.lastName,
       age: contestant.age,
       address: contestant.address,
-      contactNumber: contestant.contactNumber
+      contactNumber: contestant.contactNumber,
+      contestantType: contestant.contestantType || 'solo'
     });
     setShowEditModal(true);
   };
@@ -249,7 +283,10 @@ export default function EventContestants() {
       lastName: '',
       age: '',
       address: '',
-      contactNumber: ''
+      contactNumber: '',
+      contestantType: 'solo',
+      groupName: '',
+      groupMembers: []
     });
   };
 
@@ -614,9 +651,44 @@ export default function EventContestants() {
             <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
               <h3 className="text-xl font-bold text-white">Add New Contestant</h3>
               <p className="text-purple-100 text-sm mt-1">Register a new contestant for {event?.eventName}</p>
+              
+              {/* Contestant Type Toggle */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 mt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-white font-medium text-sm">Contestant Type</label>
+                    <p className="text-purple-100 text-xs mt-1">Choose between solo performer or group</p>
+                  </div>
+                  <div className="flex items-center bg-white/20 rounded-lg p-1">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, contestantType: 'solo' }))}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        formData.contestantType === 'solo'
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-white hover:text-purple-200'
+                      }`}
+                    >
+                      Solo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, contestantType: 'group' }))}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        formData.contestantType === 'group'
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-white hover:text-purple-200'
+                      }`}
+                    >
+                      Group
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => { e.preventDefault(); handleAddContestant(); }} className="space-y-4">
+                {/* Contestant Number - Common for both types */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -632,55 +704,164 @@ export default function EventContestants() {
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Age <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      name="age"
-                      value={formData.age}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
-                      placeholder="Age"
-                      min="1"
-                      max="100"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      First Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
-                      placeholder="First name"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Last Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
-                      placeholder="Last name"
-                      required
-                    />
-                  </div>
+                  {/* Age field - only for solo contestants */}
+                  {formData.contestantType === 'solo' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Age <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        name="age"
+                        value={formData.age}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        placeholder="Age"
+                        min="1"
+                        max="100"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
+                {/* Solo Fields */}
+                {formData.contestantType === 'solo' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        First Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        placeholder="First name"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Last Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        placeholder="Last name"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Group Fields */}
+                {formData.contestantType === 'group' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Group Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="groupName"
+                      value={formData.groupName}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                      placeholder="Enter group name"
+                      required
+                    />
+                    
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-sm font-semibold text-gray-700">
+                          Group Members <span className="text-red-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              groupMembers: [...prev.groupMembers, { name: '', age: '' }]
+                            }));
+                          }}
+                          className="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center gap-1"
+                        >
+                          <span className="text-lg">➕</span>
+                          Add Member
+                        </button>
+                      </div>
+                      
+                      {formData.groupMembers.map((member, index) => (
+                        <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Member Name</label>
+                            <input
+                              type="text"
+                              value={member.name}
+                              onChange={(e) => {
+                                const updatedMembers = [...formData.groupMembers];
+                                updatedMembers[index].name = e.target.value;
+                                setFormData(prev => ({ ...prev, groupMembers: updatedMembers }));
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
+                              placeholder="Member name"
+                              required
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Age</label>
+                              <input
+                                type="number"
+                                value={member.age}
+                                onChange={(e) => {
+                                  const updatedMembers = [...formData.groupMembers];
+                                  updatedMembers[index].age = e.target.value;
+                                  setFormData(prev => ({ ...prev, groupMembers: updatedMembers }));
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
+                                placeholder="Age"
+                                min="1"
+                                max="100"
+                                required
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    groupMembers: prev.groupMembers.filter((_, i) => i !== index)
+                                  }));
+                                }}
+                                className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                                title="Remove Member"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {formData.groupMembers.length === 0 && (
+                        <div className="text-center py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                          <p className="text-gray-500 text-sm">No group members added yet</p>
+                          <p className="text-gray-400 text-xs mt-1">Click "Add Member" to add group members</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Common Fields */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Address <span className="text-red-500">*</span>
@@ -760,51 +941,57 @@ export default function EventContestants() {
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Age <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      name="age"
-                      value={formData.age}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
-                      min="1"
-                      max="100"
-                      required
-                    />
-                  </div>
+                  {/* Age field - only for solo contestants */}
+                  {formData.contestantType === 'solo' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Age <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        name="age"
+                        value={formData.age}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        min="1"
+                        max="100"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      First Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
-                      required
-                    />
+                {/* Solo Fields - First Name and Last Name */}
+                {formData.contestantType === 'solo' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        First Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Last Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Last Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
-                      required
-                    />
-                  </div>
-                </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">

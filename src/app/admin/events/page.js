@@ -62,6 +62,7 @@ export default function EventManagement() {
           venue: 'University Auditorium',
           status: 'upcoming',
           scoresLocked: false,
+          gradingType: 'percentage',
           criteria: [
             { name: 'Vocal Quality', weight: 40, enabled: true },
             { name: 'Stage Presence', weight: 30, enabled: true },
@@ -113,6 +114,7 @@ export default function EventManagement() {
           venue: 'Municipal Gymnasium',
           status: 'ongoing',
           scoresLocked: false,
+          gradingType: 'points',
           criteria: [
             { name: 'Musical Performance', weight: 50, enabled: true },
             { name: 'Stage Presence', weight: 30, enabled: true },
@@ -150,6 +152,7 @@ export default function EventManagement() {
           venue: 'Community Center',
           status: 'finished',
           scoresLocked: true,
+          gradingType: 'percentage',
           criteria: [
             { name: 'Vocal Quality', weight: 60, enabled: true },
             { name: 'Song Choice', weight: 40, enabled: true }
@@ -412,13 +415,67 @@ export default function EventManagement() {
       }));
     }
     
+    // Add grading type if not present (default to percentage)
+    if (!updatedEvent.gradingType) {
+      updatedEvent.gradingType = 'percentage';
+    }
+    
     setSelectedEvent(updatedEvent);
     setShowCriteriaModal(true);
   };
 
   const handleCriteriaChange = (index, field, value) => {
     const updatedEvent = { ...selectedEvent };
-    updatedEvent.criteria[index][field] = value;
+    
+    // Special validation for weight field
+    if (field === 'weight') {
+      const currentWeight = parseInt(value) || 0;
+      
+      // Calculate total weight of all enabled criteria except the current one
+      const otherCriteriaWeight = updatedEvent.criteria.reduce((sum, criterion, i) => {
+        if (i !== index && criterion.enabled) {
+          return sum + (criterion.weight || 0);
+        }
+        return sum;
+      }, 0);
+      
+      // Check if adding this weight would exceed 100
+      if (otherCriteriaWeight + currentWeight > 100) {
+        // Calculate the maximum allowed weight for this criteria
+        const maxAllowedWeight = Math.max(0, 100 - otherCriteriaWeight);
+        
+        // Show warning and cap the value
+        alert(`Warning: Total weight cannot exceed 100%. Maximum allowed weight for this criteria is ${maxAllowedWeight}%.`);
+        updatedEvent.criteria[index][field] = maxAllowedWeight;
+      } else {
+        updatedEvent.criteria[index][field] = currentWeight;
+      }
+    } else {
+      updatedEvent.criteria[index][field] = value;
+    }
+    
+    setSelectedEvent(updatedEvent);
+  };
+
+  const handleGradingTypeChange = (gradingType) => {
+    const updatedEvent = { ...selectedEvent };
+    updatedEvent.gradingType = gradingType;
+    
+    // Convert weights based on grading type
+    if (gradingType === 'percentage') {
+      // Convert points to percentages (assuming max 100 points)
+      updatedEvent.criteria = updatedEvent.criteria.map(criterion => ({
+        ...criterion,
+        weight: Math.min(100, Math.max(0, criterion.weight))
+      }));
+    } else {
+      // Convert percentages to points (keeping same numeric value)
+      updatedEvent.criteria = updatedEvent.criteria.map(criterion => ({
+        ...criterion,
+        weight: Math.min(100, Math.max(0, criterion.weight))
+      }));
+    }
+    
     setSelectedEvent(updatedEvent);
   };
 
@@ -436,7 +493,35 @@ export default function EventManagement() {
     if (!updatedEvent.rounds || !updatedEvent.rounds[roundIndex].criteria) {
       return;
     }
-    updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = value;
+    
+    // Special validation for weight field
+    if (field === 'weight') {
+      const currentWeight = parseInt(value) || 0;
+      const round = updatedEvent.rounds[roundIndex];
+      
+      // Calculate total weight of all enabled criteria in this round except the current one
+      const otherCriteriaWeight = round.criteria.reduce((sum, criterion, i) => {
+        if (i !== criteriaIndex && criterion.enabled) {
+          return sum + (criterion.weight || 0);
+        }
+        return sum;
+      }, 0);
+      
+      // Check if adding this weight would exceed 100
+      if (otherCriteriaWeight + currentWeight > 100) {
+        // Calculate the maximum allowed weight for this criteria
+        const maxAllowedWeight = Math.max(0, 100 - otherCriteriaWeight);
+        
+        // Show warning and cap the value
+        alert(`Warning: Total weight for this round cannot exceed 100%. Maximum allowed weight for this criteria is ${maxAllowedWeight}%.`);
+        updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = maxAllowedWeight;
+      } else {
+        updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = currentWeight;
+      }
+    } else {
+      updatedEvent.rounds[roundIndex].criteria[criteriaIndex][field] = value;
+    }
+    
     setSelectedEvent(updatedEvent);
   };
 
@@ -450,6 +535,7 @@ export default function EventManagement() {
       await updateDoc(eventRef, {
         criteria: selectedEvent.criteria,
         rounds: selectedEvent.rounds || [],
+        gradingType: selectedEvent.gradingType || 'percentage',
         updatedAt: serverTimestamp()
       });
       
@@ -459,7 +545,8 @@ export default function EventManagement() {
           ? { 
               ...event, 
               criteria: selectedEvent.criteria, 
-              rounds: selectedEvent.rounds || []
+              rounds: selectedEvent.rounds || [],
+              gradingType: selectedEvent.gradingType || 'percentage'
             }
           : event
       ));
@@ -478,11 +565,39 @@ export default function EventManagement() {
 
   const addCriteria = () => {
     const updatedEvent = { ...selectedEvent };
-    updatedEvent.criteria.push({
-      name: '',
-      weight: 0,
-      enabled: true
-    });
+    
+    // Check if we're in percentage mode and already at 100%
+    if (updatedEvent.gradingType === 'percentage') {
+      const currentTotal = updatedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0);
+      
+      if (currentTotal >= 100) {
+        alert('Cannot add new criteria: Total weight has already reached 100%. Please reduce existing criteria weights or disable some criteria first.');
+        return;
+      }
+      
+      // Calculate remaining weight
+      const remainingWeight = 100 - currentTotal;
+      
+      // Create new criteria with appropriate default weight
+      updatedEvent.criteria.push({
+        name: '',
+        weight: Math.min(10, remainingWeight), // Default to 10% or remaining weight, whichever is smaller
+        enabled: true
+      });
+      
+      // Show info about remaining weight
+      if (remainingWeight < 10) {
+        alert(`Note: Only ${remainingWeight}% weight remaining. New criteria will be set to ${Math.min(10, remainingWeight)}%.`);
+      }
+    } else {
+      // For points mode, just add with default 0 weight
+      updatedEvent.criteria.push({
+        name: '',
+        weight: 0,
+        enabled: true
+      });
+    }
+    
     setSelectedEvent(updatedEvent);
   };
 
@@ -1453,7 +1568,7 @@ export default function EventManagement() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-white">Manage Criteria</h3>
                   <p className="text-purple-100 text-sm mt-1">Configure judging criteria for {selectedEvent.eventName}</p>
@@ -1466,6 +1581,38 @@ export default function EventManagement() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
+              </div>
+              
+              {/* Grading Type Toggle */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-white font-medium text-sm">Grading Type</label>
+                    <p className="text-purple-100 text-xs mt-1">Choose how judges will score contestants</p>
+                  </div>
+                  <div className="flex items-center bg-white/20 rounded-lg p-1">
+                    <button
+                      onClick={() => handleGradingTypeChange('percentage')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        selectedEvent.gradingType === 'percentage'
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-white hover:text-purple-200'
+                      }`}
+                    >
+                      Percentage
+                    </button>
+                    <button
+                      onClick={() => handleGradingTypeChange('points')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        selectedEvent.gradingType === 'points'
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-white hover:text-purple-200'
+                      }`}
+                    >
+                      Points
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1499,16 +1646,46 @@ export default function EventManagement() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Weight (%)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {selectedEvent.gradingType === 'percentage' ? 'Weight (%)' : 'Max Points'}
+                        </label>
                         <input
                           type="number"
                           value={criterion.weight}
                           onChange={(e) => handleCriteriaChange(index, 'weight', parseInt(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                          placeholder="Weight"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200 ${
+                            selectedEvent.gradingType === 'percentage' && 
+                            selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) > 100
+                              ? 'border-red-300 bg-red-50'
+                              : selectedEvent.gradingType === 'percentage' && 
+                                selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
+                              ? 'border-yellow-300 bg-yellow-50'
+                              : 'border-gray-300 bg-white'
+                          }`}
+                          placeholder={selectedEvent.gradingType === 'percentage' ? 'Weight %' : 'Max Points'}
                           min="0"
                           max="100"
                         />
+                        <p className="text-xs mt-1">
+                          {selectedEvent.gradingType === 'percentage' ? (
+                            <span className={
+                              selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) > 100
+                                ? 'text-red-600 font-medium'
+                                : selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
+                                ? 'text-yellow-600 font-medium'
+                                : 'text-gray-500'
+                            }>
+                              {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) > 100
+                                ? `⚠️ Exceeds limit by ${selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) - 100}%`
+                                : selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
+                                ? '✅ Exactly 100%'
+                                : `Percentage of total score (${selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}% used)`
+                              }
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">Maximum points for this criteria</span>
+                          )}
+                        </p>
                       </div>
                       <div className="flex items-center">
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1537,13 +1714,190 @@ export default function EventManagement() {
                 {/* Total Weight Display */}
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-blue-900">Total Weight:</span>
-                    <span className={`font-bold ${selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100 ? 'text-green-600' : 'text-orange-600'}`}>
-                      {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}%
+                    <span className="font-semibold text-blue-900">
+                      {selectedEvent.gradingType === 'percentage' ? 'Total Weight:' : 'Total Points:'}
+                    </span>
+                    <span className={`font-bold ${
+                      selectedEvent.gradingType === 'percentage' && 
+                      selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) === 100
+                        ? 'text-green-600'
+                        : 'text-orange-600'
+                    }`}>
+                      {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}
+                      {selectedEvent.gradingType === 'percentage' ? '%' : ' pts'}
                     </span>
                   </div>
-                  {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) !== 100 && (
+                  {selectedEvent.gradingType === 'percentage' && 
+                   selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) !== 100 && (
                     <p className="text-sm text-orange-600 mt-2">⚠️ Total weight should equal 100%</p>
+                  )}
+                  {selectedEvent.gradingType === 'points' && (
+                    <p className="text-sm text-blue-600 mt-2">
+                      📊 Total maximum score: {selectedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)} points
+                    </p>
+                  )}
+                </div>
+
+                {/* Rounds Management Section */}
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Competition Rounds</h4>
+                      <p className="text-sm text-gray-600 mt-1">Configure multiple rounds with different criteria</p>
+                    </div>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedEvent.hasRounds || false}
+                        onChange={(e) => {
+                          const updatedEvent = { ...selectedEvent };
+                          updatedEvent.hasRounds = e.target.checked;
+                          if (e.target.checked && (!updatedEvent.rounds || updatedEvent.rounds.length === 0)) {
+                            updatedEvent.rounds = [
+                              {
+                                name: 'Round 1',
+                                description: 'First round of competition',
+                                enabled: true,
+                                criteria: updatedEvent.criteria.map(c => ({ ...c, enabled: c.enabled }))
+                              }
+                            ];
+                          }
+                          setSelectedEvent(updatedEvent);
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <span className="ml-3 text-sm font-medium text-gray-700">
+                        {selectedEvent.hasRounds ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {selectedEvent.hasRounds && (
+                    <div className="space-y-4">
+                      {selectedEvent.rounds && selectedEvent.rounds.length > 0 ? (
+                        selectedEvent.rounds.map((round, roundIndex) => (
+                          <div key={roundIndex} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <h5 className="font-semibold text-gray-900">{round.name || `Round ${roundIndex + 1}`}</h5>
+                              <button
+                                onClick={() => removeRound(roundIndex)}
+                                className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                title="Remove Round"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Round Name</label>
+                                <input
+                                  type="text"
+                                  value={round.name || ''}
+                                  onChange={(e) => handleRoundChange(roundIndex, 'name', e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                                  placeholder="e.g., Preliminary Round, Final Round"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <input
+                                  type="text"
+                                  value={round.description || ''}
+                                  onChange={(e) => handleRoundChange(roundIndex, 'description', e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                                  placeholder="Brief description of this round"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h6 className="text-sm font-medium text-gray-700">Criteria for this Round</h6>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={round.enabled || false}
+                                    onChange={(e) => handleRoundChange(roundIndex, 'enabled', e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">Enable Round</span>
+                                </label>
+                              </div>
+                              
+                              {round.criteria && round.criteria.map((criteria, criteriaIndex) => (
+                                <div key={criteriaIndex} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-white p-3 rounded-lg border border-gray-100">
+                                  <div className="md:col-span-2">
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Criteria Name</label>
+                                    <input
+                                      type="text"
+                                      value={criteria.name || ''}
+                                      onChange={(e) => handleRoundCriteriaChange(roundIndex, criteriaIndex, 'name', e.target.value)}
+                                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
+                                      placeholder="Criteria name"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      {selectedEvent.gradingType === 'percentage' ? 'Weight (%)' : 'Max Points'}
+                                    </label>
+                                    <input
+                                      type="number"
+                                      value={criteria.weight || 0}
+                                      onChange={(e) => handleRoundCriteriaChange(roundIndex, criteriaIndex, 'weight', parseInt(e.target.value) || 0)}
+                                      className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
+                                      placeholder="Weight"
+                                      min="0"
+                                      max="100"
+                                    />
+                                  </div>
+                                  <div className="flex items-center">
+                                    <label className="flex items-center cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={criteria.enabled || false}
+                                        onChange={(e) => handleRoundCriteriaChange(roundIndex, criteriaIndex, 'enabled', e.target.checked)}
+                                        className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                      />
+                                      <span className="ml-1 text-xs text-gray-700">Enable</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-blue-900">
+                                    {selectedEvent.gradingType === 'percentage' ? 'Total Weight:' : 'Total Points:'}
+                                  </span>
+                                  <span className="text-sm font-bold text-blue-600">
+                                    {round.criteria ? round.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) : 0}
+                                    {selectedEvent.gradingType === 'percentage' ? '%' : ' pts'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 px-4 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
+                          <div className="text-4xl mb-2">🏆</div>
+                          <p className="text-gray-600 font-medium mb-1">No rounds configured</p>
+                          <p className="text-sm text-gray-500">Add rounds to structure your competition</p>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={addRound}
+                        className="w-full py-3 px-4 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <span className="text-xl">➕</span>
+                        <span className="font-medium">Add Round</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 

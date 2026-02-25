@@ -35,6 +35,9 @@ export default function JudgeDashboard() {
   const [quickScores, setQuickScores] = useState({});
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
+  const [slideDirection, setSlideDirection] = useState('right'); // 'left' or 'right' for slide animation
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isFormLocked, setIsFormLocked] = useState(false); // Track if scoring form is locked
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
@@ -288,7 +291,11 @@ export default function JudgeDashboard() {
           contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
           contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
-        }));
+        })).sort((a, b) => {
+          const numA = parseInt(a.contestantNo) || 0;
+          const numB = parseInt(b.contestantNo) || 0;
+          return numA - numB;
+        });
       } else {
         // Normal case: filter by assigned events and exclude eliminated ones
         assignedContestants = allContestants.filter(contestant => 
@@ -301,7 +308,11 @@ export default function JudgeDashboard() {
           contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
           contestantName: `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || contestant.contestantName || '',
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
-        }));
+        })).sort((a, b) => {
+          const numA = parseInt(a.contestantNo) || 0;
+          const numB = parseInt(b.contestantNo) || 0;
+          return numA - numB;
+        });
       }
 
       const rankedContestants = updateRankings(assignedContestants);
@@ -668,20 +679,36 @@ export default function JudgeDashboard() {
 
   const selectContestantByIndex = (index) => {
     if (index >= 0 && index < contestants.length) {
-      const contestant = contestants[index];
-      setCurrentContestantIndex(index);
-      setCurrentContestant({
-        number: contestant.contestantNo,
-        name: contestant.contestantName,
-        category: contestant.category || 'Vocal Performance',
-        performanceOrder: contestant.performanceOrder || index + 1,
-        photo: null
-      });
-      // Update quick scores to match current contestant scores based on event criteria
-      const newQuickScores = initializeQuickScores(currentEvent, contestant);
-      setQuickScores(newQuickScores);
-      // Force selector re-render
-      setSelectorKey(prev => prev + 1);
+      // Determine slide direction
+      if (index > currentContestantIndex) {
+        setSlideDirection('left'); // Next contestant - slide left
+      } else if (index < currentContestantIndex) {
+        setSlideDirection('right'); // Previous contestant - slide right
+      }
+      
+      // Start animation
+      setIsAnimating(true);
+      
+      // After animation, update content
+      setTimeout(() => {
+        const contestant = contestants[index];
+        setCurrentContestantIndex(index);
+        setCurrentContestant({
+          number: contestant.contestantNo,
+          name: contestant.contestantName,
+          category: contestant.category || 'Vocal Performance',
+          performanceOrder: contestant.performanceOrder || index + 1,
+          photo: null
+        });
+        // Update quick scores to match current contestant scores based on event criteria
+        const newQuickScores = initializeQuickScores(currentEvent, contestant);
+        setQuickScores(newQuickScores);
+        // Force selector re-render
+        setSelectorKey(prev => prev + 1);
+        
+        // End animation
+        setIsAnimating(false);
+      }, 300); // Match animation duration
     }
   };
 
@@ -752,6 +779,9 @@ export default function JudgeDashboard() {
       const weight = criterion.weight / 100;
       totalScore += score * weight;
     });
+    
+    // Cap total at 100
+    totalScore = Math.min(totalScore, 100);
     
     return totalScore.toFixed(1);
   };
@@ -1563,343 +1593,348 @@ export default function JudgeDashboard() {
           )}
         </div>
 
-        {/* Mobile-Optimized 3-Line Scoring Layout */}
+        {/* Mobile-Optimized Combined Contestant & Scoring Card */}
         <div 
           className="lg:hidden"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          {/* Line 1: Contestant Info & Navigation */}
-          <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold text-gray-900 truncate transition-all duration-300">🎤 {currentContestant.name}</h2>
-                <p className="text-sm text-gray-600 truncate transition-all duration-300">#{currentContestant.number} • {currentContestant.category}</p>
-                <p className="text-xs text-gray-400 mt-1">👆 Swipe left/right to navigate</p>
-              </div>
-            </div>
-            
-            {/* Progress Indicator */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                <span>Contestant {currentContestantIndex + 1} of {contestants.length}</span>
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                  {Math.round(((currentContestantIndex + 1) / contestants.length) * 100)}% Complete
+          {/* Combined Card: Contestant Info + Quick Scoring */}
+          <div className={`bg-white rounded-2xl shadow-lg overflow-hidden mb-4 border-2 border-blue-200 transition-all duration-300 ${
+            isAnimating ? (slideDirection === 'left' ? 'slide-exit-left' : 'slide-exit-right') : (slideDirection === 'left' ? 'slide-enter-left' : 'slide-enter-right')
+          }`}>
+            {/* Card Header: Contestant Info */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-2xl font-bold truncate transition-all duration-300">{currentContestant.name}</h2>
+                  <p className="text-sm text-blue-100 truncate transition-all duration-300">#{currentContestant.number}</p>
+                </div>
+                <span className="text-sm font-bold bg-white/20 px-3 py-1 rounded-full whitespace-nowrap ml-2">
+                  {currentContestantIndex + 1}/{contestants.length}
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentContestantIndex + 1) / contestants.length) * 100}%` }}
-                ></div>
+              
+              {/* Progress Indicator */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-blue-100 mb-2">
+                  <span>Progress</span>
+                  <span>{Math.round(((currentContestantIndex + 1) / contestants.length) * 100)}%</span>
+                </div>
+                <div className="w-full bg-blue-400 rounded-full h-2">
+                  <div 
+                    className="bg-green-400 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentContestantIndex + 1) / contestants.length) * 100}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-blue-100 mt-2">👆 Swipe left/right to navigate</p>
               </div>
-            </div>
-          </div>
-            
-            {/* Contestant Selector */}
-            <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
-              <select
-              key={`mobile-selector-${selectorKey}`}
-              value={currentContestantIndex}
-              onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-            >
-              {contestants.map((contestant, index) => (
-                <option key={contestant.id} value={index}>
-                  {index === currentContestantIndex ? '👤 ' : ''}{contestant.contestantNo} - {contestant.contestantName}
-                </option>
-              ))}
-            </select>
             </div>
 
-          {/* Line 2: Quick Scoring */}
-          {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0">
-                  <span className="text-2xl">🚫</span>
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-red-800">
-                    {currentEvent.scoresLocked ? 'Scoring Locked' : 'Event Not Started'}
-                  </h4>
-                  <p className="text-xs text-red-600 mt-1">
-                    {currentEvent.scoresLocked 
-                      ? 'The administrator has locked scoring for this event. Please contact the administrator for assistance.'
-                      : 'This event has not started yet. Scoring will be available when the event status changes to "ongoing".'
-                    }
-                  </p>
-                </div>
-              </div>
+            {/* Navigation Buttons */}
+            <div className="px-4 py-3 border-b border-gray-200 flex gap-2">
+              <button
+                onClick={() => selectContestantByIndex(currentContestantIndex - 1)}
+                disabled={currentContestantIndex === 0}
+                className="flex-1 px-3 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 rounded-lg font-medium transition-colors text-sm"
+              >
+                ← Previous
+              </button>
+              <button
+                onClick={() => selectContestantByIndex(currentContestantIndex + 1)}
+                disabled={currentContestantIndex === contestants.length - 1}
+                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+              >
+                Next →
+              </button>
             </div>
-          )}
-          
-          <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Quick Scoring</h3>
-              <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                {currentContestant.name}
-              </span>
-            </div>
-            <div className="space-y-4">
-              {getCurrentEventCriteria().map((criterion, index) => {
-                const useFinalRoundPrefix = usingFinalRoundCriteria;
-                const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-                
-                // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
-                
-                // For "AVERAGE OF THE 1ST ROUND", show saved value if it exists, otherwise use quickScores
-                let score;
-                if (isFirstRoundAverage && contestants[currentContestantIndex]) {
-                  const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                  score = contestants[currentContestantIndex][originalKey] !== undefined 
-                    ? contestants[currentContestantIndex][originalKey] 
-                    : calculateFirstRoundAverage(contestants[currentContestantIndex]);
-                } else {
-                  score = quickScores[key] || 0;
-                }
-                  
-                const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
-                const color = colors[index % colors.length];
-                
-                return (
-                  <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                      <div className="flex items-center gap-2 flex-1">
-                        <label className="text-sm font-semibold text-gray-800">
-                          {criterion.name}
-                        </label>
-                        {isFirstRoundAverage && (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full" title="This score is locked and cannot be changed">
-                            🔒 Locked
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
-                          {criterion.weight}%
-                        </span>
-                        <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-3 py-1 rounded-full`}>
-                          {score.toFixed(1)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={score}
-                        onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
-                        className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={score}
-                        onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                        disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
-                        className={`w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-sm font-medium ${
-                          !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
-                        }`}
-                      />
-                    </div>
-                    <div className="mt-2 text-xs text-gray-500 text-right">
-                      Weighted: {(score * criterion.weight / 100).toFixed(1)}
+
+            {/* Card Body: Quick Scoring */}
+            <div className="p-4 sm:p-6 max-h-[600px] overflow-y-auto">
+              {/* Warning Banner */}
+              {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-start gap-2">
+                    <span className="text-2xl flex-shrink-0">🚫</span>
+                    <div>
+                      <h4 className="text-sm font-semibold text-red-800">
+                        {currentEvent.scoresLocked ? 'Scoring Locked' : 'Event Not Started'}
+                      </h4>
+                      <p className="text-xs text-red-600 mt-1">
+                        {currentEvent.scoresLocked 
+                          ? 'The administrator has locked scoring for this event.'
+                          : 'This event has not started yet. Scoring will be available when the event is ongoing.'
+                        }
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-            
-            {/* Total Score */}
-            <div className="mt-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 border border-green-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-semibold text-gray-700">Total Weighted Score</span>
-                  <div className="text-xs text-gray-500">out of 100.0</div>
                 </div>
-                <span className="text-2xl font-bold text-green-800">{calculateQuickTotal()}</span>
-              </div>
-            </div>
+              )}
 
-            {/* Action Buttons */}
-            <div className="mt-4">
-              <button
-                onClick={saveQuickScores}
-                disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                className={`w-full px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm ${
-                  !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
-              >
-                💾 Save Scores
-              </button>
-              <button
-                onClick={() => openEditModal(contestants[currentContestantIndex])}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
-              >
-                ✏️ Advanced Edit
-              </button>
-              <button
-                onClick={openSubmitModal}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
-              >
-                📤 Submit to Admin
-              </button>
+              {/* Scoring Criteria */}
+              <div className="space-y-3 mb-4">
+                {getCurrentEventCriteria().map((criterion, index) => {
+                  const useFinalRoundPrefix = usingFinalRoundCriteria;
+                  const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                  
+                  // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                  const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                  
+                  // For "AVERAGE OF THE 1ST ROUND", show saved value if it exists, otherwise use quickScores
+                  let score;
+                  if (isFirstRoundAverage && contestants[currentContestantIndex]) {
+                    const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                    score = contestants[currentContestantIndex][originalKey] !== undefined 
+                      ? contestants[currentContestantIndex][originalKey] 
+                      : calculateFirstRoundAverage(contestants[currentContestantIndex]);
+                  } else {
+                    score = quickScores[key] || 0;
+                  }
+                    
+                  const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
+                  const color = colors[index % colors.length];
+                  
+                  return (
+                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <label className="text-sm font-semibold text-gray-800 truncate">
+                            {criterion.name}
+                          </label>
+                          {isFirstRoundAverage && (
+                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
+                              🔒
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                            {criterion.weight}%
+                          </span>
+                          <span className={`text-sm font-bold text-${color}-600`}>
+                            {score.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={score}
+                          onChange={(e) => handleQuickScoreChange(key, e.target.value)}
+                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
+                          className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
+                            isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={score}
+                          onChange={(e) => handleQuickScoreChange(key, e.target.value)}
+                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage}
+                          className={`w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-xs font-medium ${
+                            !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
+                          }`}
+                        />
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500 text-right">
+                        → {(score * criterion.weight / 100).toFixed(2)} points
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Total Score */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-3 border border-green-200 mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-700">Total Weighted Score</span>
+                    <div className="text-xs text-gray-500">Maximum 100.0</div>
+                  </div>
+                  <span className="text-2xl font-bold text-green-800">{calculateQuickTotal()}</span>
+                </div>
+                {parseFloat(calculateQuickTotal()) >= 100 && (
+                  <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-2 border border-amber-200">
+                    ⚠️ Score capped at maximum of 100
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <button
+                  onClick={saveQuickScores}
+                  disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                  className={`w-full px-4 py-2 rounded-lg transition-colors font-medium shadow-lg text-sm ${
+                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  💾 Save Scores
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setIsFormLocked(!isFormLocked)}
+                    className={`px-4 py-2 rounded-lg transition-colors font-medium shadow text-sm flex items-center justify-center gap-1 ${
+                      isFormLocked 
+                        ? 'bg-red-600 hover:bg-red-700 text-white' 
+                        : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    }`}
+                  >
+                    {isFormLocked ? '🔒 Locked' : '🔓 Unlock'}
+                  </button>
+                  <button
+                    onClick={openSubmitModal}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow text-sm"
+                  >
+                    📤 Submit
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Line 3: Action Buttons */}
-          <div className="bg-white rounded-2xl shadow-lg p-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">Actions</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                onClick={saveQuickScores}
-                disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                className={`px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm ${
-                  !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
-              >
-                💾 Save Scores
-              </button>
-              <button
-                onClick={() => openEditModal(contestants[currentContestantIndex])}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
-              >
-                ✏️ Advanced Edit
-              </button>
-              <button
-                onClick={openSubmitModal}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors font-medium shadow-lg text-sm"
-              >
-                📤 Submit to Admin
-              </button>
-            </div>
+          {/* Navigation Hints */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+            <p className="text-xs text-blue-800 font-medium">
+              ← Swipe to move between contestants →
+            </p>
           </div>
         </div>
 
-        {/* Desktop Layout */}
+        {/* Desktop Layout - Combined Contestant & Scoring Card */}
         <div className="hidden lg:block">
-          {/* Current Contestant Score */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">Current Contestant</h2>
-                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    {currentContestantIndex + 1} of {contestants.length}
-                  </span>
+          <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border border-blue-200 transition-all duration-300 ${
+            isAnimating ? (slideDirection === 'left' ? 'slide-exit-left' : 'slide-exit-right') : (slideDirection === 'left' ? 'slide-enter-left' : 'slide-enter-right')
+          }`}>
+            {/* Card Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h2 className="text-4xl font-bold">{currentContestant.name}</h2>
+                  <p className="text-blue-100 text-sm mt-1">#{currentContestant.number} • Performance #{currentContestant.performanceOrder}</p>
                 </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-cyan-300">{currentContestantIndex + 1}</div>
+                  <div className="text-sm text-blue-100">of {contestants.length}</div>
+                </div>
+              </div>
+              {/* Progress Bar */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs text-blue-100 mb-2">
+                  <span>Scoring Progress</span>
+                  <span>{Math.round(((currentContestantIndex + 1) / contestants.length) * 100)}%</span>
+                </div>
+                <div className="w-full bg-blue-500/30 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-cyan-400 to-green-400 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${((currentContestantIndex + 1) / contestants.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Body */}
+            <div className="grid grid-cols-3 gap-6 p-6">
+              {/* Left Column: Contestant Info */}
+              <div className="col-span-1 border-r border-gray-200">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Contestant Details</h3>
                 
-                {/* Contestant Selector */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Contestant</label>
-                  <select
-                    key={`desktop-selector-${selectorKey}`}
-                    value={currentContestantIndex}
-                    onChange={(e) => selectContestantByIndex(parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                {/* Navigation Buttons */}
+                <div className="mb-4 flex flex-col gap-2">
+                  <button
+                    onClick={() => selectContestantByIndex(currentContestantIndex - 1)}
+                    disabled={currentContestantIndex === 0}
+                    className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 rounded-lg font-medium transition-colors"
                   >
-                    {contestants.map((contestant, index) => (
-                      <option key={contestant.id} value={index}>
-                        {index === currentContestantIndex ? '👤 ' : ''}{contestant.contestantNo} - {contestant.contestantName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Contestant Number</label>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                    <p className="text-2xl font-bold text-blue-800">#{currentContestant.number}</p>
-                  </div>
+                    ← Previous Contestant
+                  </button>
+                  <button
+                    onClick={() => selectContestantByIndex(currentContestantIndex + 1)}
+                    disabled={currentContestantIndex === contestants.length - 1}
+                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    Next Contestant →
+                  </button>
                 </div>
 
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Contestant Name</label>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                    <p className="text-lg font-semibold text-gray-900 transition-all duration-300">{currentContestant.name}</p>
+                {/* Info Boxes */}
+                <div className="space-y-3">
+                  <div className="bg-gradient-to-br from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-lg px-6 py-4">
+                    <p className="text-5xl font-bold text-blue-900">#{currentContestant.number}</p>
+                    <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mt-1">Contestant Number</p>
                   </div>
-                </div>
 
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                    <p className="text-lg font-medium text-blue-800">{currentContestant.category}</p>
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Performance Order</label>
                   <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                    <p className="text-lg font-medium text-green-800">Performance #{currentContestant.performanceOrder}</p>
+                    <label className="text-xs font-medium text-green-600 uppercase tracking-wide">Performance Order</label>
+                    <p className="text-lg font-semibold text-green-900">#{currentContestant.performanceOrder}</p>
                   </div>
-                </div>
 
-                {/* Current Scores */}
-                {contestants[currentContestantIndex] && (
-                  <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      {usingFinalRoundCriteria ? 'First Round Average' : 'Current Scores'}
-                    </label>
-                    <div className="space-y-2">
-                      {usingFinalRoundCriteria ? (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">First Round Average:</span>
-                          <span className="font-medium text-blue-800">
-                            {quickScores.firstRoundAverage ? quickScores.firstRoundAverage.toFixed(1) : '0.0'}
-                          </span>
-                        </div>
-                      ) : (
-                        getCurrentEventCriteria().map((criterion, index) => {
+                  {/* Current Scores Summary */}
+                  {contestants[currentContestantIndex] && (
+                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-4 mt-4">
+                      <label className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-3 block">Current Scores</label>
+                      <div className="space-y-2">
+                        {getCurrentEventCriteria().slice(0, 3).map((criterion, index) => {
                           const useFinalRoundPrefix = usingFinalRoundCriteria;
                           const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                           const score = contestants[currentContestantIndex]?.[key] || 0;
-                          const colors = ['text-blue-800', 'text-pink-800', 'text-blue-800', 'text-green-800', 'text-yellow-800'];
-                          const colorClass = colors[index % colors.length];
                           return (
-                            <div key={index} className="flex justify-between items-center">
-                              <span className="text-sm text-gray-600">{criterion.name}:</span>
-                              <span className={`font-medium ${colorClass}`}>{score.toFixed(1)}</span>
+                            <div key={index} className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600 truncate">{criterion.name.substring(0, 15)}...</span>
+                              <span className="font-bold text-blue-900">{score.toFixed(1)}</span>
                             </div>
                           );
-                        })
-                      )}
-                      
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm font-medium text-gray-700">Total:</span>
-                        <span className="font-bold text-green-800">{calculateQuickTotal()}</span>
+                        })}
+                        {getCurrentEventCriteria().length > 3 && (
+                          <div className="text-xs text-gray-500 pt-2 border-t">
+                            +{getCurrentEventCriteria().length - 3} more criteria
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-2 border-t border-blue-300 mt-2">
+                          <span className="font-semibold text-gray-700">Total:</span>
+                          <span className="text-lg font-bold text-green-700">{calculateQuickTotal()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Columns: Scoring Form (spans 2 columns) */}
+              <div className="col-span-2">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Scoring Form</h3>
+
+                {/* Warning Banner */}
+                {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
+                  <div className="bg-red-50 border-l-4 border-red-500 rounded p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">🚫</span>
+                      <div>
+                        <h4 className="font-semibold text-red-800">
+                          {currentEvent.scoresLocked ? 'Scoring Locked' : 'Event Not Started'}
+                        </h4>
+                        <p className="text-sm text-red-700 mt-1">
+                          {currentEvent.scoresLocked 
+                            ? 'The administrator has locked scoring for this event. Please contact the administrator for assistance.'
+                            : 'This event has not started yet. Scoring will be available when the event status changes to "ongoing".'
+                          }
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
 
-                              </div>
-            </div>
-
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">Quick Scoring Form</h2>
-                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    {currentContestant.name}
-                  </span>
-                </div>
-                
-                {/* Scoring Criteria */}
-                <div className="space-y-6">
+                {/* Scoring Criteria Grid */}
+                <div className="space-y-4 mb-6 max-h-[500px] overflow-y-auto">
                   {getCurrentEventCriteria().map((criterion, index) => {
                     const useFinalRoundPrefix = usingFinalRoundCriteria;
                     const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
@@ -1922,19 +1957,19 @@ export default function JudgeDashboard() {
                     const color = colors[index % colors.length];
                     
                     return (
-                      <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 transition-colors">
                         <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <label className="text-base font-semibold text-gray-800">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <label className="font-semibold text-gray-800 text-base">
                               {criterion.name}
                             </label>
                             {isFirstRoundAverage && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full" title="This score is locked and cannot be changed">
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
                                 🔒 Locked
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-shrink-0 ml-2">
                             <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
                               {criterion.weight}%
                             </span>
@@ -1951,9 +1986,9 @@ export default function JudgeDashboard() {
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isFirstRoundAverage}
+                            disabled={isFormLocked || isFirstRoundAverage}
                             className={`flex-1 h-3 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                              isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
+                              isFormLocked || isFirstRoundAverage ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                           />
                           <input
@@ -1963,70 +1998,75 @@ export default function JudgeDashboard() {
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isFirstRoundAverage}
+                            disabled={isFormLocked || isFirstRoundAverage}
                             className={`w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center font-semibold text-base ${
                               isFirstRoundAverage ? 'bg-gray-100 cursor-not-allowed' : ''
                             }`}
                           />
                         </div>
-                        <div className="mt-3 text-sm text-gray-500 text-right font-medium">
-                          Weighted contribution: {(score * criterion.weight / 100).toFixed(1)} points
+                        <div className="mt-3 text-sm text-gray-600 text-right font-medium">
+                          Weighted contribution: <span className="text-blue-700 font-bold">{(score * criterion.weight / 100).toFixed(1)}</span> points
                         </div>
                       </div>
                     );
                   })}
+                </div>
 
-                  {/* Total Score Display */}
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900">Total Weighted Score</h3>
-                        <p className="text-sm text-gray-600">Sum of weighted criteria</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-3xl font-bold text-green-800">{calculateQuickTotal()}</div>
-                        <div className="text-sm text-gray-500">out of 100.0</div>
-                      </div>
+                {/* Total Score Display */}
+                <div className="bg-gradient-to-r from-green-50 via-blue-50 to-cyan-50 rounded-xl p-6 border-2 border-green-200 mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Total Weighted Score</h3>
+                      <p className="text-sm text-gray-600">Sum of all weighted criteria</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">{calculateQuickTotal()}</div>
+                      <div className="text-sm text-gray-500">Maximum 100.0</div>
                     </div>
                   </div>
+                  {parseFloat(calculateQuickTotal()) >= 100 && (
+                    <div className="text-sm text-amber-800 bg-amber-50 px-3 py-2 rounded border border-amber-300">
+                      ⚠️ Score capped at maximum of 100. Adjust individual criterion scores to increase the total.
+                    </div>
+                  )}
+                </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-4">
-                    <button
-                      onClick={saveQuickScores}
-                      disabled={!currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                      className={`flex-1 px-6 py-3 rounded-lg transition-colors font-medium shadow-lg ${
-                        !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                          : 'bg-green-600 hover:bg-green-700 text-white'
-                      }`}
-                    >
-                      💾 Save Scores
-                    </button>
-                    <button
-                      onClick={() => openEditModal(contestants[currentContestantIndex])}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
-                    >
-                      ✏️ Advanced Edit
-                    </button>
-                    <button
-                      onClick={openSubmitModal}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
-                    >
-                      📤 Submit to Admin
-                    </button>
-                  </div>
+                {/* Action Buttons */}
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={saveQuickScores}
+                    disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                    className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
+                      isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
+                    }`}
+                  >
+                    <span>💾</span> Save Scores
+                  </button>
+                  <button
+                    onClick={() => setIsFormLocked(!isFormLocked)}
+                    className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
+                      isFormLocked 
+                        ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white' 
+                        : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white'
+                    }`}
+                  >
+                    <span>{isFormLocked ? '🔒' : '🔓'}</span> {isFormLocked ? 'Locked' : 'Unlock'}
+                  </button>
+                  <button
+                    onClick={openSubmitModal}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>📤</span> Submit
+                  </button>
+                </div>
 
-                  {/* Instructions */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-blue-900 mb-2">📝 Quick Scoring Instructions:</h4>
-                    <ul className="text-sm text-blue-800 space-y-1">
-                      <li>• Use the sliders or input fields to set scores (0-100)</li>
-                      <li>• Scores are automatically weighted based on event criteria</li>
-                      <li>• Click "Save Scores" to save and update rankings</li>
-                      <li>• Use "Advanced Edit" for detailed editing in modal</li>
-                    </ul>
-                  </div>
+                {/* Help Text */}
+                <div className="bg-blue-50 border-l-4 border-blue-500 rounded p-4 mt-4">
+                  <p className="text-xs text-blue-800">
+                    <strong>💡 Tip:</strong> Use the range slider for quick adjustments or the number field for precise values. Weights are applied automatically to calculate the total score.
+                  </p>
                 </div>
               </div>
             </div>

@@ -29,8 +29,10 @@ export default function EventContestants() {
     contactNumber: '',
     contestantType: 'solo', // 'solo' or 'group'
     groupName: '',
-    groupLeader: ''
+    groupLeader: '',
+    photo: '' // Store image URL
   });
+  const [imagePreview, setImagePreview] = useState('');
 
   // Load event and contestants data
   useEffect(() => {
@@ -163,6 +165,42 @@ export default function EventContestants() {
     }));
   };
 
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB');
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.match('image.*')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageUrl = event.target.result;
+        setImagePreview(imageUrl);
+        setFormData(prev => ({
+          ...prev,
+          photo: imageUrl
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setImagePreview('');
+    setFormData(prev => ({
+      ...prev,
+      photo: ''
+    }));
+  };
+
   const handleAddContestant = async () => {
     // Get event details to include eventName
     const eventDetails = await getDoc(doc(db, 'events', eventId));
@@ -193,6 +231,11 @@ export default function EventContestants() {
       contestantData.groupName = formData.groupName;
       contestantData.groupLeader = formData.groupLeader;
       contestantData.displayName = formData.groupName;
+    }
+
+    // Add photo if uploaded
+    if (formData.photo) {
+      contestantData.photo = formData.photo;
     }
 
     try {
@@ -237,6 +280,11 @@ export default function EventContestants() {
       } else {
         updateData.groupName = formData.groupName;
         updateData.groupLeader = formData.groupLeader;
+      }
+
+      // Add photo if uploaded
+      if (formData.photo) {
+        updateData.photo = formData.photo;
       }
 
       // Update in Firestore
@@ -288,8 +336,10 @@ export default function EventContestants() {
       contactNumber: contestant.contactNumber,
       contestantType: contestant.contestantType || 'solo',
       groupName: contestant.groupName || '',
-      groupLeader: contestant.groupLeader || ''
+      groupLeader: contestant.groupLeader || '',
+      photo: contestant.photo || ''
     });
+    setImagePreview(contestant.photo || '');
     setShowEditModal(true);
   };
 
@@ -303,8 +353,10 @@ export default function EventContestants() {
       contactNumber: '',
       contestantType: 'solo',
       groupName: '',
-      groupLeader: ''
+      groupLeader: '',
+      photo: ''
     });
+    setImagePreview('');
   };
 
   const getStatusColor = (status) => {
@@ -852,7 +904,57 @@ export default function EventContestants() {
                   />
                 </div>
 
-                
+                {/* Photo Upload Field */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Contestant Photo
+                  </label>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-400 transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="photo-upload"
+                        />
+                        <label
+                          htmlFor="photo-upload"
+                          className="cursor-pointer flex flex-col items-center justify-center text-center"
+                        >
+                          {imagePreview ? (
+                            <div className="relative">
+                              <img
+                                src={imagePreview}
+                                alt="Preview"
+                                className="w-32 h-32 object-cover rounded-lg shadow-md"
+                              />
+                              <button
+                                type="button"
+                                onClick={clearImage}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="py-8">
+                              <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                              <p className="text-sm text-gray-600">Click to upload photo</p>
+                              <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
                     type="submit"
@@ -1017,7 +1119,57 @@ export default function EventContestants() {
                   />
                 </div>
 
-                
+                {/* Photo Upload Field */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Contestant Photo
+                  </label>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-400 transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="photo-upload-edit"
+                        />
+                        <label
+                          htmlFor="photo-upload-edit"
+                          className="cursor-pointer flex flex-col items-center justify-center text-center"
+                        >
+                          {imagePreview ? (
+                            <div className="relative">
+                              <img
+                                src={imagePreview}
+                                alt="Preview"
+                                className="w-32 h-32 object-cover rounded-lg shadow-md"
+                              />
+                              <button
+                                type="button"
+                                onClick={clearImage}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="py-8">
+                              <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                              <p className="text-sm text-gray-600">Click to upload photo</p>
+                              <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
                     type="submit"

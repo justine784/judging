@@ -1218,12 +1218,12 @@ export default function LiveScoreboard() {
                   }`}>
                     <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-16 lg:w-20">
                       <div className="flex items-center justify-center">
-                        <span className="text-xl sm:text-2xl lg:text-3xl">{getRankIcon(rank, contestant.eliminated)}</span>
+                        <span className="text-2xl sm:text-3xl lg:text-4xl">{getRankIcon(rank, contestant.eliminated)}</span>
                       </div>
                     </td>
                     <td className="px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-100 w-20 lg:w-32">
                           <div className="flex items-center gap-2 sm:gap-3">
-                            <div className={`relative h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 rounded-full flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden ${
+                            <div className={`relative h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 rounded-full flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden ${
                               rank === 1 ? 'bg-gradient-to-br from-red-500 to-red-600' :
                               rank === 2 ? 'bg-gradient-to-br from-gray-500 to-gray-600' :
                               rank === 3 ? 'bg-gradient-to-br from-orange-500 to-orange-600' :
@@ -1238,7 +1238,7 @@ export default function LiveScoreboard() {
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <span className={`font-bold text-xs sm:text-sm lg:text-base ${
+                                <span className={`font-bold text-sm sm:text-base lg:text-lg ${
                                   rank <= 5 ? 'text-white' : 'text-gray-700'
                                 }`}>
                                   {contestant.name ? contestant.name.charAt(0).toUpperCase() : 'C'}
@@ -1284,7 +1284,7 @@ export default function LiveScoreboard() {
                                 )}
                               </div>
                               <div className="flex items-center gap-1 sm:gap-2 mt-1">
-                                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">#{contestant.number || rank}</span>
+                                <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">#{contestant.number || rank}</span>
                                 {contestant.eliminated && (
                                   <span className="inline-flex items-center px-1 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold" title="Eliminated">
                                     ❌ Eliminated

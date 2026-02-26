@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from "next/image";
 import { auth } from '@/lib/firebase';
@@ -38,12 +38,13 @@ export default function JudgeDashboard() {
   const [slideDirection, setSlideDirection] = useState('right'); // 'left' or 'right' for slide animation
   const [isAnimating, setIsAnimating] = useState(false);
   const [lockedContestants, setLockedContestants] = useState(new Set()); // Track which contestants have locked scoring forms
+  const [lockedScores, setLockedScores] = useState({}); // Track locked scores per contestant
   const [scoredContestants, setScoredContestants] = useState(new Set()); // Track which contestants have been scored in main criteria
   const [scoredContestantsFinal, setScoredContestantsFinal] = useState(new Set()); // Track which contestants have been scored in final rounds
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
-  const [unsubscribeFunctions, setUnsubscribeFunctions] = useState([]);
+  const unsubscribeFunctionsRef = useRef([]);
 
   // Form state for scoring
   const [formData, setFormData] = useState({});
@@ -93,6 +94,9 @@ export default function JudgeDashboard() {
           // Set up real-time listener for contestants updates
           setupContestantsListener(judgeData);
           
+          // Set up real-time listener for scores collection updates
+          setupScoresListener(judgeData);
+          
           // Load judge's assigned events and contestants
           loadAssignedEvents(judgeData);
           loadContestants(judgeData);
@@ -112,8 +116,8 @@ export default function JudgeDashboard() {
     return () => {
       unsubscribe();
       // Clean up all real-time listeners
-      unsubscribeFunctions.forEach(unsub => unsub());
-      setUnsubscribeFunctions([]);
+      unsubscribeFunctionsRef.current.forEach(unsub => unsub());
+      unsubscribeFunctionsRef.current = [];
     };
   }, [router]);
 
@@ -131,11 +135,43 @@ export default function JudgeDashboard() {
     if (currentEvent && contestants.length > 0) {
       const currentContestant = contestants[currentContestantIndex];
       if (currentContestant) {
-        const initialScores = initializeQuickScores(currentEvent, currentContestant);
-        setQuickScores(initialScores);
+        // Only initialize if we don't have any scores yet
+        if (Object.keys(quickScores).length === 0) {
+          const initialScores = initializeQuickScores(currentEvent, currentContestant);
+          setQuickScores(initialScores);
+          console.log('Initialized quickScores for event change:', currentContestant.contestantName, initialScores);
+        } else {
+          console.log('Preserving existing quickScores during event change:', quickScores);
+        }
       }
     }
-  }, [currentEvent]);
+  }, [currentEvent, contestants, currentContestantIndex]);
+
+  // Update quick scores when contestant changes - preserve locked scores
+  useEffect(() => {
+    if (currentEvent && contestants.length > 0 && currentContestantIndex >= 0) {
+      const currentContestant = contestants[currentContestantIndex];
+      if (currentContestant) {
+        // Check if contestant is locked
+        const isContestantLocked = currentContestant.id && lockedContestants.has(currentContestant.id);
+        
+        if (isContestantLocked && lockedScores[currentContestant.id]) {
+          // If contestant is locked and we have saved locked scores, restore them
+          const savedLockedScores = lockedScores[currentContestant.id];
+          setQuickScores(savedLockedScores);
+          console.log('Restored locked scores for contestant:', currentContestant.contestantName, savedLockedScores);
+        } else if (Object.keys(quickScores).length > 0) {
+          // If we already have quickScores (from unlock or previous navigation), preserve them
+          console.log('Preserving existing quickScores for contestant:', currentContestant.contestantName, quickScores);
+        } else {
+          // Initialize with saved scores from contestant data (for page refresh scenario)
+          const savedScores = initializeQuickScores(currentEvent, currentContestant);
+          setQuickScores(savedScores);
+          console.log('Initialized scores from contestant data:', currentContestant.contestantName, savedScores);
+        }
+      }
+    }
+  }, [currentContestantIndex, currentEvent?.id, contestants.length, lockedContestants, lockedScores]);
 
   // Load judge's assigned events from Firestore
   const loadAssignedEvents = async (judge) => {
@@ -215,7 +251,7 @@ export default function JudgeDashboard() {
     });
     
     // Store unsubscribe function for cleanup
-    setUnsubscribeFunctions(prev => [...prev, unsubscribe]);
+    unsubscribeFunctionsRef.current.push(unsubscribe);
     
     return unsubscribe;
   };
@@ -235,7 +271,24 @@ export default function JudgeDashboard() {
     });
     
     // Store unsubscribe function for cleanup
-    setUnsubscribeFunctions(prev => [...prev, unsubscribe]);
+    unsubscribeFunctionsRef.current.push(unsubscribe);
+    
+    return unsubscribe;
+  };
+
+  // Set up real-time listener for scores collection to update rankings
+  const setupScoresListener = (judge) => {
+    const scoresCollection = collection(db, 'scores');
+    const unsubscribe = onSnapshot(scoresCollection, (snapshot) => {
+      console.log('Scores updated in real-time - updating rankings');
+      // Reload contestants to recalculate rankings with new scores
+      loadContestants(judge);
+    }, (error) => {
+      console.error('Error listening to scores updates:', error);
+    });
+    
+    // Store unsubscribe function for cleanup
+    unsubscribeFunctionsRef.current.push(unsubscribe);
     
     return unsubscribe;
   };
@@ -325,13 +378,30 @@ export default function JudgeDashboard() {
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event',
           // Calculate totalWeightedScore for ranking
           totalWeightedScore: (() => {
-            const criteria = currentEvent?.criteria?.filter(c => c.enabled) || [];
+            const criteria = getCurrentEventCriteria();
             if (criteria.length === 0) return 0;
             
             let totalScore = 0;
+            const useFinalRoundPrefix = usingFinalRoundCriteria;
+            
             criteria.forEach(criterion => {
-              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-              const score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
+              const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+              
+              // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+              const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                     criterion.name.toUpperCase().includes('1ST') && 
+                                     criterion.name.toUpperCase().includes('ROUND');
+              
+              let score;
+              if (isFirstRoundAverage) {
+                // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+              } else {
+                // For other criteria, use stored score with appropriate prefix
+                score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
+              }
+              
               const weight = criterion.weight / 100;
               totalScore += score * weight;
             });
@@ -379,13 +449,30 @@ export default function JudgeDashboard() {
           eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event',
           // Calculate totalWeightedScore for ranking
           totalWeightedScore: (() => {
-            const criteria = currentEvent?.criteria?.filter(c => c.enabled) || [];
+            const criteria = getCurrentEventCriteria();
             if (criteria.length === 0) return 0;
             
             let totalScore = 0;
+            const useFinalRoundPrefix = usingFinalRoundCriteria;
+            
             criteria.forEach(criterion => {
-              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-              const score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
+              const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+              
+              // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+              const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                     criterion.name.toUpperCase().includes('1ST') && 
+                                     criterion.name.toUpperCase().includes('ROUND');
+              
+              let score;
+              if (isFirstRoundAverage) {
+                // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+              } else {
+                // For other criteria, use stored score with appropriate prefix
+                score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
+              }
+              
               const weight = criterion.weight / 100;
               totalScore += score * weight;
             });
@@ -452,6 +539,9 @@ export default function JudgeDashboard() {
     // Get criteria using the updated getCurrentEventCriteria function
     const criteria = getCurrentEventCriteria();
     
+    // Check if this contestant is locked
+    const isContestantLocked = contestant && contestant.id && lockedContestants.has(contestant.id);
+    
     // Initialize scores for current criteria only
     criteria.forEach(criterion => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
@@ -468,8 +558,14 @@ export default function JudgeDashboard() {
         const finalRoundKey = getCriteriaKey(criterion.name, true);
         scores[key] = contestant ? (contestant[finalRoundKey] || 0) : 0;
       } else {
-        // For main criteria, use existing score or default to 0
-        scores[key] = contestant ? (contestant[key] || 0) : 0;
+        // For main criteria, prioritize locked scores, then saved scores, then default to 0
+        if (isContestantLocked && quickScores[key] !== undefined) {
+          // If contestant is locked, preserve the current quickScores
+          scores[key] = quickScores[key];
+        } else {
+          // Otherwise use existing score or default to 0
+          scores[key] = contestant ? (contestant[key] || 0) : 0;
+        }
       }
     });
     
@@ -565,6 +661,23 @@ export default function JudgeDashboard() {
     }
   };
 
+  // Check if any scores exceed 100
+  const hasInvalidScores = () => {
+    const criteria = getCurrentEventCriteria();
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
+    
+    return criteria.some(criterion => {
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+      const score = quickScores[key] || 0;
+      return score > 100;
+    });
+  };
+
+  // Check if event is finished (blocking save)
+  const isEventFinished = () => {
+    return currentEvent && currentEvent.status === 'finished';
+  };
+
   // Check if current contestant form is locked
   const isCurrentContestantLocked = () => {
     const currentContestant = contestants[currentContestantIndex];
@@ -580,9 +693,33 @@ export default function JudgeDashboard() {
     setLockedContestants(prev => {
       const newSet = new Set(prev);
       if (newSet.has(currentContestant.id)) {
+        // Unlocking contestant - remove from locked set
         newSet.delete(currentContestant.id);
+        
+        // Before removing locked scores, ensure quickScores has the current values
+        const currentLockedScores = lockedScores[currentContestant.id];
+        if (currentLockedScores) {
+          // Make sure quickScores has the current values before we delete lockedScores
+          setQuickScores(prev => ({ ...prev, ...currentLockedScores }));
+        }
+        
+        // Remove saved locked scores
+        setLockedScores(prev => {
+          const newLockedScores = { ...prev };
+          delete newLockedScores[currentContestant.id];
+          return newLockedScores;
+        });
+        
+        console.log('Unlocked contestant:', currentContestant.contestantName, 'scores preserved in quickScores');
       } else {
+        // Locking contestant - add to locked set and save current scores
         newSet.add(currentContestant.id);
+        // Save current quickScores for this contestant
+        setLockedScores(prev => ({
+          ...prev,
+          [currentContestant.id]: { ...quickScores }
+        }));
+        console.log('Locked scores saved for contestant:', currentContestant.contestantName, quickScores);
       }
       return newSet;
     });
@@ -790,13 +927,96 @@ export default function JudgeDashboard() {
   };
 
   const updateRankings = (contestantsList) => {
-    return contestantsList
-      .sort((a, b) => b.totalWeightedScore - a.totalWeightedScore)
-      .map((contestant, index) => ({
+    // Separate contestants with scores from those without scores
+    const contestantsWithScores = contestantsList.filter(c => (c.totalWeightedScore || 0) > 0);
+    const contestantsWithoutScores = contestantsList.filter(c => (c.totalWeightedScore || 0) === 0);
+    
+    // Sort only contestants with scores by descending totalWeightedScore
+    const sortedWithScores = contestantsWithScores
+      .sort((a, b) => (b.totalWeightedScore || 0) - (a.totalWeightedScore || 0));
+    
+    // Assign ranks with proper tie handling
+    const rankedWithScores = sortedWithScores.map((contestant, index) => {
+      let rank = index + 1;
+      let status = '';
+      
+      // Handle ties - find all contestants with the same score
+      const currentScore = contestant.totalWeightedScore || 0;
+      const tiedContestants = sortedWithScores.filter(c => 
+        Math.abs((c.totalWeightedScore || 0) - currentScore) < 0.01
+      );
+      
+      if (tiedContestants.length > 1) {
+        // For tied contestants, use the lowest rank among them
+        const firstTiedIndex = sortedWithScores.findIndex(c => 
+          Math.abs((c.totalWeightedScore || 0) - currentScore) < 0.01
+        );
+        rank = firstTiedIndex + 1;
+        
+        // Special status for tied contestants
+        if (rank === 1) {
+          status = '🏆 Tied for 1st';
+        } else if (rank === 2) {
+          status = '🥈 Tied for 2nd';
+        } else if (rank === 3) {
+          status = '🥉 Tied for 3rd';
+        } else {
+          status = `🤝 Tied at ${rank}th`;
+        }
+      } else {
+        // No tie - unique rank
+        if (rank === 1) {
+          status = '👑 1st Place - Leading';
+        } else if (rank === 2) {
+          status = '🥈 2nd Place';
+        } else if (rank === 3) {
+          status = '🥉 3rd Place';
+        } else if (rank <= 5) {
+          status = `🎯 Top ${rank}`;
+        } else if (rank <= 10) {
+          status = `📈 ${rank}th Place`;
+        } else {
+          status = `📍 ${rank}th Place`;
+        }
+      }
+      
+      return {
         ...contestant,
-        rank: index + 1,
-        status: index === 0 ? '🏆 Top 1' : index === 1 ? 'Top 2' : index === 2 ? 'Top 3' : `Top ${index + 1}`
-      }));
+        rank: rank,
+        status: status
+      };
+    });
+    
+    // Contestants without scores get no rank or status
+    const withoutRanks = contestantsWithoutScores.map(contestant => ({
+      ...contestant,
+      rank: null,
+      status: '📝 Not Scored'
+    }));
+    
+    // Combine ranked contestants with unranked ones, maintaining original order for unranked
+    const rankedContestants = [...rankedWithScores];
+    
+    // Add unranked contestants back in their original order
+    contestantsWithoutScores.forEach(contestant => {
+      const originalIndex = contestantsList.findIndex(c => c.id === contestant.id);
+      if (originalIndex !== -1) {
+        rankedContestants.splice(originalIndex, 0, {
+          ...contestant,
+          rank: null,
+          status: '📝 Not Scored'
+        });
+      }
+    });
+    
+    console.log('🏆 Rankings updated:', rankedContestants.map(c => ({
+      name: c.contestantName,
+      score: c.totalWeightedScore,
+      rank: c.rank,
+      status: c.status
+    })));
+    
+    return rankedContestants;
   };
 
   const openEditModal = (contestant) => {
@@ -829,9 +1049,31 @@ export default function JudgeDashboard() {
   };
 
   const getStatusColor = (status) => {
+    if (!status) return 'bg-blue-100 text-blue-800 border-blue-300';
+    
+    // Special statuses
+    if (status.includes('📝 Not Scored')) return 'bg-gray-100 text-gray-600 border-gray-300';
+    if (status.includes('👑 1st Place - Leading')) return 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 text-yellow-900 border-yellow-400 shadow-xl ring-2 ring-yellow-300 animate-pulse';
+    if (status.includes('🏆 1st Place')) return 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 border-yellow-400 shadow-lg';
+    if (status.includes('🥈 2nd Place')) return 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-900 border-gray-400 shadow-lg';
+    if (status.includes('🥉 3rd Place')) return 'bg-gradient-to-r from-orange-300 to-orange-400 text-orange-900 border-orange-400 shadow-lg';
+    
+    // Tied statuses
+    if (status.includes('Tied for 1st')) return 'bg-gradient-to-r from-yellow-200 to-yellow-300 text-yellow-800 border-yellow-300';
+    if (status.includes('Tied for 2nd')) return 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-800 border-gray-300';
+    if (status.includes('Tied for 3rd')) return 'bg-gradient-to-r from-orange-200 to-orange-300 text-orange-800 border-orange-300';
+    if (status.includes('Tied at')) return 'bg-gradient-to-r from-blue-200 to-blue-300 text-blue-800 border-blue-300';
+    
+    // Top performers
+    if (status.includes('🎯 Top')) return 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300';
+    if (status.includes('📈') && status.includes('Place')) return 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300';
+    if (status.includes('📍') && status.includes('Place')) return 'bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-800 border-indigo-300';
+    
+    // Legacy support for old status formats
     if (status.includes('🏆')) return 'bg-yellow-100 text-yellow-800 border-yellow-300';
     if (status.includes('Top 2')) return 'bg-gray-100 text-gray-800 border-gray-300';
     if (status.includes('Top 3')) return 'bg-orange-100 text-orange-800 border-orange-300';
+    
     return 'bg-blue-100 text-blue-800 border-blue-300';
   };
 
@@ -1042,6 +1284,7 @@ export default function JudgeDashboard() {
         
         return {
           ...contestant,
+          photo: undefined, // Exclude photo to prevent exceeding Firebase size limit
           totalWeightedScore: parseFloat(totalScore.toFixed(1))
         };
       });
@@ -1253,7 +1496,7 @@ export default function JudgeDashboard() {
             // When using final round criteria, only update final round criteria scores
             // Preserve main criteria scores by not overwriting them
             if (usingFinalRoundCriteria) {
-              // Only update the final round criteria fields, keep main criteria intact
+              // Only update final round criteria fields, keep main criteria intact
               updatedContestant = { 
                 ...c, 
                 // Only update final round criteria scores with prefixed keys
@@ -1272,6 +1515,7 @@ export default function JudgeDashboard() {
                     return [key, value];
                   })
                 ),
+                // Always update totalWeightedScore with the calculated total
                 totalWeightedScore: parseFloat(totalScore.toFixed(1))
               };
             } else {
@@ -1292,10 +1536,22 @@ export default function JudgeDashboard() {
             
             return updatedContestant;
           } else {
-            // For other contestants, don't recalculate totals when using final round criteria
-            // This preserves their main criteria scores
+            // For other contestants, always calculate total score regardless of criteria mode
             if (usingFinalRoundCriteria) {
-              return { ...c };
+              // When using final round criteria, calculate total based on final round scores
+              const criteria = getCurrentEventCriteria();
+              let totalScore = 0;
+              criteria.forEach(criterion => {
+                const finalKey = getCriteriaKey(criterion.name, true);
+                const score = c[finalKey] || 0;
+                const weight = criterion.weight / 100;
+                totalScore += score * weight;
+              });
+              
+              return { 
+                ...c,
+                totalWeightedScore: parseFloat(totalScore.toFixed(1))
+              };
             } else {
               // Calculate weighted total for other contestants with their existing scores (main criteria only)
               const criteria = getCurrentEventCriteria();
@@ -1582,7 +1838,6 @@ export default function JudgeDashboard() {
                     const selectedEvent = assignedEvents.find(event => event.id === e.target.value);
                     if (selectedEvent) {
                       setCurrentEvent(selectedEvent);
-                      console.log('🔄 Switched to event:', selectedEvent);
                     }
                   }}
                   className="w-full px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -1627,280 +1882,12 @@ export default function JudgeDashboard() {
                     </div>
                   </div>
                   
-                  {/* Criteria Debug Info */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <div className="mt-4 p-3 bg-white/10 rounded-lg text-xs">
-                      <p>🔍 Debug Info:</p>
-                      <p>Event ID: {event.id}</p>
-                      <p>Has Criteria: {event.criteria ? 'Yes' : 'No'}</p>
-                      <p>Criteria Count: {event.criteria ? event.criteria.length : 0}</p>
-                      <p>Enabled Criteria: {event.criteria ? event.criteria.filter(c => c.enabled).length : 0}</p>
-                    </div>
-                  )}
+                  
                 </div>
               )
             ))}
           </div>
         )}
-
-          {/* Scoring Table */}
-          <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 sm:mb-8">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 sm:p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold">📊 Contestant Scoring</h2>
-                <p className="text-blue-100 text-xs sm:text-sm">Evaluate and score contestants</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1 sm:flex-initial">
-                  <input
-                    type="text"
-                    placeholder="Search contestants..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white placeholder-blue-200 text-sm"
-                  />
-                  <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
-                </div>
-                
-                {/* Final Rounds Button */}
-                {getFinalRound() && !usingFinalRoundCriteria && (
-                  <button
-                    onClick={() => {
-                      const finalRound = getFinalRound();
-                      if (finalRound && finalRound.criteria) {
-                        // Store original criteria
-                        setOriginalEventCriteria(currentEvent.criteria);
-                        
-                        // Update current event criteria to use final round criteria
-                        const updatedEvent = {
-                          ...currentEvent,
-                          criteria: finalRound.criteria
-                        };
-                        setCurrentEvent(updatedEvent);
-                        setUsingFinalRoundCriteria(true);
-                        setSelectorKey(prev => prev + 1); // Force re-render
-                        
-                        // Reinitialize quick scores for the new criteria
-                        if (contestants[currentContestantIndex]) {
-                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
-                          setQuickScores(newQuickScores);
-                        }
-                        
-                        alert(`🏆 Final Rounds Mode Activated\n\nSwitched to final round criteria.\nYou can now score contestants independently using the final round criteria.`);
-                      }
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-yellow-900 rounded-lg hover:from-yellow-500 hover:to-orange-500 transition-all duration-200 text-sm font-medium shadow-lg border border-yellow-300 whitespace-nowrap"
-                    title="Switch to Final Rounds scoring criteria"
-                  >
-                    🏆 Final Rounds
-                  </button>
-                )}
-                
-                {/* Back to Main Criteria Button */}
-                {usingFinalRoundCriteria && (
-                  <button
-                    onClick={() => {
-                      if (originalEventCriteria) {
-                        // Restore original criteria
-                        const updatedEvent = {
-                          ...currentEvent,
-                          criteria: originalEventCriteria
-                        };
-                        setCurrentEvent(updatedEvent);
-                        setUsingFinalRoundCriteria(false);
-                        setSelectorKey(prev => prev + 1); // Force re-render
-                        
-                        // Reinitialize quick scores for the restored criteria
-                        if (contestants[currentContestantIndex]) {
-                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
-                          setQuickScores(newQuickScores);
-                        }
-                      }
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-lg border border-blue-300 whitespace-nowrap"
-                    title="Switch back to main scoring criteria"
-                  >
-                    📋 Main Criteria
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {contestants.length > 0 ? (
-            <div className="overflow-x-auto overflow-y-hidden max-w-full">
-              {/* Table Controls */}
-              <div className="flex justify-between items-center mb-4 px-2">
-                <div className="flex items-center gap-2">
-                  {/* Scoring mode indicator */}
-                  <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
-                    usingFinalRoundCriteria 
-                      ? 'bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border border-yellow-300' 
-                      : 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 border border-blue-300'
-                  }`}>
-                    {usingFinalRoundCriteria ? '🏆 Final Rounds Mode' : '📋 Main Criteria Mode'}
-                  </span>
-                </div>
-                
-                {/* Horizontal scroll indicator - Mobile only */}
-                <div className="flex gap-2 lg:hidden">
-                  <button 
-                    onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: -200, behavior: 'smooth' })}
-                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-blue-700 transition-colors"
-                  >
-                    ←
-                  </button>
-                  <button 
-                    onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: 200, behavior: 'smooth' })}
-                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-blue-700 transition-colors"
-                  >
-                    →
-                  </button>
-                </div>
-              </div>
-              <table key={`contestants-table-${contestants.length}`} className="w-full min-w-[800px] judge-scoring-table">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">Rank</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">No.</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[120px]">Contestant</th>
-                  {getCurrentEventCriteria().map((criterion, index) => (
-                    <th key={index} className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[100px]">
-                      <div className="hidden sm:block">
-                        <div className="font-medium">{criterion.name}</div>
-                        {criterion.category && (
-                          <div className="text-xs text-blue-600 mt-1">{criterion.category}</div>
-                        )}
-                        <div className="text-xs text-gray-500 mt-1">
-                          ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`})
-                        </div>
-                      </div>
-                      <div className="sm:hidden text-xs">
-                        {criterion.name.length > 8 ? criterion.name.substring(0, 8) + '...' : criterion.name}
-                        <div className="text-xs text-gray-500">
-                          ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`})
-                        </div>
-                      </div>
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredContestants.map((contestant) => {
-                  const isScored = contestant.id && (
-                    usingFinalRoundCriteria ? 
-                    scoredContestantsFinal.has(contestant.id) : 
-                    scoredContestants.has(contestant.id)
-                  );
-                  return (
-                  <tr key={contestant.id} className={`hover:bg-gray-50 transition-colors ${isScored ? 'bg-green-50' : ''}`}>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-bold ${getRankColor(contestant.rank)}`}>
-                        {contestant.rank}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{contestant.contestantNo}</td>
-                    <td className="px-4 py-3 text-xs sm:text-sm text-gray-900">
-                      <div className="flex items-center gap-2">
-                        <div className="truncate font-medium">{contestant.contestantName}</div>
-                        {contestant.contestantType === 'group' ? (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full" title="Group Contestant">
-                            👥
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
-                            🎤
-                          </span>
-                        )}
-                        {getContestantRoundStatus(contestant)?.isFinal && (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full shadow-sm" title="Final Round Contestant">
-                            🏆
-                          </span>
-                        )}
-                        {contestant.id && scoredContestants.has(contestant.id) && (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Main Criteria Scored">
-                            📋
-                          </span>
-                        )}
-                        {contestant.id && scoredContestantsFinal.has(contestant.id) && (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full" title="Final Rounds Scored">
-                            🏆
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    {getCurrentEventCriteria().map((criterion, index) => {
-                      const useFinalRoundPrefix = usingFinalRoundCriteria;
-                      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-                      
-                      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
-                      
-                      // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
-                      let score;
-                      if (isFirstRoundAverage) {
-                        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                        score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
-                      } else {
-                        score = contestant[key] || 0;
-                      }
-                      
-                      const colors = ['bg-blue-100 text-blue-800', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
-                      const colorClass = colors[index % colors.length];
-                      const hasScore = score > 0;
-                      return (
-                        <td key={index} className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-gray-500'} rounded-full ${hasScore ? 'shadow-sm' : ''}`}>
-                            {score.toFixed(1)}
-                          </span>
-                        </td>
-                      );
-                    })}
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-bold ${(contestant.totalWeightedScore || 0) > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'} rounded-full ${(contestant.totalWeightedScore || 0) > 0 ? 'shadow-sm' : ''}`}>
-                        {(contestant.totalWeightedScore || 0).toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(contestant.status)}`}>
-                        <span className="hidden sm:inline">{contestant.status || 'Not Rated'}</span>
-                        <span className="sm:hidden">{(contestant.status || 'Not Rated').substring(0, 8)}...</span>
-                      </span>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 sm:py-12">
-              <div className="text-4xl sm:text-6xl mb-4">
-                👥
-              </div>
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
-                No contestants found
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-500 mb-4">
-                {assignedEvents.length === 0 
-                  ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
-                  : "No contestants have been added to your assigned events yet."
-                }
-              </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 max-w-md mx-auto mt-4">
-                <p className="text-xs sm:text-sm text-yellow-800">
-                  <strong>Tip:</strong> {assignedEvents.length === 0 
-                    ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
-                    : "Contestants will appear here once they are added to events you're assigned to judge."
-                  }
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Mobile-Optimized Combined Contestant & Scoring Card */}
         <div 
@@ -1925,7 +1912,7 @@ export default function JudgeDashboard() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex-shrink-0" title="Solo Contestant">
-                        🎤 Solo
+                        Solo
                       </span>
                     )}
                     {isCurrentContestantScored() && (
@@ -2178,324 +2165,614 @@ export default function JudgeDashboard() {
           </div>
         </div>
 
-        {/* Desktop Layout - Combined Contestant & Scoring Card */}
+        {/* Desktop Layout - Multiple Contestant Scoring Cards */}
         <div className="hidden lg:block">
-          <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border border-blue-200 transition-all duration-300 ${
-            isAnimating ? (slideDirection === 'left' ? 'slide-exit-left' : 'slide-exit-right') : (slideDirection === 'left' ? 'slide-enter-left' : 'slide-enter-right')
-          }`}>
-            {/* Card Header */}
-            <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-4xl font-bold">{currentContestant.name}</h2>
-                    {currentContestant.contestantType === 'group' ? (
-                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full" title="Group Contestant">
-                        👥 Group
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
-                        🎤 Solo
-                      </span>
-                    )}
-                    {isCurrentContestantScored() && (
-                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-green-100 text-green-800 rounded-full">
-                        ✅ Scored
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-blue-100 text-sm mt-1">#{currentContestant.number} • Performance #{currentContestant.performanceOrder}</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-3xl font-bold text-cyan-300">{currentContestantIndex + 1}</div>
-                  <div className="text-sm text-blue-100">of {contestants.length}</div>
-                </div>
-              </div>
-              {/* Progress Bar */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs text-blue-100 mb-2">
-                  <span>Scoring Progress</span>
-                  <span>{Math.round(((currentContestantIndex + 1) / contestants.length) * 100)}%</span>
-                </div>
-                <div className="w-full bg-blue-500/30 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-cyan-400 to-green-400 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${((currentContestantIndex + 1) / contestants.length) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card Body */}
-            <div className="grid grid-cols-3 gap-6 p-6">
-              {/* Left Column: Contestant Info */}
-              <div className="col-span-1 border-r border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Contestant Details</h3>
-                
-                {/* Navigation Buttons */}
-                <div className="mb-4 flex flex-col gap-2">
-                  <button
-                    onClick={() => selectContestantByIndex(currentContestantIndex - 1)}
-                    disabled={currentContestantIndex === 0}
-                    className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 rounded-lg font-medium transition-colors"
-                  >
-                    ← Previous Contestant
-                  </button>
-                  <button
-                    onClick={() => selectContestantByIndex(currentContestantIndex + 1)}
-                    disabled={currentContestantIndex === contestants.length - 1}
-                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                  >
-                    Next Contestant →
-                  </button>
-                </div>
-
-                {/* Info Boxes */}
-                <div className="space-y-3">
-                  <div className="bg-gradient-to-br from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-lg px-6 py-4">
-                    <p className="text-5xl font-bold text-blue-900">#{currentContestant.number}</p>
-                    <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mt-1">Contestant Number</p>
-                  </div>
-
-                  <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                    <label className="text-xs font-medium text-green-600 uppercase tracking-wide">Performance Order</label>
-                    <p className="text-lg font-semibold text-green-900">#{currentContestant.performanceOrder}</p>
-                  </div>
-
-                  {/* Current Scores Summary */}
-                  {contestants[currentContestantIndex] && (
-                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-4 mt-4">
-                      <label className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-3 block">Current Scores</label>
-                      <div className="space-y-2">
-                        {getCurrentEventCriteria().slice(0, 3).map((criterion, index) => {
-                          const useFinalRoundPrefix = usingFinalRoundCriteria;
-                          const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-                          const score = contestants[currentContestantIndex]?.[key] || 0;
-                          return (
-                            <div key={index} className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600 truncate">{criterion.name.substring(0, 15)}...</span>
-                              <span className="font-bold text-blue-900">{score.toFixed(1)}</span>
-                            </div>
-                          );
-                        })}
-                        {getCurrentEventCriteria().length > 3 && (
-                          <div className="text-xs text-gray-500 pt-2 border-t">
-                            +{getCurrentEventCriteria().length - 3} more criteria
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center pt-2 border-t border-blue-300 mt-2">
-                          <span className="font-semibold text-gray-700">Total:</span>
-                          <span className="text-lg font-bold text-green-700">{calculateQuickTotal()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Columns: Scoring Form (spans 2 columns) */}
-              <div className="col-span-2">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Scoring Form</h3>
-
-                {/* Warning Banner */}
-                {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
-                  <div className="bg-red-50 border-l-4 border-red-500 rounded p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">🚫</span>
-                      <div>
-                        <h4 className="font-semibold text-red-800">
-                          {currentEvent.scoresLocked ? 'Scoring Locked' : 'Event Not Started'}
-                        </h4>
-                        <p className="text-sm text-red-700 mt-1">
-                          {currentEvent.scoresLocked 
-                            ? 'The administrator has locked scoring for this event. Please contact the administrator for assistance.'
-                            : 'This event has not started yet. Scoring will be available when the event status changes to "ongoing".'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Scoring Criteria Grid */}
-                <div className="space-y-4 mb-6 max-h-[500px] overflow-y-auto">
-                  {getCurrentEventCriteria().length > 0 ? (
-                    getCurrentEventCriteria().map((criterion, index) => {
-                    const useFinalRoundPrefix = usingFinalRoundCriteria;
-                    const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-                    
-                    // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                    const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
-                    
-                    // For "AVERAGE OF THE 1ST ROUND", show saved value if it exists, otherwise use quickScores
-                    let score;
-                    if (isFirstRoundAverage && contestants[currentContestantIndex]) {
-                      const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                      score = contestants[currentContestantIndex][originalKey] !== undefined 
-                        ? contestants[currentContestantIndex][originalKey] 
-                        : calculateFirstRoundAverage(contestants[currentContestantIndex]);
-                    } else {
-                      score = quickScores[key] || 0;
-                    }
-                      
-                    const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
-                    const color = colors[index % colors.length];
-                    
-                    return (
-                      <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 transition-colors">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <label className="font-semibold text-gray-800 text-base">
-                              {criterion.name}
-                            </label>
-                            {criterion.category && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
-                                {criterion.category}
-                              </span>
-                            )}
-                            {isFirstRoundAverage && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
-                                🔒 Locked
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 flex-shrink-0 ml-2">
-                            <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
-                              {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
-                            </span>
-                            <span className={`text-lg font-bold text-${color}-600 bg-${color}-50 px-3 py-1 rounded-full`}>
-                              {score.toFixed(1)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min="0"
-                            max={criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? criterion.weight : 100}
-                            step="0.1"
-                            value={score}
-                            onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
-                            className={`flex-1 h-3 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                              isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            max={criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? criterion.weight : 100}
-                            step="0.1"
-                            value={score}
-                            onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
-                            className={`w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center font-semibold text-base ${
-                              isFirstRoundAverage || isCurrentContestantScored() ? 'bg-gray-100 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
-                        <div className="mt-3 text-sm text-gray-600 text-right font-medium">
-                          Weighted contribution: <span className="text-blue-700 font-bold">
-                            {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' 
-                              ? score.toFixed(1)
-                              : (score * criterion.weight / 100).toFixed(1)
-                            } points
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
-                      <div className="text-amber-800">
-                        <span className="text-4xl mb-4 block">⚠️</span>
-                        <h3 className="text-xl font-bold mb-3">No Scoring Criteria Available</h3>
-                        <p className="text-base text-amber-700 mb-4">
-                          This event doesn't have any scoring criteria set up. Please contact the administrator to configure the criteria for this event.
-                        </p>
-                        {currentEvent && (
-                          <div className="text-sm text-amber-600 bg-amber-100 rounded-lg p-3">
-                            <p><strong>Event:</strong> {currentEvent.eventName}</p>
-                            <p><strong>Event ID:</strong> {currentEvent.id}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Total Score Display */}
-                <div className="bg-gradient-to-r from-green-50 via-blue-50 to-cyan-50 rounded-xl p-6 border-2 border-green-200 mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">Total Weighted Score</h3>
-                      <p className="text-sm text-gray-600">Sum of all weighted criteria</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">{calculateQuickTotal()}</div>
-                      <div className="text-sm text-gray-500">
-                        Maximum {currentEvent?.gradingType === 'points' 
-                          ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
-                          : '100.0'
-                        }
-                      </div>
-                    </div>
-                  </div>
-                  {((currentEvent?.gradingType === 'points' 
-                      ? parseFloat(calculateQuickTotal()) >= currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
-                      : parseFloat(calculateQuickTotal()) >= 100)) && (
-                    <div className="text-sm text-amber-800 bg-amber-50 px-3 py-2 rounded border border-amber-300">
-                      ⚠️ Score capped at maximum of {currentEvent?.gradingType === 'points' 
-                        ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
-                        : '100.0'
-                      }. Adjust individual criterion scores to increase the total.
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={saveQuickScores}
-                    disabled={isCurrentContestantScored() || isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                    className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
-                      isCurrentContestantScored() || isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
-                    }`}
-                  >
-                    <span>💾</span> {isCurrentContestantScored() ? 'Score Saved' : 'Save Scores'}
-                  </button>
-                  <button
-                    onClick={toggleCurrentContestantLock}
-                    className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
-                      isCurrentContestantLocked() 
-                        ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white' 
-                        : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white'
-                    }`}
-                  >
-                    <span>{isCurrentContestantLocked() ? '🔒' : '🔓'}</span> {isCurrentContestantLocked() ? 'Locked' : 'Unlock'}
-                  </button>
-                  <button
-                    onClick={openSubmitModal}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2"
-                  >
-                    <span>📤</span> Submit
-                  </button>
-                </div>
-
-                {/* Help Text */}
-                <div className="bg-blue-50 border-l-4 border-blue-500 rounded p-4 mt-4">
-                  <p className="text-xs text-blue-800 mb-2">
-                    <strong>💡 Tip:</strong> Use the range slider for quick adjustments or the number field for precise values. Weights are applied automatically to calculate the total score.
-                  </p>
-                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-                    <strong>⚠️ Important:</strong> Once you save scores for a contestant, you won't be able to modify them again. Make sure your scores are final before saving!
-                  </p>
-                </div>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-800">Contestant Scoring Cards</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => selectContestantByIndex(Math.max(0, currentContestantIndex - 3))}
+                  disabled={currentContestantIndex === 0}
+                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 rounded-lg font-medium transition-colors"
+                >
+                  ← Previous 6
+                </button>
+                <span className="text-sm text-gray-600 font-medium">
+                  Showing {Math.max(0, currentContestantIndex - 2) + 1}-{Math.min(contestants.length, currentContestantIndex + 3)} of {contestants.length}
+                </span>
+                <button
+                  onClick={() => selectContestantByIndex(Math.min(contestants.length - 1, currentContestantIndex + 3))}
+                  disabled={currentContestantIndex >= contestants.length - 1}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  Next 6 →
+                </button>
               </div>
             </div>
           </div>
+
+          {/* Contestant Cards Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {contestants.slice(Math.max(0, currentContestantIndex - 2), Math.min(contestants.length, currentContestantIndex + 4)).map((contestant, cardIndex) => {
+              const actualIndex = Math.max(0, currentContestantIndex - 2) + cardIndex;
+              const isCurrentCard = actualIndex === currentContestantIndex;
+              const useFinalRoundPrefix = usingFinalRoundCriteria;
+              
+              return (
+                <div key={contestant.id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 ${
+                  isCurrentCard ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
+                }`}>
+                  {/* Card Header */}
+                  <div className={`text-white p-4 ${
+                    isCurrentCard 
+                      ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800' 
+                      : 'bg-gradient-to-r from-gray-500 to-gray-600'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            <div className="text-3xl lg:text-4xl font-bold text-white/95">#{contestant.contestantNo}</div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg font-bold truncate text-white/90">{contestant.contestantName}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              {contestant.contestantType === 'group' ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 rounded-full" title="Group Contestant">
+                                  👥 Group
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
+                                  Solo
+                                </span>
+                              )}
+                              {isCurrentCard && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                                  📍 Current
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs opacity-75 mt-1">Performance #{contestant.performanceOrder}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold">{actualIndex + 1}</div>
+                        <div className="text-xs opacity-75">of {contestants.length}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Body - Compact Scoring Form */}
+                  <div className="p-4">
+                    {isCurrentCard ? (
+                      // Current contestant - full scoring form
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-900 mb-3">Scoring Form</h4>
+                        
+                        {/* Warning Banner */}
+                        {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
+                          <div className="bg-red-50 border-l-4 border-red-500 rounded p-3 mb-4">
+                            <div className="flex items-start gap-2">
+                              <span className="text-lg">🚫</span>
+                              <div>
+                                <h4 className="font-semibold text-red-800 text-sm">
+                                  {currentEvent.scoresLocked ? 'Scoring Locked' : 'Event Not Started'}
+                                </h4>
+                                <p className="text-xs text-red-700 mt-1">
+                                  {currentEvent.scoresLocked 
+                                    ? 'The administrator has locked scoring for this event.'
+                                    : 'This event has not started yet.'
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Compact Scoring Grid */}
+                        <div className="grid grid-cols-1 gap-2 mb-4">
+                          {getCurrentEventCriteria().map((criterion, index) => {
+                            const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                            const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                            let score;
+                            if (isFirstRoundAverage && contestant) {
+                              const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                              score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+                            } else {
+                              score = quickScores[key] || 0;
+                            }
+                            const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
+                            const color = colors[index % colors.length];
+                            
+                            return (
+                              <div key={index} className={`bg-gray-50 rounded-lg p-2 border-2 ${
+                                score > 100 ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                              }`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="font-semibold text-gray-800 text-xs">
+                                    {criterion.name}
+                                  </label>
+                                  <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                    score > 100 
+                                      ? 'text-red-700 bg-red-100 border border-red-300' 
+                                      : 'text-blue-600 bg-blue-50'
+                                  }`}>
+                                    {score.toFixed(1)}
+                                    {score > 100 && ' ⚠️'}
+                                  </span>
+                                </div>
+                                {score > 100 && (
+                                  <div className="mb-2 p-1 bg-red-100 border border-red-300 rounded text-xs text-red-700 font-medium">
+                                    ⚠️ Score exceeds 100! Maximum allowed is 100.
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    value={score}
+                                    onChange={(e) => handleQuickScoreChange(key, e.target.value)}
+                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
+                                    className={`flex-1 h-1 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
+                                      isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    value={score}
+                                    onChange={(e) => {
+                                      const newValue = parseFloat(e.target.value) || 0;
+                                      // Allow any value but let the validation handle it
+                                      handleQuickScoreChange(key, newValue);
+                                    }}
+                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
+                                    className={`w-16 px-1 py-1 border rounded text-center font-semibold text-xs ${
+                                      score > 100 
+                                        ? 'border-red-300 bg-red-100 text-red-700' 
+                                        : 'border-gray-300'
+                                    } ${
+                                      isFirstRoundAverage || isCurrentContestantScored ? 'bg-gray-100 cursor-not-allowed' : ''
+                                    }`}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Total Score Display */}
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-gray-700">Total Score:</span>
+                            <span className="text-lg font-bold text-green-700">
+                              {calculateQuickTotal()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={toggleCurrentContestantLock}
+                            className={`px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
+                              isCurrentContestantLocked() 
+                                ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white'
+                                : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white'
+                            }`}
+                          >
+                            <span>{isCurrentContestantLocked() ? '🔒' : '🔓'}</span> {isCurrentContestantLocked() ? 'Locked' : 'Lock'}
+                          </button>
+                          <button
+                            onClick={saveQuickScores}
+                            disabled={isCurrentContestantLocked() || isCurrentContestantScored() || hasInvalidScores() || isEventFinished() || !currentEvent || currentEvent.status === 'upcoming'}
+                            className={`flex-1 px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
+                              isCurrentContestantLocked() || isCurrentContestantScored() || hasInvalidScores() || isEventFinished() || !currentEvent || currentEvent.status === 'upcoming'
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
+                            }`}
+                          >
+                            {!currentEvent ? '🔄 Loading...' : currentEvent.status === 'upcoming' ? '📅 Event Upcoming' : isEventFinished() ? '🏁 Event Finished' : hasInvalidScores() ? '⚠️ Invalid Scores' : isCurrentContestantLocked() ? '🔒 Locked' : '💾 Save'}
+                          </button>
+                        </div>
+                        
+                        {(hasInvalidScores() || isEventFinished() || !currentEvent || currentEvent.status === 'upcoming') && (
+                          <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-700 font-medium">
+                            {!currentEvent 
+                              ? '🔄 Loading event information...'
+                              : currentEvent.status === 'upcoming'
+                              ? '📅 Event is upcoming - scoring is not available yet.'
+                              : isEventFinished() 
+                              ? '🏁 Event is finished - scoring is no longer available.'
+                              : '⚠️ Cannot save: Some criteria exceed 100 points. Please correct scores before saving.'
+                            }
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // Other contestants - view only mode
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-900 mb-3">Current Scores</h4>
+                        <div className="space-y-2">
+                          {getCurrentEventCriteria().map((criterion, index) => {
+                            const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                            const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                            let score;
+                            if (isFirstRoundAverage && contestant) {
+                              const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                              score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+                            } else {
+                              score = contestant[key] || 0;
+                            }
+                            const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
+                            const color = colors[index % colors.length];
+                            
+                            return (
+                              <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200">
+                                <span className="text-sm font-medium text-gray-700 truncate">{criterion.name}</span>
+                                <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-2 py-1 rounded`}>
+                                  {score.toFixed(1)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-gray-700">Total Score:</span>
+                            <span className="text-lg font-bold text-green-700">
+                              {(contestant.totalWeightedScore || 0).toFixed(1)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => selectContestantByIndex(actualIndex)}
+                          className="w-full mt-3 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
+                        >
+                          Select This Contestant
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Spacing between cards and table */}
+        <div className="mb-8 sm:mb-12"></div>
+
+        {/* Scoring Table */}
+        <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 sm:mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold">📊 Contestant Scoring</h2>
+                <p className="text-blue-100 text-xs sm:text-sm">Evaluate and score contestants</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1 sm:flex-initial">
+                  <input
+                    type="text"
+                    placeholder="Search contestants..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white placeholder-blue-200 text-sm"
+                  />
+                  <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
+                </div>
+                
+                {/* Final Rounds Button */}
+                {getFinalRound() && !usingFinalRoundCriteria && (
+                  <button
+                    onClick={() => {
+                      const finalRound = getFinalRound();
+                      if (finalRound && finalRound.criteria) {
+                        // Store original criteria
+                        setOriginalEventCriteria(currentEvent.criteria);
+                        
+                        // Update current event criteria to use final round criteria
+                        const updatedEvent = {
+                          ...currentEvent,
+                          criteria: finalRound.criteria
+                        };
+                        setCurrentEvent(updatedEvent);
+                        setUsingFinalRoundCriteria(true);
+                        setSelectorKey(prev => prev + 1); // Force re-render
+                        
+                        // Reinitialize quick scores for the new criteria
+                        if (contestants[currentContestantIndex]) {
+                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                          setQuickScores(newQuickScores);
+                        }
+                        
+                        alert(`🏆 Final Rounds Mode Activated\n\nSwitched to final round criteria.\nYou can now score contestants independently using the final round criteria.`);
+                      }
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-yellow-900 rounded-lg hover:from-yellow-500 hover:to-orange-500 transition-all duration-200 text-sm font-medium shadow-lg border border-yellow-300 whitespace-nowrap"
+                    title="Switch to Final Rounds scoring criteria"
+                  >
+                    🏆 Final Rounds
+                  </button>
+                )}
+                
+                {/* Back to Main Criteria Button */}
+                {usingFinalRoundCriteria && (
+                  <button
+                    onClick={() => {
+                      if (originalEventCriteria) {
+                        // Restore original criteria
+                        const updatedEvent = {
+                          ...currentEvent,
+                          criteria: originalEventCriteria
+                        };
+                        setCurrentEvent(updatedEvent);
+                        setUsingFinalRoundCriteria(false);
+                        setSelectorKey(prev => prev + 1); // Force re-render
+                        
+                        // Reinitialize quick scores for the restored criteria
+                        if (contestants[currentContestantIndex]) {
+                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                          setQuickScores(newQuickScores);
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-lg border border-blue-300 whitespace-nowrap"
+                    title="Switch back to main scoring criteria"
+                  >
+                    📋 Main Criteria
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {contestants.length > 0 ? (
+            <div className="overflow-x-auto overflow-y-hidden max-w-full">
+              {/* Table Controls */}
+              <div className="flex justify-between items-center mb-4 px-2">
+                <div className="flex items-center gap-2">
+                  {/* Scoring mode indicator */}
+                  <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
+                    usingFinalRoundCriteria 
+                      ? 'bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border border-yellow-300' 
+                      : 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 border border-blue-300'
+                  }`}>
+                    {usingFinalRoundCriteria ? '🏆 Final Rounds Mode' : '📋 Main Criteria Mode'}
+                  </span>
+                </div>
+                
+                {/* Horizontal scroll indicator - Mobile only */}
+                <div className="flex gap-2 lg:hidden">
+                  <button 
+                    onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: -200, behavior: 'smooth' })}
+                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-blue-700 transition-colors"
+                  >
+                    ←
+                  </button>
+                  <button 
+                    onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: 200, behavior: 'smooth' })}
+                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-blue-700 transition-colors"
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+              <table key={`contestants-table-${contestants.length}`} className="w-full min-w-[800px] judge-scoring-table">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">Rank</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">No.</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[120px]">Contestant</th>
+                    {getCurrentEventCriteria().map((criterion, index) => (
+                      <th key={index} className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[100px]">
+                        <div className="hidden sm:block">
+                          <div className="font-medium">{criterion.name}</div>
+                          {criterion.category && (
+                            <div className="text-xs text-blue-600 mt-1">{criterion.category}</div>
+                          )}
+                          <div className="text-xs text-gray-500 mt-1">
+                            ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`})
+                          </div>
+                        </div>
+                        <div className="sm:hidden text-xs">
+                          {criterion.name.length > 8 ? criterion.name.substring(0, 8) + '...' : criterion.name}
+                          <div className="text-xs text-gray-500">
+                            ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`})
+                          </div>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Total</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredContestants.map((contestant) => {
+                    // Check if contestant has any scores (more reliable than just checking scored sets)
+                    const hasScores = getCurrentEventCriteria().some(criterion => {
+                      const key = getCriteriaKey(criterion.name, usingFinalRoundCriteria);
+                      
+                      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                             criterion.name.toUpperCase().includes('1ST') && 
+                                             criterion.name.toUpperCase().includes('ROUND');
+                      
+                      if (isFirstRoundAverage) {
+                        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                        return contestant[originalKey] !== undefined && contestant[originalKey] > 0;
+                      } else {
+                        return contestant[key] !== undefined && contestant[key] > 0;
+                      }
+                    });
+                    
+                    // Also check if contestant is in scored sets (for current session tracking)
+                    const isInScoredSet = contestant.id && (
+                      usingFinalRoundCriteria ? 
+                      scoredContestantsFinal.has(contestant.id) : 
+                      scoredContestants.has(contestant.id)
+                    );
+                    
+                    // Consider contestant scored if they have scores OR are in scored sets
+                    const isScored = hasScores || isInScoredSet;
+                    
+                    return (
+                      <tr key={contestant.id} className={`hover:bg-gray-50 transition-colors ${isScored ? 'bg-green-50' : ''} ${contestant.rank === 1 ? 'ring-2 ring-yellow-400 ring-opacity-50' : ''}`}>
+                        <td className="px-4 py-3">
+                          {contestant.rank ? (
+                            <div className="flex items-center justify-center gap-1">
+                              {contestant.rank === 1 && (
+                                <span className="text-yellow-500 text-lg" title="Current Leader">👑</span>
+                              )}
+                              <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-bold ${getRankColor(contestant.rank)}`}>
+                                {contestant.rank}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-medium bg-gray-200 text-gray-500">
+                              -
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{contestant.contestantNo}</td>
+                        <td className="px-4 py-3 text-xs sm:text-sm text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <div className="truncate font-medium">{contestant.contestantName}</div>
+                            {contestant.contestantType === 'group' ? (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full" title="Group Contestant">
+                                👥
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
+                                Solo
+                              </span>
+                            )}
+                            {getContestantRoundStatus(contestant)?.isFinal && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full shadow-sm" title="Final Round Contestant">
+                                🏆
+                              </span>
+                            )}
+                            {hasScores && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Has Scores">
+                                📋
+                              </span>
+                            )}
+                            {hasScores && usingFinalRoundCriteria && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full" title="Final Rounds Scored">
+                                🏆
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        {getCurrentEventCriteria().map((criterion, index) => {
+                          const useFinalRoundPrefix = usingFinalRoundCriteria;
+                          const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                          
+                          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                          const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                          
+                          // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                          let score;
+                          if (isFirstRoundAverage) {
+                            const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                            score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+                          } else {
+                            score = contestant[key] || 0;
+                          }
+                          
+                          const colors = ['bg-blue-100 text-blue-800', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
+                          const colorClass = colors[index % colors.length];
+                          const hasScore = score > 0;
+                          return (
+                            <td key={index} className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-gray-500'} rounded-full ${hasScore ? 'shadow-sm' : ''}`}>
+                                {score.toFixed(1)}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-bold ${(contestant.totalWeightedScore || 0) > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'} rounded-full ${(contestant.totalWeightedScore || 0) > 0 ? 'shadow-sm' : ''}`}>
+                            {(() => {
+                              // Use existing totalWeightedScore if available, otherwise calculate it
+                              if (typeof contestant.totalWeightedScore === 'number' && contestant.totalWeightedScore > 0) {
+                                return contestant.totalWeightedScore.toFixed(1);
+                              }
+                              
+                              // Fallback calculation
+                              const criteria = getCurrentEventCriteria();
+                              if (criteria.length === 0) return '0.0';
+                              
+                              let totalScore = 0;
+                              const useFinalRoundPrefix = usingFinalRoundCriteria;
+                              
+                              criteria.forEach(criterion => {
+                                const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                                
+                                // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+                                const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                                                       criterion.name.toUpperCase().includes('1ST') && 
+                                                       criterion.name.toUpperCase().includes('ROUND');
+                                
+                                let score;
+                                if (isFirstRoundAverage) {
+                                  const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                  score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+                                } else {
+                                  score = contestant[key] || 0;
+                                }
+                                
+                                const weight = criterion.weight / 100;
+                                totalScore += score * weight;
+                              });
+                              
+                              return totalScore.toFixed(1);
+                            })()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(contestant.status)}`}>
+                            <span className="hidden sm:inline">{contestant.status || 'Not Rated'}</span>
+                            <span className="sm:hidden">{(contestant.status || 'Not Rated').substring(0, 8)}...</span>
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 sm:py-12">
+              <div className="text-4xl sm:text-6xl mb-4">
+                👥
+              </div>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
+                No contestants found
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-500 mb-4">
+                {assignedEvents.length === 0 
+                  ? "You are currently viewing all contestants. Contact the admin to assign you to specific events for better organization."
+                  : "No contestants have been added to your assigned events yet."
+                }
+              </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 max-w-md mx-auto mt-4">
+                <p className="text-xs sm:text-sm text-yellow-800">
+                  <strong>Tip:</strong> {assignedEvents.length === 0 
+                    ? "New judges are automatically assigned to all events. If you're a new judge and don't see contestants, please refresh the page."
+                    : "Contestants will appear here once they are added to events you're assigned to judge."
+                  }
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 

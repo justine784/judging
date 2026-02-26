@@ -14,9 +14,11 @@ export default function EventManagement() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [dropdownButtonRef, setDropdownButtonRef] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
   const router = useRouter();
 
   // Form state
@@ -35,24 +37,80 @@ export default function EventManagement() {
     loadEvents();
   }, []);
 
+  // Update current time every second for live display
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date());
+    };
+    
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Better date/time parsing function
+  const parseEventDateTime = (date, time) => {
+    try {
+      // Handle different date formats
+      let eventDate = date;
+      if (typeof date === 'string') {
+        // Ensure date is in YYYY-MM-DD format
+        eventDate = date.split('T')[0]; // Remove time part if exists
+      }
+      
+      // Handle different time formats
+      let eventTime = time;
+      if (typeof time === 'string') {
+        // Convert 12-hour format to 24-hour if needed
+        if (time.includes('AM') || time.includes('PM')) {
+          const timeObj = new Date(`2000-01-01 ${time}`);
+          eventTime = timeObj.toTimeString().slice(0, 5); // Get HH:MM format
+        }
+      }
+      
+      const dateTimeString = `${eventDate} ${eventTime}`;
+      const eventDateTime = new Date(dateTimeString);
+      
+      // Check if date is valid
+      if (isNaN(eventDateTime.getTime())) {
+        console.error('Invalid date/time:', { date, time, dateTimeString });
+        return null;
+      }
+      
+      return eventDateTime;
+    } catch (error) {
+      console.error('Error parsing date/time:', error);
+      return null;
+    }
+  };
+
   // Real-time status update effect
   useEffect(() => {
     const updateEventStatuses = () => {
+      const now = new Date();
+      
       setEvents(prevEvents => 
         prevEvents.map(event => {
-          const eventDateTime = new Date(`${event.date} ${event.time}`);
-          const now = new Date();
+          // Better date/time parsing
+          const eventDateTime = parseEventDateTime(event.date, event.time);
+          if (!eventDateTime) return event;
           
           // Calculate end time (assume 4 hours after start time)
           const eventEndTime = new Date(eventDateTime.getTime() + (4 * 60 * 60 * 1000));
+          
+          // Also check if the current date is past the event date (regardless of time)
+          const eventDateOnly = new Date(eventDateTime.getFullYear(), eventDateTime.getMonth(), eventDateTime.getDate());
+          const currentDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const isPastEventDate = currentDateOnly > eventDateOnly;
           
           let newStatus = event.status;
           
           // Don't change status if event is manually set to finished
           if (event.status !== 'finished') {
-            if (now >= eventDateTime && now <= eventEndTime) {
+            if (now >= eventDateTime && now <= eventEndTime && !isPastEventDate) {
               newStatus = 'ongoing';
-            } else if (now > eventEndTime) {
+            } else if (now > eventEndTime || isPastEventDate) {
               newStatus = 'finished';
             } else {
               newStatus = 'upcoming';
@@ -72,7 +130,8 @@ export default function EventManagement() {
           
           return {
             ...event,
-            status: newStatus
+            status: newStatus,
+            isLive: newStatus === 'ongoing' // Add live indicator
           };
         })
       );
@@ -81,8 +140,8 @@ export default function EventManagement() {
     // Update immediately
     updateEventStatuses();
     
-    // Set up interval to check every minute
-    const interval = setInterval(updateEventStatuses, 60000);
+    // Set up interval to check every 30 seconds for more responsive updates
+    const interval = setInterval(updateEventStatuses, 30000);
     
     return () => clearInterval(interval);
   }, []);
@@ -215,6 +274,36 @@ export default function EventManagement() {
       setLoading(false);
     }
   };
+
+  // Update dropdown position on scroll
+  useEffect(() => {
+    if (activeDropdown && dropdownButtonRef) {
+      const updatePosition = () => {
+        const rect = dropdownButtonRef.getBoundingClientRect();
+        
+        // Calculate left position to align with right edge of button
+        const dropdownWidth = 192; // w-48 = 12rem = 192px
+        const leftPosition = rect.right - dropdownWidth;
+        
+        // Ensure dropdown stays within viewport
+        const finalLeft = Math.max(8, Math.min(leftPosition, window.innerWidth - dropdownWidth - 8));
+        
+        setDropdownPosition({
+          top: rect.bottom + 4,
+          left: finalLeft
+        });
+      };
+
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, { passive: true });
+      window.addEventListener('resize', updatePosition, { passive: true });
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [activeDropdown, dropdownButtonRef]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -583,7 +672,7 @@ export default function EventManagement() {
   const addCriteria = () => {
     const updatedEvent = { ...selectedEvent };
     
-    // Check if we're in percentage mode and already at 100%
+    // Check if scoring type is set to percentage but trying to add criteria
     if (updatedEvent.gradingType === 'percentage') {
       const currentTotal = updatedEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0);
       
@@ -631,16 +720,39 @@ export default function EventManagement() {
       updatedEvent.criteriaCategories = [];
     }
     
-    // Calculate remaining weight
-    const currentTotal = updatedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0);
-    const remainingWeight = 100 - currentTotal;
+    const scoringType = updatedEvent.defaultCategoryScoringType || 'percentage';
     
-    updatedEvent.criteriaCategories.push({
-      name: '',
-      totalWeight: Math.min(10, remainingWeight), // Default to 10% or remaining weight
-      scoringType: updatedEvent.defaultCategoryScoringType || 'percentage', // Use default scoring type
-      subCriteria: []
-    });
+    // Check if scoring type is set to percentage but trying to add category
+    if (scoringType === 'percentage') {
+      // Calculate remaining weight
+      const currentTotal = updatedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0);
+      const remainingWeight = 100 - currentTotal;
+      
+      if (remainingWeight <= 0) {
+        alert('Cannot add new category: Total category weight has already reached 100%. Please reduce existing category weights first.');
+        return;
+      }
+      
+      updatedEvent.criteriaCategories.push({
+        name: '',
+        totalWeight: Math.min(10, remainingWeight), // Default to 10% or remaining weight
+        scoringType: scoringType,
+        subCriteria: []
+      });
+      
+      // Show info about remaining weight
+      if (remainingWeight < 10) {
+        alert(`Note: Only ${remainingWeight}% weight remaining. New category will be set to ${Math.min(10, remainingWeight)}%.`);
+      }
+    } else {
+      // For points mode, just add with default 0 weight
+      updatedEvent.criteriaCategories.push({
+        name: '',
+        totalWeight: 0,
+        scoringType: scoringType,
+        subCriteria: []
+      });
+    }
     
     setSelectedEvent(updatedEvent);
   };
@@ -659,9 +771,27 @@ export default function EventManagement() {
       updatedEvent.criteriaCategories = [];
     }
     
+    const category = updatedEvent.criteriaCategories[categoryIndex];
+    
     // Special validation for totalWeight field
     if (field === 'totalWeight') {
       const currentWeight = parseInt(value) || 0;
+      
+      // Validate input based on scoring type
+      if (category.scoringType === 'percentage') {
+        // For percentage, only allow 0-100
+        if (currentWeight < 0 || currentWeight > 100) {
+          alert('Error: Percentage values must be between 0 and 100.');
+          return;
+        }
+      } else {
+        // For points, allow any non-negative value
+        if (currentWeight < 0) {
+          alert('Error: Points values must be 0 or greater.');
+          return;
+        }
+      }
+      
       const otherCategoriesWeight = updatedEvent.criteriaCategories.reduce((sum, cat, i) => {
         if (i !== categoryIndex) {
           return sum + (cat.totalWeight || 0);
@@ -669,8 +799,8 @@ export default function EventManagement() {
         return sum;
       }, 0);
       
-      // Check if adding this weight would exceed 100
-      if (otherCategoriesWeight + currentWeight > 100) {
+      // Check if adding this weight would exceed 100 (for percentage mode)
+      if (category.scoringType === 'percentage' && otherCategoriesWeight + currentWeight > 100) {
         const maxAllowedWeight = Math.max(0, 100 - otherCategoriesWeight);
         alert(`Warning: Total category weights cannot exceed 100%. Maximum allowed weight for this category is ${maxAllowedWeight}%.`);
         updatedEvent.criteriaCategories[categoryIndex][field] = maxAllowedWeight;
@@ -695,16 +825,39 @@ export default function EventManagement() {
       category.subCriteria = [];
     }
     
-    // Calculate remaining weight for this category
-    const currentTotal = category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0);
-    const remainingWeight = (category.totalWeight || 0) - currentTotal;
-    
-    category.subCriteria.push({
-      name: '',
-      weight: Math.min(1, remainingWeight), // Default to 1% or remaining weight
-      description: '',
-      enabled: true
-    });
+    // Check if scoring type is set to percentage but trying to add points-based criteria
+    if (category.scoringType === 'percentage') {
+      // For percentage mode, check if we're already at 100%
+      const currentTotal = category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0);
+      if (currentTotal >= (category.totalWeight || 0)) {
+        alert(`Cannot add new sub-criteria: Total weight (${category.totalWeight || 0}%) has already been reached. Please reduce existing sub-criteria weights or increase the category total weight first.`);
+        return;
+      }
+      
+      // Calculate remaining weight
+      const remainingWeight = (category.totalWeight || 0) - currentTotal;
+      
+      // Create new sub-criteria with appropriate default weight
+      category.subCriteria.push({
+        name: '',
+        weight: Math.min(1, remainingWeight), // Default to 1% or remaining weight
+        description: '',
+        enabled: true
+      });
+      
+      // Show info about remaining weight
+      if (remainingWeight < 1) {
+        alert(`Note: Only ${remainingWeight}% weight remaining. New sub-criteria will be set to ${Math.min(1, remainingWeight)}%.`);
+      }
+    } else {
+      // For points mode, just add with default 0 weight
+      category.subCriteria.push({
+        name: '',
+        weight: 0,
+        description: '',
+        enabled: true
+      });
+    }
     
     setSelectedEvent(updatedEvent);
   };
@@ -734,6 +887,22 @@ export default function EventManagement() {
     // Special validation for weight field
     if (field === 'weight') {
       const currentWeight = parseInt(value) || 0;
+      
+      // Validate input based on scoring type
+      if (category.scoringType === 'percentage') {
+        // For percentage, only allow 0-100
+        if (currentWeight < 0 || currentWeight > 100) {
+          alert('Error: Percentage values must be between 0 and 100.');
+          return;
+        }
+      } else {
+        // For points, allow any non-negative value
+        if (currentWeight < 0) {
+          alert('Error: Points values must be 0 or greater.');
+          return;
+        }
+      }
+      
       const otherSubCriteriaWeight = category.subCriteria.reduce((sum, sub, i) => {
         if (i !== subIndex && sub.enabled !== false) {
           return sum + (sub.weight || 0);
@@ -742,7 +911,7 @@ export default function EventManagement() {
       }, 0);
       
       // Check if adding this weight would exceed category total
-      if (otherSubCriteriaWeight + currentWeight > (category.totalWeight || 0)) {
+      if (category.scoringType === 'percentage' && otherSubCriteriaWeight + currentWeight > (category.totalWeight || 0)) {
         const maxAllowedWeight = Math.max(0, (category.totalWeight || 0) - otherSubCriteriaWeight);
         alert(`Warning: Sub-criteria weights cannot exceed category total (${category.totalWeight || 0}%). Maximum allowed weight for this sub-criteria is ${maxAllowedWeight}%.`);
         category.subCriteria[subIndex][field] = maxAllowedWeight;
@@ -772,10 +941,26 @@ export default function EventManagement() {
       return;
     }
     
+    const round = updatedEvent.rounds[roundIndex];
+    
     // Special validation for weight field
     if (field === 'weight') {
       const currentWeight = parseInt(value) || 0;
-      const round = updatedEvent.rounds[roundIndex];
+      
+      // Validate input based on scoring type
+      if (updatedEvent.gradingType === 'percentage') {
+        // For percentage, only allow 0-100
+        if (currentWeight < 0 || currentWeight > 100) {
+          alert('Error: Percentage values must be between 0 and 100.');
+          return;
+        }
+      } else {
+        // For points, allow any non-negative value
+        if (currentWeight < 0) {
+          alert('Error: Points values must be 0 or greater.');
+          return;
+        }
+      }
       
       // Calculate total weight of all enabled criteria in this round except current one
       const otherCriteriaWeight = round.criteria.reduce((sum, criterion, i) => {
@@ -785,8 +970,8 @@ export default function EventManagement() {
         return sum;
       }, 0);
       
-      // Check if adding this weight would exceed 100
-      if (otherCriteriaWeight + currentWeight > 100) {
+      // Check if adding this weight would exceed 100 (for percentage mode)
+      if (updatedEvent.gradingType === 'percentage' && otherCriteriaWeight + currentWeight > 100) {
         // Calculate the maximum allowed weight for this criteria
         const maxAllowedWeight = Math.max(0, 100 - otherCriteriaWeight);
         
@@ -839,7 +1024,7 @@ export default function EventManagement() {
       round.criteria = [];
     }
     
-    // Check if we're in percentage mode and already at 100%
+    // Check if scoring type is set to percentage but trying to add criteria
     if (updatedEvent.gradingType === 'percentage') {
       const currentTotal = round.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0);
       
@@ -879,14 +1064,21 @@ export default function EventManagement() {
   const toggleDropdown = (eventId, event) => {
     if (activeDropdown === eventId) {
       setActiveDropdown(null);
+      setDropdownButtonRef(null);
     } else {
+      setDropdownButtonRef(event.target);
       const rect = event.target.getBoundingClientRect();
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      // Calculate left position to align with right edge of button
+      const dropdownWidth = 192; // w-48 = 12rem = 192px
+      const leftPosition = rect.right - dropdownWidth;
+      
+      // Ensure dropdown stays within viewport
+      const finalLeft = Math.max(8, Math.min(leftPosition, window.innerWidth - dropdownWidth - 8));
       
       setDropdownPosition({
-        top: rect.bottom + scrollTop + 4,
-        right: window.innerWidth - rect.right - scrollLeft + 4
+        top: rect.bottom + 4,
+        left: finalLeft
       });
       setActiveDropdown(eventId);
     }
@@ -1039,6 +1231,20 @@ export default function EventManagement() {
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Event Management</h2>
             <p className="text-gray-600">Create and manage competition events</p>
           </div>
+          <div className="text-right">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-lg">
+              <div className="text-xs text-blue-100">Current Time</div>
+              <div className="text-lg font-bold">
+                {currentTime.toLocaleTimeString()}
+              </div>
+              <div className="text-xs text-blue-100">
+                {currentTime.toLocaleDateString()}
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              Status updates every 30 seconds
+            </div>
+          </div>
           <button
             onClick={() => setShowAddModal(true)}
             disabled={loading}
@@ -1069,6 +1275,26 @@ export default function EventManagement() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
+        </div>
+
+        {/* Mobile Time Display */}
+        <div className="lg:hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="text-xs text-blue-100">Live Current Time</div>
+              <div className="text-lg font-bold">
+                {currentTime.toLocaleTimeString()}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-blue-100">
+                {currentTime.toLocaleDateString()}
+              </div>
+              <div className="text-xs text-blue-200">
+                Updates: 30s
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Error Display */}
@@ -1120,10 +1346,10 @@ export default function EventManagement() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    {event.status === 'ongoing' && isEventCurrentlyOngoing(event) && (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 animate-pulse">
-                        <span>🔴</span>
-                        LIVE
+                    {event.isLive && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white animate-pulse shadow-lg">
+                        <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                        <span className="relative">🔴 LIVE</span>
                       </span>
                     )}
                     <button
@@ -1176,10 +1402,10 @@ export default function EventManagement() {
                         <span>{getStatusIcon(event.status)}</span>
                         {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                       </span>
-                      {event.status === 'ongoing' && isEventCurrentlyOngoing(event) && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 animate-pulse">
-                          <span>�</span>
-                          LIVE NOW
+                      {event.isLive && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-600 text-white animate-pulse shadow-lg">
+                          <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                          <span className="relative">🔴 LIVE</span>
                         </span>
                       )}
                     </div>
@@ -1295,10 +1521,10 @@ export default function EventManagement() {
                           <span>{getStatusIcon(event.status)}</span>
                           {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                         </span>
-                        {event.status === 'ongoing' && isEventCurrentlyOngoing(event) && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 animate-pulse">
-                            <span>🔴</span>
-                            LIVE NOW
+                        {event.isLive && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white animate-pulse shadow-lg">
+                            <span className="w-2 h-2 bg-white rounded-full animate-ping"></span>
+                            <span className="relative">🔴 LIVE</span>
                           </span>
                         )}
                         {event.scoresLocked && (
@@ -1313,7 +1539,7 @@ export default function EventManagement() {
                       <div className="relative dropdown-menu">
                         <button
                           onClick={(e) => toggleDropdown(event.id, e)}
-                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
                           title="More actions"
                         >
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -1327,7 +1553,7 @@ export default function EventManagement() {
                             className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999]"
                             style={{
                               top: `${dropdownPosition.top}px`,
-                              right: `${dropdownPosition.right}px`
+                              left: `${dropdownPosition.left}px`
                             }}
                           >
                             <button
@@ -1707,11 +1933,11 @@ export default function EventManagement() {
                   <div className="text-white">
                     <h4 className="font-medium text-sm mb-2">Scoring System Instructions</h4>
                     <ul className="text-blue-100 text-xs space-y-1">
-                      <li>• Set the default scoring type (Percentage or Points) using the selector next to "Add Category"</li>
-                      <li>• All categories will use the same scoring type for consistency</li>
+                      <li>• Use the Global Scoring Type selector above to choose between Percentage or Points</li>
+                      <li>• All categories will automatically use the selected scoring type</li>
                       <li>• Configure category weights and sub-criteria for each judging category</li>
-                      <li>• Total category weights must equal 100%</li>
-                      <li>• Sub-criteria weights within each category must equal the category total</li>
+                      <li>• Percentage mode: Total category weights must equal 100%</li>
+                      <li>• Points mode: No upper limit on point values</li>
                     </ul>
                   </div>
                 </div>
@@ -1721,34 +1947,84 @@ export default function EventManagement() {
             {/* Modal Body */}
             <div className="p-6">
               <div className="space-y-6">
+                {/* Global Scoring Type Selector */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Global Scoring Type</h4>
+                      <p className="text-sm text-gray-600 mt-1">Choose the scoring system for all criteria in this event</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                        <button
+                          onClick={() => {
+                            const updatedEvent = { ...selectedEvent };
+                            updatedEvent.gradingType = 'percentage';
+                            updatedEvent.defaultCategoryScoringType = 'percentage';
+                            // Update all existing categories to use percentage
+                            if (updatedEvent.criteriaCategories) {
+                              updatedEvent.criteriaCategories = updatedEvent.criteriaCategories.map(category => ({
+                                ...category,
+                                scoringType: 'percentage'
+                              }));
+                            }
+                            setSelectedEvent(updatedEvent);
+                          }}
+                          className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                            selectedEvent.gradingType === 'percentage' || selectedEvent.defaultCategoryScoringType === 'percentage'
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'text-gray-700 hover:text-gray-900'
+                          }`}
+                        >
+                          📊 Percentage
+                        </button>
+                        <button
+                          onClick={() => {
+                            const updatedEvent = { ...selectedEvent };
+                            updatedEvent.gradingType = 'points';
+                            updatedEvent.defaultCategoryScoringType = 'points';
+                            // Update all existing categories to use points
+                            if (updatedEvent.criteriaCategories) {
+                              updatedEvent.criteriaCategories = updatedEvent.criteriaCategories.map(category => ({
+                                ...category,
+                                scoringType: 'points'
+                              }));
+                            }
+                            setSelectedEvent(updatedEvent);
+                          }}
+                          className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                            selectedEvent.gradingType === 'points' || selectedEvent.defaultCategoryScoringType === 'points'
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'text-gray-700 hover:text-gray-900'
+                          }`}
+                        >
+                          🎯 Points
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-gray-700">
+                      Current mode: <strong>{(selectedEvent.gradingType === 'points' || selectedEvent.defaultCategoryScoringType === 'points') ? 'Points' : 'Percentage'}</strong>
+                      {(selectedEvent.gradingType === 'points' || selectedEvent.defaultCategoryScoringType === 'points') 
+                        ? ' - Unlimited point values allowed' 
+                        : ' - All criteria must total 100%'}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Categories Section */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-lg font-semibold text-gray-900">Criteria Categories</h4>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-gray-700">Default Scoring:</label>
-                        <select
-                          value={selectedEvent.defaultCategoryScoringType || 'percentage'}
-                          onChange={(e) => {
-                            const updatedEvent = { ...selectedEvent };
-                            updatedEvent.defaultCategoryScoringType = e.target.value;
-                            setSelectedEvent(updatedEvent);
-                          }}
-                          className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                        >
-                          <option value="percentage">Percentage</option>
-                          <option value="points">Points</option>
-                        </select>
-                      </div>
-                      <button
-                        onClick={addCategory}
-                        className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
-                      >
-                        <span className="text-sm">➕</span>
-                        Add Category
-                      </button>
-                    </div>
+                    <button
+                      onClick={addCategory}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                    >
+                      <span className="text-sm">➕</span>
+                      Add Category
+                    </button>
                   </div>
 
                   {selectedEvent.criteriaCategories && selectedEvent.criteriaCategories.length > 0 ? (

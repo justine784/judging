@@ -96,6 +96,28 @@ export default function JudgeManagement() {
     setActiveDropdown(null);
   };
 
+  // Function to check if judge is already assigned to any event
+  const isJudgeAssignedToAnyEvent = (judgeId) => {
+    const judge = judges.find(j => j.id === judgeId);
+    return judge && judge.assignedEvents && judge.assignedEvents.length > 0;
+  };
+
+  // Function to check if judge is assigned to a specific event
+  const isJudgeAssignedToEvent = (judgeId, eventId) => {
+    const judge = judges.find(j => j.id === judgeId);
+    return judge && judge.assignedEvents && judge.assignedEvents.includes(eventId);
+  };
+
+  // Function to get judge's current assigned event
+  const getJudgeAssignedEvent = (judgeId) => {
+    const judge = judges.find(j => j.id === judgeId);
+    if (!judge || !judge.assignedEvents || judge.assignedEvents.length === 0) {
+      return null;
+    }
+    const eventId = judge.assignedEvents[0];
+    return events.find(e => e.id === eventId);
+  };
+
   const loadEvents = async () => {
     try {
       // Load events from Firestore
@@ -255,11 +277,19 @@ export default function JudgeManagement() {
       const judge = judges.find(j => j.id === judgeId);
       const currentAssignedEvents = judge.assignedEvents || [];
       
+      // Prevent assignment to multiple events
+      if (isChecked && currentAssignedEvents.length > 0) {
+        // Judge is already assigned to an event, prevent new assignment
+        const existingEvent = getJudgeAssignedEvent(judgeId);
+        setError(`Judge is already assigned to "${existingEvent?.eventName || 'an event'}". A judge can only be assigned to one event at a time.`);
+        return;
+      }
+      
       let updatedAssignedEvents;
       if (isChecked) {
-        updatedAssignedEvents = [...currentAssignedEvents, eventId];
+        updatedAssignedEvents = [eventId]; // Only allow one event
       } else {
-        updatedAssignedEvents = currentAssignedEvents.filter(id => id !== eventId);
+        updatedAssignedEvents = []; // Remove all assignments
       }
 
       await updateDoc(judgeRef, {
@@ -468,18 +498,29 @@ export default function JudgeManagement() {
                   <td className="px-6 py-4">
                     <div className="max-w-xs">
                       {(judge.assignedEvents || []).length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="space-y-1">
                           {(judge.assignedEvents || []).map(eventId => {
                             const event = events.find(e => e.id === eventId);
                             return event ? (
-                              <span key={eventId} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {event.eventName}
-                              </span>
+                              <div key={eventId} className="flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  🏆 {event.eventName}
+                                </span>
+                                <span className="text-xs text-gray-500">(Assigned)</span>
+                              </div>
                             ) : null;
                           })}
+                          <div className="text-xs text-blue-600 italic">
+                            ✓ Single event assignment
+                          </div>
                         </div>
                       ) : (
-                        <span className="text-gray-400 text-xs">No events assigned</span>
+                        <div className="space-y-1">
+                          <span className="text-gray-400 text-xs">No events assigned</span>
+                          <div className="text-xs text-gray-500">
+                            Available for assignment
+                          </div>
+                        </div>
                       )}
                     </div>
                   </td>
@@ -576,41 +617,72 @@ export default function JudgeManagement() {
               Assign Events for {selectedJudge.name}
             </h3>
             <div className="space-y-3 max-h-64 overflow-y-auto">
-              {events.map(event => (
-                <label key={event.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(selectedJudge.assignedEvents || []).includes(event.id)}
-                    onChange={(e) => {
-                      const updatedJudge = {
-                        ...selectedJudge,
-                        assignedEvents: e.target.checked
-                          ? [...(selectedJudge.assignedEvents || []), event.id]
-                          : (selectedJudge.assignedEvents || []).filter(id => id !== event.id)
-                      };
-                      setSelectedJudge(updatedJudge);
-                    }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{event.eventName}</div>
-                    <div className="text-sm text-gray-500">{event.date} at {event.time}</div>
-                    <div className="text-xs text-gray-400">{event.venue}</div>
-                  </div>
-                  {(selectedJudge.assignedEvents || []).includes(event.id) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/admin/events/${event.id}/judges`);
-                        setShowEventModal(false);
+              {events.map(event => {
+                const isAssigned = (selectedJudge.assignedEvents || []).includes(event.id);
+                const hasOtherAssignment = (selectedJudge.assignedEvents || []).length > 0 && !isAssigned;
+                const currentAssignment = (selectedJudge.assignedEvents || [])[0];
+                const currentEvent = currentAssignment ? events.find(e => e.id === currentAssignment) : null;
+                
+                return (
+                  <label 
+                    key={event.id} 
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      hasOtherAssignment 
+                        ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isAssigned}
+                      disabled={hasOtherAssignment}
+                      onChange={(e) => {
+                        if (hasOtherAssignment) return; // Prevent selection if already assigned to another event
+                        
+                        const updatedJudge = {
+                          ...selectedJudge,
+                          assignedEvents: e.target.checked ? [event.id] : []
+                        };
+                        setSelectedJudge(updatedJudge);
                       }}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      Manage →
-                    </button>
-                  )}
-                </label>
-              ))}
+                      className={`rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 ${
+                        hasOtherAssignment ? 'cursor-not-allowed opacity-50' : ''
+                      }`}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{event.eventName}</div>
+                      <div className="text-sm text-gray-500">{event.date} at {event.time}</div>
+                      <div className="text-xs text-gray-400">{event.venue}</div>
+                      {hasOtherAssignment && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          Already assigned to "{currentEvent?.eventName || 'another event'}"
+                        </div>
+                      )}
+                    </div>
+                    {isAssigned && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/admin/events/${event.id}/judges`);
+                          setShowEventModal(false);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        Manage →
+                      </button>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+              <div className="flex items-start gap-2">
+                <span className="text-blue-600 text-sm">ℹ️</span>
+                <div className="text-sm text-blue-800">
+                  <strong>Important:</strong> A judge can only be assigned to one event at a time. 
+                  Selecting a new event will automatically remove any existing assignments.
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button

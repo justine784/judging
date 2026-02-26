@@ -14,7 +14,9 @@ export default function EventContestants() {
   const [currentRound, setCurrentRound] = useState('preliminary');
   const [event, setEvent] = useState(null);
   const [showActionsDropdown, setShowActionsDropdown] = useState(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownButtonRef, setDropdownButtonRef] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
   const router = useRouter();
   const params = useParams();
   const eventId = params.eventId;
@@ -34,6 +36,23 @@ export default function EventContestants() {
   });
   const [imagePreview, setImagePreview] = useState('');
 
+  // Function to check if contestant number already exists
+  const isContestantNumberTaken = (number, excludeId = null) => {
+    return contestants.some(contestant => 
+      contestant.contestantNumber === number && 
+      contestant.eventId === eventId &&
+      contestant.id !== excludeId
+    );
+  };
+
+  // Function to determine if dropdown should appear above
+  const isDropdownAbove = () => {
+    if (!dropdownButtonRef) return false;
+    const rect = dropdownButtonRef.getBoundingClientRect();
+    const dropdownHeight = 200;
+    return rect.bottom + dropdownHeight + 4 > window.innerHeight;
+  };
+
   // Load event and contestants data
   useEffect(() => {
     loadEvent();
@@ -51,6 +70,50 @@ export default function EventContestants() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showActionsDropdown]);
+
+  // Update dropdown position on scroll
+  useEffect(() => {
+    if (showActionsDropdown && dropdownButtonRef) {
+      const updatePosition = () => {
+        const rect = dropdownButtonRef.getBoundingClientRect();
+        const dropdownHeight = 200; // Estimated dropdown height in pixels
+        const dropdownWidth = 192; // w-48 = 12rem = 192px
+        
+        // Calculate horizontal position
+        const leftPosition = rect.right - dropdownWidth;
+        const finalLeft = Math.max(8, Math.min(leftPosition, window.innerWidth - dropdownWidth - 8));
+        
+        // Calculate vertical position
+        let topPosition = rect.bottom + 4;
+        
+        // Check if dropdown would go below viewport
+        if (topPosition + dropdownHeight > window.innerHeight) {
+          // Position dropdown above the button instead
+          topPosition = rect.top - dropdownHeight - 4;
+          
+          // Ensure it doesn't go above viewport
+          if (topPosition < 8) {
+            // If still too high, position at top of viewport
+            topPosition = 8;
+          }
+        }
+        
+        setDropdownPosition({
+          top: topPosition,
+          left: finalLeft
+        });
+      };
+
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, { passive: true });
+      window.addEventListener('resize', updatePosition, { passive: true });
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [showActionsDropdown, dropdownButtonRef]);
 
   const loadEvent = async () => {
     try {
@@ -159,6 +222,20 @@ export default function EventContestants() {
       return;
     }
     
+    // Special validation for contestant number
+    if (name === 'contestantNumber') {
+      // Clear previous error
+      setFormErrors(prev => ({ ...prev, contestantNumber: '' }));
+      
+      // Check if number is already taken (only if not empty and not in edit mode for the same contestant)
+      if (value.trim() && isContestantNumberTaken(value.trim(), editingContestant?.id)) {
+        setFormErrors(prev => ({ 
+          ...prev, 
+          contestantNumber: 'This contestant number is already taken. Please choose a different number.' 
+        }));
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -168,9 +245,9 @@ export default function EventContestants() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (limit to 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB');
+      // Check file size (limit to 300KB to account for base64 expansion and stay well under 1MB Firestore limit)
+      if (file.size > 300 * 1024) {
+        alert('Image size should be less than 300KB to ensure it fits within storage limits');
         return;
       }
       
@@ -180,17 +257,73 @@ export default function EventContestants() {
         return;
       }
       
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const imageUrl = event.target.result;
-        setImagePreview(imageUrl);
+      // Compress image if needed
+      compressImage(file, (compressedDataUrl) => {
+        // Double-check compressed size with more accurate calculation
+        const base64Data = compressedDataUrl.split(',')[1] || compressedDataUrl;
+        const compressedSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
+        if (compressedSize > 800 * 1024) { // 800KB limit to be safe
+          alert('Image is still too large after compression. Please choose a smaller image.');
+          return;
+        }
+        
+        setImagePreview(compressedDataUrl);
         setFormData(prev => ({
           ...prev,
-          photo: imageUrl
+          photo: compressedDataUrl
         }));
-      };
-      reader.readAsDataURL(file);
+      });
     }
+  };
+
+  // Function to compress images
+  const compressImage = (file, callback) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate new dimensions (max 600px width/height for smaller file size)
+        let { width, height } = img;
+        const maxSize = 600;
+        
+        if (width > height && width > maxSize) {
+          height = (height * maxSize) / width;
+          width = maxSize;
+        } else if (height > maxSize) {
+          width = (width * maxSize) / height;
+          height = maxSize;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress image
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels to get under size limit
+        let quality = 0.8;
+        const tryCompress = () => {
+          canvas.toBlob((blob) => {
+            if (blob.size <= 300 * 1024 || quality <= 0.1) {
+              // If size is acceptable or quality is too low, use this result
+              const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+              callback(compressedDataUrl);
+            } else {
+              // Reduce quality and try again
+              quality -= 0.1;
+              tryCompress();
+            }
+          }, 'image/jpeg', quality);
+        };
+        
+        tryCompress();
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const clearImage = () => {
@@ -202,6 +335,27 @@ export default function EventContestants() {
   };
 
   const handleAddContestant = async () => {
+    // Validate contestant number is not empty
+    if (!formData.contestantNumber.trim()) {
+      setFormErrors(prev => ({ 
+        ...prev, 
+        contestantNumber: 'Contestant number is required.' 
+      }));
+      return;
+    }
+    
+    // Validate contestant number is unique
+    if (isContestantNumberTaken(formData.contestantNumber.trim())) {
+      setFormErrors(prev => ({ 
+        ...prev, 
+        contestantNumber: 'This contestant number is already taken. Please choose a different number.' 
+      }));
+      return;
+    }
+    
+    // Clear any existing errors
+    setFormErrors({});
+    
     // Get event details to include eventName
     const eventDetails = await getDoc(doc(db, 'events', eventId));
     const eventName = eventDetails.exists() ? eventDetails.data().eventName : 'Unknown Event';
@@ -235,6 +389,13 @@ export default function EventContestants() {
 
     // Add photo if uploaded
     if (formData.photo) {
+      // Final validation of photo size before saving to Firestore
+      const base64Data = formData.photo.split(',')[1] || formData.photo;
+      const photoSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
+      if (photoSize > 800 * 1024) { // 800KB limit to be safe
+        alert('Photo is too large to save. Please choose a smaller image (under 300KB).');
+        return;
+      }
       contestantData.photo = formData.photo;
     }
 
@@ -264,6 +425,27 @@ export default function EventContestants() {
   const handleEditContestant = async () => {
     if (!editingContestant) return;
 
+    // Validate contestant number is not empty
+    if (!formData.contestantNumber.trim()) {
+      setFormErrors(prev => ({ 
+        ...prev, 
+        contestantNumber: 'Contestant number is required.' 
+      }));
+      return;
+    }
+    
+    // Validate contestant number is unique (exclude current contestant from check)
+    if (isContestantNumberTaken(formData.contestantNumber.trim(), editingContestant.id)) {
+      setFormErrors(prev => ({ 
+        ...prev, 
+        contestantNumber: 'This contestant number is already taken. Please choose a different number.' 
+      }));
+      return;
+    }
+    
+    // Clear any existing errors
+    setFormErrors({});
+
     try {
       // Prepare update data based on contestant type
       const updateData = {
@@ -284,6 +466,13 @@ export default function EventContestants() {
 
       // Add photo if uploaded
       if (formData.photo) {
+        // Final validation of photo size before saving to Firestore
+        const base64Data = formData.photo.split(',')[1] || formData.photo;
+        const photoSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
+        if (photoSize > 800 * 1024) { // 800KB limit to be safe
+          alert('Photo is too large to save. Please choose a smaller image (under 300KB).');
+          return;
+        }
         updateData.photo = formData.photo;
       }
 
@@ -340,6 +529,7 @@ export default function EventContestants() {
       photo: contestant.photo || ''
     });
     setImagePreview(contestant.photo || '');
+    setFormErrors({});
     setShowEditModal(true);
   };
 
@@ -514,17 +704,16 @@ export default function EventContestants() {
   const toggleDropdown = (contestantId, event) => {
     if (showActionsDropdown === contestantId) {
       setShowActionsDropdown(null);
+      setDropdownButtonRef(null);
     } else {
-      const rect = event.target.getBoundingClientRect();
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
-      setDropdownPosition({
-        top: rect.bottom + scrollTop + 4,
-        right: window.innerWidth - rect.right - scrollLeft + 4
-      });
+      setDropdownButtonRef(event.target);
       setShowActionsDropdown(contestantId);
     }
+  };
+
+  const closeDropdown = () => {
+    setShowActionsDropdown(null);
+    setDropdownButtonRef(null);
   };
 
   return (
@@ -549,7 +738,7 @@ export default function EventContestants() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => { setFormErrors({}); setShowAddModal(true); }}
               className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
             >
               <span className="text-xl">➕</span>
@@ -602,7 +791,108 @@ export default function EventContestants() {
           <h3 className="text-lg font-semibold text-white">Registered Contestants</h3>
           <p className="text-blue-100 text-sm">List of all registered contestants for this event</p>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Mobile Card View */}
+        <div className="lg:hidden divide-y divide-gray-100">
+          {contestants.map((contestant) => (
+            <div key={contestant.id} className="p-4 space-y-3">
+              {/* Contestant Header */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-100 text-blue-600 rounded-lg p-2 text-lg font-bold">
+                    #{contestant.contestantNumber}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">
+                      {contestant.displayName || `${contestant.firstName} ${contestant.lastName}`}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {contestant.contestantType === 'group' ? 'Group' : `Age: ${contestant.age}`}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => toggleDropdown(contestant.id, e)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
+                  title="More actions"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Contestant Details */}
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400">📍</span>
+                  <span className="text-gray-700">{contestant.address}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400">📞</span>
+                  <span className="text-gray-700">{contestant.contactNumber}</span>
+                </div>
+              </div>
+              
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(contestant.status)} shadow-sm`}>
+                  {contestant.status.charAt(0).toUpperCase() + contestant.status.slice(1)}
+                </span>
+              </div>
+              
+              {/* Mobile Dropdown Menu */}
+              {showActionsDropdown === contestant.id && (
+                <div className="pt-3 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { openEditModal(contestant); closeDropdown(); }}
+                      className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                    >
+                      <span className="text-blue-600">✏️</span>
+                      Edit
+                    </button>
+                    {contestant.status !== 'eliminated' && currentRound !== 'completed' && (
+                      <button
+                        onClick={() => { handleEliminateContestant(contestant.id); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span>❌</span>
+                        Eliminate
+                      </button>
+                    )}
+                    {currentRound !== 'final' && currentRound !== 'completed' && contestant.status !== 'eliminated' && (
+                      <button
+                        onClick={() => { handleGoToFinalRounds(); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-green-600 bg-white border border-green-200 rounded-lg hover:bg-green-50 transition-colors touch-manipulation active:scale-95"
+                      >
+                        <span>🏆</span>
+                        Finals
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { handleDeleteContestant(contestant.id); closeDropdown(); }}
+                      className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                    >
+                      <span>🗑️</span>
+                      Remove
+                    </button>
+                    <button
+                      onClick={() => { router.push(`/admin/scoreboard?eventId=${eventId}`); closeDropdown(); }}
+                      className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors touch-manipulation active:scale-95 col-span-2"
+                    >
+                      <span>📊</span>
+                      View Scoreboard
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        {/* Desktop Table View */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -647,7 +937,7 @@ export default function EventContestants() {
                     <div className="relative dropdown-menu">
                       <button
                         onClick={(e) => toggleDropdown(contestant.id, e)}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
                         title="More actions"
                       >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -657,15 +947,27 @@ export default function EventContestants() {
 
                       {/* Dropdown Menu */}
                       {showActionsDropdown === contestant.id && (
-                        <div 
-                          className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999]"
-                          style={{
-                            top: `${dropdownPosition.top}px`,
-                            right: `${dropdownPosition.right}px`
-                          }}
-                        >
+                        <>
+                          {isDropdownAbove() && (
+                            <div 
+                              className="fixed w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-200 z-[9999]"
+                              style={{
+                                top: `${dropdownPosition.top - 8}px`,
+                                left: `${dropdownPosition.left + dropdownButtonRef?.getBoundingClientRect().width - 40}px`
+                              }}
+                            />
+                          )}
+                          <div 
+                            className={`fixed w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[9999] transition-all duration-200 ${
+                              isDropdownAbove() ? 'mb-2' : 'mt-2'
+                            }`}
+                            style={{
+                              top: `${dropdownPosition.top}px`,
+                              left: `${dropdownPosition.left}px`
+                            }}
+                          >
                           <button
-                            onClick={() => { openEditModal(contestant); setShowActionsDropdown(null); }}
+                            onClick={() => { openEditModal(contestant); closeDropdown(); }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
                             <span className="text-blue-600">✏️</span>
@@ -673,7 +975,7 @@ export default function EventContestants() {
                           </button>
                           {contestant.status !== 'eliminated' && currentRound !== 'completed' && (
                             <button
-                              onClick={() => { handleEliminateContestant(contestant.id); setShowActionsDropdown(null); }}
+                              onClick={() => { handleEliminateContestant(contestant.id); closeDropdown(); }}
                               className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                             >
                               <span>❌</span>
@@ -682,7 +984,7 @@ export default function EventContestants() {
                           )}
                           {currentRound !== 'final' && currentRound !== 'completed' && contestant.status !== 'eliminated' && (
                             <button
-                              onClick={() => { handleGoToFinalRounds(); setShowActionsDropdown(null); }}
+                              onClick={() => { handleGoToFinalRounds(); closeDropdown(); }}
                               className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
                             >
                               <span>🏆</span>
@@ -690,13 +992,22 @@ export default function EventContestants() {
                             </button>
                           )}
                           <button
-                            onClick={() => { handleDeleteContestant(contestant.id); setShowActionsDropdown(null); }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 flex items-center gap-2"
+                            onClick={() => { handleDeleteContestant(contestant.id); closeDropdown(); }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                           >
                             <span>🗑️</span>
                             Remove Contestant
                           </button>
+                          <hr className="my-1 border-gray-200" />
+                          <button
+                            onClick={() => { router.push(`/admin/scoreboard?eventId=${eventId}`); closeDropdown(); }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <span className="text-blue-600">📊</span>
+                            View Scoreboard
+                          </button>
                         </div>
+                        </>
                       )}
                     </div>
                   </td>
@@ -714,7 +1025,7 @@ export default function EventContestants() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">No contestants yet</h3>
           <p className="text-gray-500 mb-4">Add contestants to get started</p>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => { setFormErrors({}); setShowAddModal(true); }}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Add Contestant
@@ -777,10 +1088,17 @@ export default function EventContestants() {
                       name="contestantNumber"
                       value={formData.contestantNumber}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
+                        formErrors.contestantNumber 
+                          ? 'border-red-500 focus:border-red-500' 
+                          : 'border-gray-200 focus:border-blue-600'
+                      }`}
                       placeholder="e.g., 001"
                       required
                     />
+                    {formErrors.contestantNumber && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.contestantNumber}</p>
+                    )}
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (
@@ -999,9 +1317,16 @@ export default function EventContestants() {
                       name="contestantNumber"
                       value={formData.contestantNumber}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
+                        formErrors.contestantNumber 
+                          ? 'border-red-500 focus:border-red-500' 
+                          : 'border-gray-200 focus:border-blue-600'
+                      }`}
                       required
                     />
+                    {formErrors.contestantNumber && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.contestantNumber}</p>
+                    )}
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (

@@ -441,9 +441,9 @@ export default function JudgeManagement() {
 
       {/* Judges Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white">All Judges</h3>
-          <p className="text-blue-100 text-sm">Manage judge accounts and assignments</p>
+        <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 sm:px-6 py-3 sm:py-4">
+          <h3 className="text-base sm:text-lg font-semibold text-white">All Judges</h3>
+          <p className="text-blue-100 text-xs sm:text-sm">Manage judge accounts and assignments</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

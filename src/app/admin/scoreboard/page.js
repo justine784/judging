@@ -94,7 +94,7 @@ export default function AdminScoreboard() {
           
           // Show update notification
           const updateIndicator = document.createElement('div');
-          updateIndicator.className = 'fixed top-4 right-4 bg-purple-500 text-white px-4 py-2 rounded-lg text-sm z-50 animate-pulse shadow-lg flex items-center gap-2';
+          updateIndicator.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg text-sm z-50 animate-pulse shadow-lg flex items-center gap-2';
           updateIndicator.innerHTML = `
             <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -230,7 +230,7 @@ export default function AdminScoreboard() {
         
         // Flash a subtle update indicator
         const updateIndicator = document.createElement('div');
-        updateIndicator.className = 'fixed top-4 right-4 bg-purple-500 text-white px-3 py-1 rounded-lg text-sm z-50 animate-pulse';
+        updateIndicator.className = 'fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-lg text-sm z-50 animate-pulse';
         updateIndicator.textContent = '👤 Contestant Updated';
         document.body.appendChild(updateIndicator);
         
@@ -346,6 +346,30 @@ export default function AdminScoreboard() {
     });
   };
 
+  // Function to get individual judge scores for breakdown
+  const getJudgeBreakdown = (contestantId) => {
+    const contestantScores = scores.filter(score => 
+      score.contestantId === contestantId && score.eventId === selectedEvent.id
+    );
+    
+    // Group by judge ID and get latest scores
+    const judgeScores = {};
+    contestantScores.forEach(score => {
+      if (!judgeScores[score.judgeId] || 
+          new Date(score.timestamp) > new Date(judgeScores[score.judgeId].timestamp)) {
+        judgeScores[score.judgeId] = score;
+      }
+    });
+    
+    return Object.values(judgeScores);
+  };
+
+  // Function to get judge name by ID
+  const getJudgeName = (judgeId) => {
+    // This would ideally come from a judges collection, but for now use a generic format
+    return `Judge ${judgeId.slice(-4)}`;
+  };
+
   const getContestantCriteriaScore = (contestant, criteriaName) => {
     // Use the aggregated criteria scores calculated from all judges (same as live scoreboard)
     const key = criteriaName.toLowerCase().replace(/\s+/g, '_');
@@ -354,9 +378,9 @@ export default function AdminScoreboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading admin scoreboard...</p>
         </div>
       </div>
@@ -364,21 +388,21 @@ export default function AdminScoreboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
               <button 
                 onClick={() => window.location.href = '/admin/events'}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors p-1"
               >
-                ← Back to Events
+                ← Back
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">🏆 Admin Scoreboard</h1>
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">🏆 Admin Scoreboard</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className={`flex items-center gap-2 ${
                 connectionStatus === 'connected' && isLive 
                   ? 'text-green-600' 
@@ -386,7 +410,7 @@ export default function AdminScoreboard() {
                   ? 'text-yellow-600' 
                   : 'text-red-600'
               }`}>
-                <div className={`relative w-3 h-3 rounded-full ${
+                <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full ${
                   connectionStatus === 'connected' && isLive 
                     ? 'bg-green-500 animate-pulse' 
                     : connectionStatus === 'connected' 
@@ -397,7 +421,7 @@ export default function AdminScoreboard() {
                     <div className="absolute inset-0 rounded-full bg-green-500 animate-ping"></div>
                   )}
                 </div>
-                <span className="font-medium text-sm">
+                <span className="font-medium text-xs sm:text-sm">
                   {connectionStatus === 'connected' && isLive 
                     ? '🔴 Live' 
                     : connectionStatus === 'connected' 
@@ -406,18 +430,18 @@ export default function AdminScoreboard() {
                   }
                 </span>
               </div>
-              <div className="h-4 w-px bg-gray-300"></div>
+              <div className="h-3 w-px bg-gray-300 hidden sm:block"></div>
               <div className="text-xs text-gray-500">
-                <div className="font-medium">Updated</div>
-                <div>{lastUpdate.toLocaleTimeString()}</div>
+                <div className="font-medium hidden sm:block">Updated</div>
+                <div className="text-xs">{lastUpdate.toLocaleTimeString()}</div>
               </div>
-              <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Admin View</span>
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full whitespace-nowrap">Admin View</span>
             </div>
             {/* Reconnect Button */}
             {connectionStatus === 'disconnected' && (
               <button 
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center gap-2 shadow-lg"
+                className="w-full sm:w-auto px-3 py-2 sm:px-4 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center justify-center gap-2 shadow-lg text-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -430,28 +454,28 @@ export default function AdminScoreboard() {
       </div>
 
       {/* Event Selector */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-3 sm:py-6">
         <div className="bg-gradient-to-r from-white to-gray-50 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <span className="text-2xl">🎭</span>
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <span className="text-xl sm:text-2xl">🎭</span>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Event Selection</h2>
-                  <p className="text-purple-100 text-sm">Choose an event to view scores</p>
+                  <h2 className="text-lg sm:text-xl font-bold text-white">Event Selection</h2>
+                  <p className="text-blue-100 text-xs sm:text-sm">Choose an event to view scores</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-purple-100 text-sm font-medium">Total Events</p>
-                <p className="text-3xl font-bold text-white">{events.length}</p>
+                <p className="text-blue-100 text-xs sm:text-sm font-medium">Total Events</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white">{events.length}</p>
               </div>
             </div>
           </div>
-          <div className="p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex-1 max-w-full sm:max-w-md">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col gap-4">
+              <div className="w-full">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Select Event</label>
                 <select
                   value={selectedEvent?.id || ''}
@@ -460,7 +484,7 @@ export default function AdminScoreboard() {
                     setSelectedEvent(event);
                     setSelectedRound('all'); // Reset round filter when event changes
                   }}
-                  className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                  className="block w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
                 >
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>
@@ -472,12 +496,12 @@ export default function AdminScoreboard() {
               
               {/* Round Filter */}
               {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && (
-                <div className="flex-1 max-w-full sm:max-w-md">
+                <div className="w-full">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Round</label>
                   <select
                     value={selectedRound}
                     onChange={(e) => setSelectedRound(e.target.value)}
-                    className="block w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                    className="block w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
                   >
                     <option value="all">🏆 All Rounds</option>
                     {selectedEvent.rounds.map((round, index) => (
@@ -496,20 +520,20 @@ export default function AdminScoreboard() {
 
       {/* Contest Info */}
       {selectedEvent && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-6">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">{selectedEvent.eventName}</h2>
-                <p className="text-gray-600">{selectedEvent.date} • {selectedEvent.venue}</p>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{selectedEvent.eventName}</h2>
+                <p className="text-sm sm:text-base text-gray-600">{selectedEvent.date} • {selectedEvent.venue}</p>
               </div>
-              <div className="flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-3 sm:gap-6 text-sm">
                 <div className="text-center">
-                  <p className="text-gray-500">Contestants</p>
-                  <p className="font-bold text-gray-900">{contestants.length}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">Contestants</p>
+                  <p className="font-bold text-gray-900 text-base sm:text-lg">{contestants.length}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-gray-500">Status</p>
+                  <p className="text-xs sm:text-sm text-gray-500">Status</p>
                   <div className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
                     selectedEvent.status === 'ongoing' ? 'bg-green-100 text-green-800' :
                     selectedEvent.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
@@ -521,9 +545,9 @@ export default function AdminScoreboard() {
                 </div>
                 {highestScorer && (
                   <div className="text-center">
-                    <p className="text-gray-500">🏆 Leading</p>
-                    <p className="font-bold text-purple-600">{highestScorer.name}</p>
-                    <p className="text-sm text-purple-500">{highestScorer.totalScore.toFixed(1)} pts</p>
+                    <p className="text-xs sm:text-sm text-gray-500">🏆 Leading</p>
+                    <p className="font-bold text-blue-600 text-sm sm:text-base truncate max-w-20 sm:max-w-none">{highestScorer.name}</p>
+                    <p className="text-xs sm:text-sm text-blue-500">{highestScorer.totalScore.toFixed(1)} pts</p>
                   </div>
                 )}
               </div>
@@ -533,132 +557,228 @@ export default function AdminScoreboard() {
       )}
 
       {/* Admin Info Banner */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
           <div className="flex items-center gap-2">
-            <span className="text-purple-600">ℹ️</span>
-            <p className="text-sm text-purple-700">
+            <span className="text-blue-600 text-sm sm:text-base">ℹ️</span>
+            <p className="text-xs sm:text-sm text-blue-700">
               This is the admin-only view of the scoreboard. Scores cannot be edited from this page. Use the judge dashboard to modify scores.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Scoreboard */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          {contestants.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No contestants for this event</h3>
-              <p className="text-gray-600">Contestants will appear here once they are registered for "{selectedEvent?.eventName || 'this event'}" by the administrator.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contestant</th>
-                    {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => (
-                      <th key={index} className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {criteria.name}
-                        {criteria.weight && (
-                          <span className="block text-xs text-gray-400 normal-case">({criteria.weight}%)</span>
-                        )}
-                      </th>
-                    ))}
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filterContestantsByRound(contestants, selectedRound).map((contestant, index) => {
-                    const isUpdated = updatedContestants.has(contestant.id);
-                    return (
-                      <tr key={contestant.id} className={`hover:bg-gray-50 transition-colors ${
-                        isUpdated ? 'animate-pulse bg-purple-50 border-purple-200' : ''
-                      }`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl">{getRankIcon(index + 1)}</span>
-                            {isUpdated && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700 animate-pulse">
-                                🔄 Updated
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                            <span className="text-purple-600 font-bold">
+      {/* Scoreboard - Card Layout */}
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 pb-8 sm:pb-12">
+        {contestants.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-12 text-center">
+            <div className="text-4xl sm:text-6xl mb-4">👥</div>
+            <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-2">No contestants for this event</h3>
+            <p className="text-sm sm:text-base text-gray-600">Contestants will appear here once they are registered for "{selectedEvent?.eventName || 'this event'}" by the administrator.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            {filterContestantsByRound(contestants, selectedRound).map((contestant, index) => {
+              const isUpdated = updatedContestants.has(contestant.id);
+              const judgeBreakdown = getJudgeBreakdown(contestant.id);
+              const rank = index + 1;
+              
+              return (
+                <div 
+                  key={contestant.id} 
+                  className={`bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] touch-manipulation ${
+                    isUpdated ? 'ring-2 ring-blue-500 animate-pulse' : ''
+                  } ${
+                    rank === 1 ? 'ring-2 ring-yellow-400' : ''
+                  }`}
+                >
+                  {/* Card Header - Rank and Status */}
+                  <div className={`bg-gradient-to-r p-4 ${
+                    rank === 1 ? 'from-yellow-400 to-yellow-500' : 
+                    rank === 2 ? 'from-gray-300 to-gray-400' :
+                    rank === 3 ? 'from-orange-300 to-orange-400' :
+                    'from-blue-500 to-blue-600'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">{getRankIcon(rank)}</span>
+                        <div className="text-white">
+                          <div className="text-sm font-medium opacity-90">Rank</div>
+                          <div className="text-2xl font-bold">#{rank}</div>
+                        </div>
+                      </div>
+                      {isUpdated && (
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-white/20 text-white backdrop-blur-sm">
+                          🔄 Updated
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Contestant Profile Section */}
+                  <div className="p-3 sm:p-4 lg:p-6">
+                    <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 mb-3 sm:mb-4 lg:mb-6">
+                      <div className="relative flex-shrink-0">
+                        {contestant.photo ? (
+                          <img 
+                            src={contestant.photo} 
+                            alt={contestant.name}
+                            className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 rounded-full object-cover border-2 border-white shadow-lg"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-2 border-white shadow-lg">
+                            <span className="text-white text-xs sm:text-sm lg:text-xl font-bold">
                               {contestant.name ? contestant.name.charAt(0).toUpperCase() : 'C'}
                             </span>
                           </div>
-                          <div>
-                            <button 
-                              onClick={() => handleContestantClick(contestant)}
-                              className="font-medium text-gray-900 hover:text-purple-600 transition-colors text-left"
-                            >
-                              {contestant.name || 'Contestant ' + (index + 1)}
-                            </button>
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                              <span>#{contestant.number || index + 1}</span>
-                              {contestant.judgeCount > 0 && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                                  👤 {contestant.judgeCount}
-                                </span>
-                              )}
-                            </div>
+                        )}
+                        {contestant.totalScore === highestScorer?.totalScore && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
+                            <span className="text-xs">🏆</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 mb-1 truncate">{contestant.name || 'Contestant ' + rank}</h3>
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                          <span className="font-medium">#{contestant.number || rank}</span>
+                          {contestant.judgeCount > 0 && (
+                            <span className="inline-flex items-center px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 rounded text-xs font-medium flex-shrink-0 bg-blue-100 text-blue-700">
+                              👤 {contestant.judgeCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Total Score Display */}
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-50 rounded-lg p-2.5 sm:p-3 lg:p-4 mb-3 sm:mb-4 lg:mb-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-600">Total Score</div>
+                          <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-blue-600">
+                            {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
+                            <span className="text-xs sm:text-sm lg:text-lg text-gray-500">/100</span>
                           </div>
                         </div>
-                      </td>
-                      {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
-                        const score = getContestantCriteriaScore(contestant, criteria.name);
-                        const colors = ['bg-purple-100 text-purple-800', 'bg-pink-100 text-pink-800', 'bg-blue-100 text-blue-800', 'bg-green-100 text-green-800', 'bg-yellow-100 text-yellow-800'];
-                        const colorClass = colors[criteriaIndex % colors.length];
-                        return (
-                          <td key={criteriaIndex} className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex items-center justify-center px-3 py-1 text-sm font-medium ${colorClass} rounded-full`}>
-                              {score.toFixed(1)}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-purple-600">
-                            {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
-                          </span>
-                          {contestant.totalScore > 0 && <span className="text-sm text-gray-500">/100</span>}
+                        <div className="text-right">
+                          <div className="text-xs sm:text-sm font-medium text-gray-600">Average</div>
+                          <div className="text-base sm:text-lg lg:text-xl font-bold text-blue-600">
+                            {getCriteriaAverage(contestant)}%
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                      </div>
+                    </div>
+
+                    {/* Criteria Scores */}
+                    <div className="mb-3 sm:mb-4 lg:mb-6">
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2 lg:mb-3">Criteria Scores</h4>
+                      <div className="space-y-1 sm:space-y-1.5 lg:space-y-2">
+                        {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
+                          const score = getContestantCriteriaScore(contestant, criteria.name);
+                          const criteriaIcons = {
+                            'Vocal Quality': '🎤',
+                            'Stage Presence': '🎭',
+                            'Song Interpretation': '🎵',
+                            'Audience Impact': '👏',
+                            'Talent': '🎤',
+                            'Beauty': '👗',
+                            'QA': '🧠',
+                            'Poise and Bearing': '👑',
+                            'Intelligence': '🧠',
+                            'Production Number': '🎭'
+                          };
+                          
+                          return (
+                            <div key={criteriaIndex} className="flex items-center justify-between p-1.5 sm:p-2 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 min-w-0 flex-1">
+                                <span className="text-xs sm:text-sm flex-shrink-0">{criteriaIcons[criteria.name] || '📋'}</span>
+                                <span className="text-xs sm:text-sm font-medium text-gray-700 truncate">{criteria.name}</span>
+                                {criteria.weight && (
+                                  <span className="text-xs text-gray-500 flex-shrink-0 hidden sm:inline">({criteria.weight}%)</span>
+                                )}
+                              </div>
+                              <div className={`px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 rounded text-xs font-medium flex-shrink-0 ${
+                                score === 0 ? 'bg-gray-200 text-gray-500' :
+                                score >= 90 ? 'bg-green-100 text-green-700' :
+                                score >= 80 ? 'bg-blue-100 text-blue-700' :
+                                score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-200 text-gray-700'
+                              }`}>
+                                {score === 0 ? '—' : `${score.toFixed(1)}`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Judge Breakdown */}
+                    {judgeBreakdown.length > 0 && (
+                      <div className="mb-3 sm:mb-4 lg:mb-6">
+                        <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2 lg:mb-3">Judge Breakdown</h4>
+                        <div className="space-y-1 sm:space-y-1.5 lg:space-y-2">
+                          {judgeBreakdown.map((judgeScore, judgeIndex) => {
+                            const judgeTotal = selectedEvent?.criteria
+                              ?.filter(criteria => criteria.enabled)
+                              ?.reduce((sum, criteria) => {
+                                const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
+                                const score = judgeScore.scores?.[key] || 0;
+                                const weight = criteria.weight / 100;
+                                return sum + (score * weight);
+                              }, 0) || 0;
+                            
+                            return (
+                              <div key={judgeIndex} className="flex items-center justify-between p-1.5 sm:p-2 bg-blue-50 rounded-lg">
+                                <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 min-w-0 flex-1">
+                                  <div className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 bg-blue-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold text-blue-700">J{judgeIndex + 1}</span>
+                                  </div>
+                                  <span className="text-xs sm:text-sm font-medium text-gray-700 truncate">
+                                    {getJudgeName(judgeScore.judgeId)}
+                                  </span>
+                                </div>
+                                <div className="text-xs sm:text-sm font-bold text-blue-600 flex-shrink-0">
+                                  {judgeTotal.toFixed(1)}%
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* View Details Button */}
+                    <button
+                      onClick={() => handleContestantClick(contestant)}
+                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-1.5 sm:py-2 lg:py-2.5 px-3 sm:px-4 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium text-xs sm:text-sm active:scale-[0.98] touch-manipulation"
+                    >
+                      View Full Details
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Contestant Detail Modal (View Only) */}
       {showModal && selectedContestant && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 sm:px-6 py-3 sm:py-5 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xl font-bold text-white">Contestant Details</h3>
-                  <p className="text-purple-100 text-sm mt-1">View detailed scores and information</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-white">Contestant Details</h3>
+                  <p className="text-blue-100 text-xs sm:text-sm mt-1">View detailed scores and information</p>
                 </div>
                 <button
                   onClick={closeModal}
-                  className="text-white hover:text-purple-200 transition-colors p-1"
+                  className="text-white hover:text-blue-200 transition-colors p-1"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -666,117 +786,196 @@ export default function AdminScoreboard() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
-              {/* Contestant Photo and Basic Info */}
-              <div className="flex items-center gap-8 mb-8">
-                {/* Left Side - Image */}
-                <div className="flex-shrink-0">
-                  {selectedContestant.photo ? (
-                    <img 
-                      src={selectedContestant.photo} 
-                      alt={selectedContestant.name}
-                      className="w-48 h-48 rounded-2xl object-cover border-4 border-purple-100 shadow-lg"
-                    />
-                  ) : (
-                    <div className="w-48 h-48 rounded-2xl bg-purple-100 flex items-center justify-center border-4 border-purple-100 shadow-lg">
-                      <span className="text-6xl font-bold text-purple-600">
-                        {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
-                      </span>
+            <div className="p-4 sm:p-6">
+              {/* Unified Contestant Information Box */}
+              <div className="bg-gradient-to-br from-blue-50 via-white to-blue-50 rounded-2xl border border-blue-200 overflow-hidden">
+                {/* Profile Header Section */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-600 p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    {/* Contestant Photo */}
+                    <div className="flex-shrink-0 mx-auto sm:mx-0">
+                      {selectedContestant.photo ? (
+                        <img 
+                          src={selectedContestant.photo} 
+                          alt={selectedContestant.name}
+                          className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl object-cover border-4 border-white shadow-lg"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border-4 border-white shadow-lg">
+                          <span className="text-2xl sm:text-4xl font-bold text-white">
+                            {selectedContestant.name ? selectedContestant.name.charAt(0).toUpperCase() : 'C'}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                
-                {/* Right Side - Info */}
-                <div className="flex-1 text-left">
-                  <h4 className="text-3xl font-bold text-gray-900 mb-2">{selectedContestant.name}</h4>
-                  <p className="text-lg text-gray-600 mb-4">Contestant #{selectedContestant.number || 'N/A'}</p>
-                  <div className="flex items-center gap-4">
-                    <div className="text-xl font-bold text-purple-600">
-                      Total Score: {selectedContestant.totalScore.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">Judges: </span>
-                      <span className="font-bold text-purple-600">{selectedContestant.judgeCount || 0}</span>
-                    </div>
-                    {selectedContestant.totalScore === highestScorer?.totalScore && (
-                      <div className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-800">
-                        <span>🏆</span>
-                        Leading
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Criteria Scores */}
-              <div className="bg-gray-50 rounded-xl p-6 mb-6">
-                <h5 className="text-lg font-semibold text-gray-900 mb-4">Criteria Breakdown</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => {
-                    const score = getContestantCriteriaScore(selectedContestant, criteria.name);
-                    const criteriaIcons = {
-                      'Vocal Quality': '🎤',
-                      'Stage Presence': '🎭',
-                      'Song Interpretation': '🎵',
-                      'Audience Impact': '👏',
-                      'Talent': '🎤',
-                      'Beauty': '👗',
-                      'QA': '🧠',
-                      'Poise and Bearing': '👑',
-                      'Intelligence': '🧠',
-                      'Production Number': '🎭'
-                    };
                     
-                    return (
-                      <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                            <span className="text-purple-600">{criteriaIcons[criteria.name] || '📋'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">{criteria.name}</span>
-                            {criteria.weight && (
-                              <span className="block text-xs text-gray-500">Weight: {criteria.weight}%</span>
-                            )}
-                          </div>
+                    {/* Profile Info */}
+                    <div className="flex-1 text-white text-center sm:text-left">
+                      <h4 className="text-lg sm:text-2xl font-bold mb-2">{selectedContestant.name}</h4>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-blue-100">
+                        <span className="font-medium">#{selectedContestant.number || 'N/A'}</span>
+                        <div className="flex items-center gap-2 justify-center sm:justify-start">
+                          <span className="font-medium">Judges:</span>
+                          <span className="font-bold text-white">{selectedContestant.judgeCount || 0}</span>
                         </div>
-                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreColor(score)}`}>
-                          {score === 0 ? 'Not Scored' : `${score}%`}
-                        </div>
+                        {selectedContestant.totalScore === highestScorer?.totalScore && (
+                          <div className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full bg-yellow-400 text-yellow-900">
+                            <span>🏆</span>
+                            Leading
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Average Score */}
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h5 className="text-lg font-semibold text-gray-900">Criteria Average</h5>
-                    <p className="text-gray-600 text-sm">Average score across all criteria</p>
+                      <div className="mt-3 text-2xl sm:text-3xl font-bold text-white">
+                        {selectedContestant.totalScore.toFixed(1)}%
+                        <span className="text-sm sm:text-lg font-normal text-blue-200">/100</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-3xl font-bold text-purple-600">
-                    {getCriteriaAverage(selectedContestant)}%
+                </div>
+
+                {/* Scores Section */}
+                <div className="p-4 sm:p-6">
+                  {/* Criteria Scores and Judge Breakdown Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                    {/* Criteria Scores Column */}
+                    <div>
+                      <h5 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+                        <span className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-bold text-blue-600">📊</span>
+                        </span>
+                        Criteria Breakdown
+                      </h5>
+                      <div className="space-y-2 sm:space-y-3">
+                        {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => {
+                          const score = getContestantCriteriaScore(selectedContestant, criteria.name);
+                          const criteriaIcons = {
+                            'Vocal Quality': '🎤',
+                            'Stage Presence': '🎭',
+                            'Song Interpretation': '🎵',
+                            'Audience Impact': '👏',
+                            'Talent': '🎤',
+                            'Beauty': '👗',
+                            'QA': '🧠',
+                            'Poise and Bearing': '👑',
+                            'Intelligence': '🧠',
+                            'Production Number': '🎭'
+                          };
+                          
+                          return (
+                            <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-white rounded-lg border border-gray-200">
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs sm:text-sm">{criteriaIcons[criteria.name] || '📋'}</span>
+                                </div>
+                                <div>
+                                  <span className="font-medium text-gray-700 text-sm">{criteria.name}</span>
+                                  {criteria.weight && (
+                                    <span className="block text-xs text-gray-500">Weight: {criteria.weight}%</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getScoreColor(score)}`}>
+                                {score === 0 ? 'Not Scored' : `${score}%`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Judge Breakdown Column */}
+                    <div>
+                      <h5 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+                        <span className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-bold text-blue-600">👥</span>
+                        </span>
+                        Judge Breakdown
+                      </h5>
+                      {(() => {
+                        const judgeBreakdown = getJudgeBreakdown(selectedContestant.id);
+                        return judgeBreakdown.length > 0 ? (
+                          <div className="space-y-2 sm:space-y-3">
+                            {judgeBreakdown.map((judgeScore, judgeIndex) => {
+                              const judgeTotal = selectedEvent?.criteria
+                                ?.filter(criteria => criteria.enabled)
+                                ?.reduce((sum, criteria) => {
+                                  const key = criteria.name.toLowerCase().replace(/\s+/g, '_');
+                                  const score = judgeScore.scores?.[key] || 0;
+                                  const weight = criteria.weight / 100;
+                                  return sum + (score * weight);
+                                }, 0) || 0;
+                              
+                              return (
+                                <div key={judgeIndex} className="flex items-center justify-between p-2 sm:p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                      <span className="text-xs font-bold text-blue-700">J{judgeIndex + 1}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-gray-700 text-sm">
+                                        {getJudgeName(judgeScore.judgeId)}
+                                      </span>
+                                      <div className="text-xs text-gray-500">
+                                        {new Date(judgeScore.timestamp).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs sm:text-sm font-bold text-blue-600">
+                                    {judgeTotal.toFixed(1)}%
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 sm:py-8 text-gray-500">
+                            <div className="text-3xl sm:text-4xl mb-2">📝</div>
+                            <p className="text-sm">No judge scores available yet</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Summary Stats */}
+                  <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg p-3 sm:p-4 text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                        {selectedContestant.totalScore.toFixed(1)}%
+                      </div>
+                      <div className="text-xs sm:text-sm text-blue-700 font-medium">Total Score</div>
+                    </div>
+                    <div className="bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg p-3 sm:p-4 text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                        {getCriteriaAverage(selectedContestant)}%
+                      </div>
+                      <div className="text-xs sm:text-sm text-blue-700 font-medium">Criteria Average</div>
+                    </div>
+                    <div className="bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-3 sm:p-4 text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-green-600">
+                        {selectedContestant.judgeCount || 0}
+                      </div>
+                      <div className="text-xs sm:text-sm text-green-700 font-medium">Judges Scored</div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Admin Notice */}
-              <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="mt-4 sm:mt-6 bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-purple-600">🔒</span>
-                  <p className="text-sm text-purple-700">
-                    This is a read-only view. To edit scores, please use the judge dashboard or scoring management system.
+                  <span className="text-blue-600 text-sm sm:text-base">🔒</span>
+                  <p className="text-xs sm:text-sm text-blue-700">
+                    This is a read-only view. To edit scores, please use judge dashboard or scoring management system.
                   </p>
                 </div>
               </div>
 
               {/* Close Button */}
-              <div className="mt-6 flex justify-end">
+              <div className="mt-4 sm:mt-6 flex justify-end">
                 <button
                   onClick={closeModal}
-                  className="bg-gray-100 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                  className="bg-gray-100 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-xl hover:bg-gray-200 transition-colors font-medium text-sm sm:text-base"
                 >
                   Close
                 </button>

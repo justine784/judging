@@ -942,19 +942,19 @@ export default function EventManagement() {
       }`}>
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-6">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 py-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Event Management</h2>
               <button
                 onClick={() => setMobileSidebarOpen(false)}
-                className="text-white hover:text-purple-200 transition-colors p-1"
+                className="text-white hover:text-blue-200 transition-colors p-1"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <p className="text-purple-100 text-sm">Create and manage competition events</p>
+            <p className="text-blue-100 text-sm">Create and manage competition events</p>
           </div>
           
           {/* Sidebar Content */}
@@ -970,14 +970,14 @@ export default function EventManagement() {
             
             {/* Quick Stats */}
             <div className="space-y-3">
-              <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                  <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-lg">📋</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-purple-900">Total Events</p>
-                    <p className="text-2xl font-bold text-purple-600">{events.length}</p>
+                    <p className="text-sm font-semibold text-blue-900">Total Events</p>
+                    <p className="text-2xl font-bold text-blue-600">{events.length}</p>
                   </div>
                 </div>
               </div>
@@ -1091,7 +1091,7 @@ export default function EventManagement() {
         {loading && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               <span className="text-gray-700">Processing...</span>
             </div>
           </div>
@@ -1099,15 +1099,15 @@ export default function EventManagement() {
 
         {/* Events Table */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 mx-4 lg:mx-6 mb-6">
-          <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 lg:px-6 py-3 lg:py-4">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 lg:px-6 py-3 lg:py-4">
             <h3 className="text-base lg:text-lg font-semibold text-white">Events List</h3>
-            <p className="text-purple-100 text-xs lg:text-sm">Manage and track all competition events</p>
+            <p className="text-blue-100 text-xs lg:text-sm">Manage and track all competition events</p>
           </div>
           
           {/* Mobile Card View */}
           <div className="lg:hidden">
             {events.map((event) => (
-              <div key={event.id} className="border-b border-gray-100 last:border-b-0 p-4 hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200">
+              <div key={event.id} className="border-b border-gray-100 last:border-b-0 p-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200">
                 {/* Event Header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -1254,7 +1254,7 @@ export default function EventManagement() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {events.map((event) => (
-                  <tr key={event.id} className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200">
+                  <tr key={event.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className={`h-10 w-10 rounded-lg flex items-center justify-center text-lg ${getStatusColor(event.status)}`}>
@@ -1404,15 +1404,15 @@ export default function EventManagement() {
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-6 py-5 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-white">Add New Event</h3>
-                  <p className="text-purple-100 text-sm mt-1">Create a new competition event</p>
+                  <p className="text-blue-100 text-sm mt-1">Create a new competition event</p>
                 </div>
                 <button
                   onClick={() => { setShowAddModal(false); resetForm(); }}
-                  className="text-white hover:text-purple-200 transition-colors p-1"
+                  className="text-white hover:text-blue-200 transition-colors p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1533,7 +1533,7 @@ export default function EventManagement() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     <span className="flex items-center justify-center gap-2">
                       {loading ? (

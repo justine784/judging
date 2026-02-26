@@ -623,7 +623,7 @@ export default function AdminDashboard() {
           className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
           <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">👥</span>
             </div>
             <div className="text-right">
@@ -645,7 +645,7 @@ export default function AdminDashboard() {
                 {loading ? 'Loading...' : `${stats.totalContestants} total`}
               </span>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-purple-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -772,12 +772,12 @@ export default function AdminDashboard() {
 
       {/* Recent Activity */}
       <div className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
           <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white flex items-center gap-1.5 xs:gap-2">
             <span className="text-lg xs:text-xl sm:text-2xl">📈</span>
             Recent Activity
           </h2>
-          <p className="text-purple-100 text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
+          <p className="text-blue-100 text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
         </div>
         <div className="p-3 xs:p-4 sm:p-6">
           {recentActivities.length === 0 ? (

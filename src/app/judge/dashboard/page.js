@@ -37,7 +37,7 @@ export default function JudgeDashboard() {
   const [touchEnd, setTouchEnd] = useState(null);
   const [slideDirection, setSlideDirection] = useState('right'); // 'left' or 'right' for slide animation
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isFormLocked, setIsFormLocked] = useState(false); // Track if scoring form is locked
+  const [lockedContestants, setLockedContestants] = useState(new Set()); // Track which contestants have locked scoring forms
   const [scoredContestants, setScoredContestants] = useState(new Set()); // Track which contestants have been scored in main criteria
   const [scoredContestantsFinal, setScoredContestantsFinal] = useState(new Set()); // Track which contestants have been scored in final rounds
   const router = useRouter();
@@ -414,13 +414,16 @@ export default function JudgeDashboard() {
 
   // Initialize quick scores based on event criteria
   const initializeQuickScores = (event, contestant = null) => {
-    if (!event || !event.criteria) return {};
+    if (!event) return {};
     
     const scores = {};
     const useFinalRoundPrefix = usingFinalRoundCriteria;
     
-    // Initialize scores for current criteria only (don't mix with first round scores)
-    event.criteria.filter(c => c.enabled).forEach(criterion => {
+    // Get criteria using the updated getCurrentEventCriteria function
+    const criteria = getCurrentEventCriteria();
+    
+    // Initialize scores for current criteria only
+    criteria.forEach(criterion => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
       // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
@@ -445,10 +448,74 @@ export default function JudgeDashboard() {
 
   // Get current event criteria
   const getCurrentEventCriteria = () => {
-    if (!currentEvent) return [];
+    if (!currentEvent) {
+      console.log('🔍 No current event found');
+      return [];
+    }
     
-    // Default to main event criteria
-    return currentEvent.criteria ? currentEvent.criteria.filter(c => c.enabled) : [];
+    console.log('🔍 Current event:', currentEvent);
+    console.log('🔍 Event criteriaCategories:', currentEvent.criteriaCategories);
+    console.log('🔍 Event legacy criteria:', currentEvent.criteria);
+    
+    // Use criteriaCategories if available (new structure), otherwise fall back to legacy criteria
+    let criteria = [];
+    
+    if (currentEvent.criteriaCategories && currentEvent.criteriaCategories.length > 0) {
+      // New structure: extract sub-criteria from categories, or use categories as criteria if no sub-criteria
+      criteria = [];
+      console.log('🔍 Processing', currentEvent.criteriaCategories.length, 'categories');
+      
+      currentEvent.criteriaCategories.forEach((category, catIndex) => {
+        console.log(`🔍 Category ${catIndex + 1}:`, category.name);
+        console.log('  - Has sub-criteria:', !!(category.subCriteria && category.subCriteria.length > 0));
+        console.log('  - Sub-criteria count:', category.subCriteria ? category.subCriteria.length : 0);
+        console.log('  - Total weight:', category.totalWeight);
+        console.log('  - Enabled:', category.enabled);
+        
+        if (category.subCriteria && category.subCriteria.length > 0) {
+          // Use sub-criteria if they exist
+          console.log('  - Using sub-criteria');
+          category.subCriteria.forEach((subCriterion, subIndex) => {
+            console.log(`    - Sub-criteria ${subIndex + 1}:`, subCriterion.name, 'enabled:', subCriterion.enabled);
+            if (subCriterion.enabled !== false) {
+              criteria.push({
+                name: subCriterion.name,
+                weight: subCriterion.weight,
+                enabled: subCriterion.enabled !== false,
+                category: category.name,
+                scoringType: category.scoringType || 'percentage'
+              });
+              console.log(`      ✓ Added sub-criteria: ${subCriterion.name} from category ${category.name}`);
+            }
+          });
+        } else {
+          // Use the category itself as a criterion if no sub-criteria exist
+          console.log('  - Using category as direct criterion');
+          if (category.enabled !== false) {
+            criteria.push({
+              name: category.name,
+              weight: category.totalWeight || 0,
+              enabled: category.enabled !== false,
+              category: null, // No parent category for the category itself
+              scoringType: category.scoringType || 'percentage'
+            });
+            console.log(`      ✓ Added category as criterion: ${category.name} with weight ${category.totalWeight}`);
+          }
+        }
+      });
+      console.log('🔍 Using criteriaCategories - extracted criteria:', criteria);
+    } else if (currentEvent.criteria && currentEvent.criteria.length > 0) {
+      // Legacy structure: use main event criteria
+      console.log('🔍 Using legacy criteria structure');
+      criteria = currentEvent.criteria.filter(c => c.enabled);
+      console.log('🔍 Using legacy criteria - filtered enabled criteria:', criteria);
+    } else {
+      console.log('🔍 No criteria found in event');
+    }
+    
+    console.log('🔍 Final criteria to use:', criteria);
+    console.log('🔍 Total criteria count:', criteria.length);
+    return criteria;
   };
 
   const handleSearchChange = (e) => {
@@ -466,6 +533,29 @@ export default function JudgeDashboard() {
     } else {
       return scoredContestants.has(currentContestant.id);
     }
+  };
+
+  // Check if current contestant form is locked
+  const isCurrentContestantLocked = () => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant || !currentContestant.id) return false;
+    return lockedContestants.has(currentContestant.id);
+  };
+
+  // Toggle lock status for current contestant
+  const toggleCurrentContestantLock = () => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant || !currentContestant.id) return;
+    
+    setLockedContestants(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(currentContestant.id)) {
+        newSet.delete(currentContestant.id);
+      } else {
+        newSet.add(currentContestant.id);
+      }
+      return newSet;
+    });
   };
 
 
@@ -1448,37 +1538,78 @@ export default function JudgeDashboard() {
         </div>
 
         {/* Event Information */}
-        {assignedEvents.length > 0 && assignedEvents.map((event) => (
-          <div key={event.id} className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 text-white">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="text-xs sm:text-sm font-medium text-blue-100">Event Name</label>
-                <p className="font-semibold text-white text-sm sm:text-base truncate">{event.eventName}</p>
+        {assignedEvents.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 text-white">
+            {/* Event Selector */}
+            {assignedEvents.length > 1 && (
+              <div className="mb-4">
+                <label className="text-xs sm:text-sm font-medium text-blue-100 block mb-2">Select Event to Judge:</label>
+                <select
+                  value={currentEvent?.id || ''}
+                  onChange={(e) => {
+                    const selectedEvent = assignedEvents.find(event => event.id === e.target.value);
+                    if (selectedEvent) {
+                      setCurrentEvent(selectedEvent);
+                      console.log('🔄 Switched to event:', selectedEvent);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+                >
+                  {assignedEvents.map(event => (
+                    <option key={event.id} value={event.id} className="text-gray-900">
+                      {event.eventName} - {event.date} at {event.time}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label className="text-xs sm:text-sm font-medium text-blue-100">Date & Time</label>
-                <p className="font-semibold text-white text-sm sm:text-base">{event.date} at {event.time}</p>
-              </div>
-              <div>
-                <label className="text-xs sm:text-sm font-medium text-blue-100">Venue</label>
-                <p className="font-semibold text-white text-sm sm:text-base truncate">{event.venue}</p>
-              </div>
-              <div>
-                <label className="text-xs sm:text-sm font-medium text-blue-100">Status</label>
-                <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-bold rounded-full ${
-                  event.status === 'upcoming' ? 'bg-yellow-100 text-yellow-800' :
-                  event.status === 'ongoing' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  <span>{event.status === 'upcoming' ? '📅' : event.status === 'ongoing' ? '🎭' : '✅'}</span>
-                  <span className="hidden sm:inline">{event.status.charAt(0).toUpperCase() + event.status.slice(1)}</span>
-                  <span className="sm:hidden">{event.status === 'upcoming' ? 'Up' : event.status === 'ongoing' ? 'On' : 'Fi'}</span>
-                </span>
-              </div>
-            </div>
+            )}
             
-                      </div>
-        ))}
+            {/* Current Event Details */}
+            {assignedEvents.map((event) => (
+              currentEvent?.id === event.id && (
+                <div key={event.id}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-xs sm:text-sm font-medium text-blue-100">Event Name</label>
+                      <p className="font-semibold text-white text-sm sm:text-base truncate">{event.eventName}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs sm:text-sm font-medium text-blue-100">Date & Time</label>
+                      <p className="font-semibold text-white text-sm sm:text-base">{event.date} at {event.time}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs sm:text-sm font-medium text-blue-100">Venue</label>
+                      <p className="font-semibold text-white text-sm sm:text-base truncate">{event.venue}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs sm:text-sm font-medium text-blue-100">Status</label>
+                      <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-bold rounded-full ${
+                        event.status === 'upcoming' ? 'bg-yellow-100 text-yellow-800' :
+                        event.status === 'ongoing' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        <span>{event.status === 'upcoming' ? '📅' : event.status === 'ongoing' ? '🎭' : '✅'}</span>
+                        <span className="hidden sm:inline">{event.status.charAt(0).toUpperCase() + event.status.slice(1)}</span>
+                        <span className="sm:hidden">{event.status === 'upcoming' ? 'Up' : event.status === 'ongoing' ? 'On' : 'Fi'}</span>
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Criteria Debug Info */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="mt-4 p-3 bg-white/10 rounded-lg text-xs">
+                      <p>🔍 Debug Info:</p>
+                      <p>Event ID: {event.id}</p>
+                      <p>Has Criteria: {event.criteria ? 'Yes' : 'No'}</p>
+                      <p>Criteria Count: {event.criteria ? event.criteria.length : 0}</p>
+                      <p>Enabled Criteria: {event.criteria ? event.criteria.filter(c => c.enabled).length : 0}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            ))}
+          </div>
+        )}
 
           {/* Scoring Table */}
           <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 sm:mb-8">
@@ -1606,11 +1737,18 @@ export default function JudgeDashboard() {
                     <th key={index} className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[100px]">
                       <div className="hidden sm:block">
                         <div className="font-medium">{criterion.name}</div>
-                        <div className="text-xs text-gray-500 mt-1">({criterion.weight}%)</div>
+                        {criterion.category && (
+                          <div className="text-xs text-blue-600 mt-1">{criterion.category}</div>
+                        )}
+                        <div className="text-xs text-gray-500 mt-1">
+                          ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`})
+                        </div>
                       </div>
                       <div className="sm:hidden text-xs">
                         {criterion.name.length > 8 ? criterion.name.substring(0, 8) + '...' : criterion.name}
-                        <div className="text-xs text-gray-500">({criterion.weight}%)</div>
+                        <div className="text-xs text-gray-500">
+                          ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`})
+                        </div>
                       </div>
                     </th>
                   ))}
@@ -1829,7 +1967,8 @@ export default function JudgeDashboard() {
 
               {/* Scoring Criteria */}
               <div className="space-y-3 mb-4">
-                {getCurrentEventCriteria().map((criterion, index) => {
+                {getCurrentEventCriteria().length > 0 ? (
+                  getCurrentEventCriteria().map((criterion, index) => {
                   const useFinalRoundPrefix = usingFinalRoundCriteria;
                   const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                   
@@ -1857,6 +1996,11 @@ export default function JudgeDashboard() {
                           <label className="text-sm font-semibold text-gray-800 truncate">
                             {criterion.name}
                           </label>
+                          {criterion.category && (
+                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
+                              {criterion.category}
+                            </span>
+                          )}
                           {isFirstRoundAverage && (
                             <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
                               🔒
@@ -1865,7 +2009,7 @@ export default function JudgeDashboard() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                           <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
-                            {currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
+                            {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
                           </span>
                           <span className={`text-sm font-bold text-${color}-600`}>
                             {score.toFixed(1)}
@@ -1876,37 +2020,54 @@ export default function JudgeDashboard() {
                         <input
                           type="range"
                           min="0"
-                          max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
+                          max={criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                           step="0.1"
                           value={score}
                           onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
+                          disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
                           className={`flex-1 h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                            isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
+                            isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         />
                         <input
                           type="number"
                           min="0"
-                          max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
+                          max={criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                           step="0.1"
                           value={score}
                           onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                          disabled={isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
+                          disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
                           className={`w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-xs font-medium ${
                             !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'bg-gray-100 cursor-not-allowed' : ''
                           }`}
                         />
                       </div>
                       <div className="mt-1 text-xs text-gray-500 text-right">
-                        → {currentEvent?.gradingType === 'points' 
+                        → {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' 
                           ? score.toFixed(2)
                           : (score * criterion.weight / 100).toFixed(2)
                         } points
                       </div>
                     </div>
                   );
-                })}
+                })
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                    <div className="text-amber-800">
+                      <span className="text-2xl mb-2 block">⚠️</span>
+                      <h3 className="font-semibold text-sm mb-2">No Scoring Criteria Available</h3>
+                      <p className="text-xs text-amber-700">
+                        This event doesn't have any scoring criteria set up. Please contact the administrator to configure the criteria for this event.
+                      </p>
+                      {currentEvent && (
+                        <div className="mt-3 text-xs text-amber-600">
+                          <p>Event: {currentEvent.eventName}</p>
+                          <p>Event ID: {currentEvent.id}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Total Score */}
@@ -1950,14 +2111,14 @@ export default function JudgeDashboard() {
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setIsFormLocked(!isFormLocked)}
+                    onClick={toggleCurrentContestantLock}
                     className={`px-4 py-2 rounded-lg transition-colors font-medium shadow text-sm flex items-center justify-center gap-1 ${
-                      isFormLocked 
+                      isCurrentContestantLocked() 
                         ? 'bg-red-600 hover:bg-red-700 text-white' 
                         : 'bg-amber-600 hover:bg-amber-700 text-white'
                     }`}
                   >
-                    {isFormLocked ? '🔒 Locked' : '🔓 Unlock'}
+                    {isCurrentContestantLocked() ? '🔒 Locked' : '🔓 Unlock'}
                   </button>
                   <button
                     onClick={openSubmitModal}
@@ -2126,7 +2287,8 @@ export default function JudgeDashboard() {
 
                 {/* Scoring Criteria Grid */}
                 <div className="space-y-4 mb-6 max-h-[500px] overflow-y-auto">
-                  {getCurrentEventCriteria().map((criterion, index) => {
+                  {getCurrentEventCriteria().length > 0 ? (
+                    getCurrentEventCriteria().map((criterion, index) => {
                     const useFinalRoundPrefix = usingFinalRoundCriteria;
                     const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                     
@@ -2154,6 +2316,11 @@ export default function JudgeDashboard() {
                             <label className="font-semibold text-gray-800 text-base">
                               {criterion.name}
                             </label>
+                            {criterion.category && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
+                                {criterion.category}
+                              </span>
+                            )}
                             {isFirstRoundAverage && (
                               <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
                                 🔒 Locked
@@ -2162,7 +2329,7 @@ export default function JudgeDashboard() {
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0 ml-2">
                             <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
-                              {currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
+                              {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
                             </span>
                             <span className={`text-lg font-bold text-${color}-600 bg-${color}-50 px-3 py-1 rounded-full`}>
                               {score.toFixed(1)}
@@ -2173,23 +2340,23 @@ export default function JudgeDashboard() {
                           <input
                             type="range"
                             min="0"
-                            max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
+                            max={criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isFormLocked || isFirstRoundAverage || isCurrentContestantScored()}
+                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
                             className={`flex-1 h-3 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                              isFormLocked || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
+                              isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                           />
                           <input
                             type="number"
                             min="0"
-                            max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
+                            max={criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? criterion.weight : 100}
                             step="0.1"
                             value={score}
                             onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                            disabled={isFormLocked || isFirstRoundAverage || isCurrentContestantScored()}
+                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
                             className={`w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center font-semibold text-base ${
                               isFirstRoundAverage || isCurrentContestantScored() ? 'bg-gray-100 cursor-not-allowed' : ''
                             }`}
@@ -2197,15 +2364,32 @@ export default function JudgeDashboard() {
                         </div>
                         <div className="mt-3 text-sm text-gray-600 text-right font-medium">
                           Weighted contribution: <span className="text-blue-700 font-bold">
-                            {currentEvent?.gradingType === 'points' 
-                              ? (score * (criterion.weight / (currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)))).toFixed(1)
+                            {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' 
+                              ? score.toFixed(1)
                               : (score * criterion.weight / 100).toFixed(1)
                             } points
                           </span>
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+                      <div className="text-amber-800">
+                        <span className="text-4xl mb-4 block">⚠️</span>
+                        <h3 className="text-xl font-bold mb-3">No Scoring Criteria Available</h3>
+                        <p className="text-base text-amber-700 mb-4">
+                          This event doesn't have any scoring criteria set up. Please contact the administrator to configure the criteria for this event.
+                        </p>
+                        {currentEvent && (
+                          <div className="text-sm text-amber-600 bg-amber-100 rounded-lg p-3">
+                            <p><strong>Event:</strong> {currentEvent.eventName}</p>
+                            <p><strong>Event ID:</strong> {currentEvent.id}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Total Score Display */}
@@ -2241,9 +2425,9 @@ export default function JudgeDashboard() {
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={saveQuickScores}
-                    disabled={isCurrentContestantScored() || isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                    disabled={isCurrentContestantScored() || isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
                     className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
-                      isCurrentContestantScored() || isFormLocked || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
+                      isCurrentContestantScored() || isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
                         ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                         : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
                     }`}
@@ -2251,14 +2435,14 @@ export default function JudgeDashboard() {
                     <span>💾</span> {isCurrentContestantScored() ? 'Score Saved' : 'Save Scores'}
                   </button>
                   <button
-                    onClick={() => setIsFormLocked(!isFormLocked)}
+                    onClick={toggleCurrentContestantLock}
                     className={`px-6 py-3 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 ${
-                      isFormLocked 
+                      isCurrentContestantLocked() 
                         ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white' 
                         : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white'
                     }`}
                   >
-                    <span>{isFormLocked ? '🔒' : '🔓'}</span> {isFormLocked ? 'Locked' : 'Unlock'}
+                    <span>{isCurrentContestantLocked() ? '🔒' : '🔓'}</span> {isCurrentContestantLocked() ? 'Locked' : 'Unlock'}
                   </button>
                   <button
                     onClick={openSubmitModal}

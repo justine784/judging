@@ -372,6 +372,78 @@ export default function LiveScoreboard() {
     return false;
   };
 
+  // Helper function to get criteria from event (same as judge dashboard)
+  const getCurrentEventCriteria = () => {
+    if (!selectedEvent) {
+      console.log('🔍 Live Scoreboard: No current event found');
+      return [];
+    }
+    
+    console.log('🔍 Live Scoreboard: Current event:', selectedEvent);
+    console.log('🔍 Live Scoreboard: Event criteriaCategories:', selectedEvent.criteriaCategories);
+    console.log('🔍 Live Scoreboard: Event legacy criteria:', selectedEvent.criteria);
+    
+    // Use criteriaCategories if available (new structure), otherwise fall back to legacy criteria
+    let criteria = [];
+    
+    if (selectedEvent.criteriaCategories && selectedEvent.criteriaCategories.length > 0) {
+      // New structure: extract sub-criteria from categories, or use categories as criteria if no sub-criteria
+      criteria = [];
+      console.log('🔍 Live Scoreboard: Processing', selectedEvent.criteriaCategories.length, 'categories');
+      
+      selectedEvent.criteriaCategories.forEach((category, catIndex) => {
+        console.log(`🔍 Live Scoreboard: Category ${catIndex + 1}:`, category.name);
+        console.log('  - Has sub-criteria:', !!(category.subCriteria && category.subCriteria.length > 0));
+        console.log('  - Sub-criteria count:', category.subCriteria ? category.subCriteria.length : 0);
+        console.log('  - Total weight:', category.totalWeight);
+        console.log('  - Enabled:', category.enabled);
+        
+        if (category.subCriteria && category.subCriteria.length > 0) {
+          // Use sub-criteria if they exist
+          console.log('  - Using sub-criteria');
+          category.subCriteria.forEach((subCriterion, subIndex) => {
+            console.log(`    - Sub-criteria ${subIndex + 1}:`, subCriterion.name, 'enabled:', subCriterion.enabled);
+            if (subCriterion.enabled !== false) {
+              criteria.push({
+                name: subCriterion.name,
+                weight: subCriterion.weight,
+                enabled: subCriterion.enabled !== false,
+                category: category.name,
+                scoringType: category.scoringType || 'percentage'
+              });
+              console.log(`      ✓ Added sub-criteria: ${subCriterion.name} from category ${category.name}`);
+            }
+          });
+        } else {
+          // Use the category itself as a criterion if no sub-criteria exist
+          console.log('  - Using category as direct criterion');
+          if (category.enabled !== false) {
+            criteria.push({
+              name: category.name,
+              weight: category.totalWeight || 0,
+              enabled: category.enabled !== false,
+              category: null, // No parent category for the category itself
+              scoringType: category.scoringType || 'percentage'
+            });
+            console.log(`      ✓ Added category as criterion: ${category.name} with weight ${category.totalWeight}`);
+          }
+        }
+      });
+      console.log('🔍 Live Scoreboard: Using criteriaCategories - extracted criteria:', criteria);
+    } else if (selectedEvent.criteria && selectedEvent.criteria.length > 0) {
+      // Legacy structure: use main event criteria
+      console.log('🔍 Live Scoreboard: Using legacy criteria structure');
+      criteria = selectedEvent.criteria.filter(c => c.enabled);
+      console.log('🔍 Live Scoreboard: Using legacy criteria - filtered enabled criteria:', criteria);
+    } else {
+      console.log('🔍 Live Scoreboard: No criteria found in event');
+    }
+    
+    console.log('🔍 Live Scoreboard: Final criteria to use:', criteria);
+    console.log('🔍 Live Scoreboard: Total criteria count:', criteria.length);
+    return criteria;
+  };
+
   // Calculate aggregated scores from all judges for a contestant
   const calculateAggregatedScore = (contestantId, eventId) => {
     const contestantScores = scores.filter(score => 
@@ -385,9 +457,11 @@ export default function LiveScoreboard() {
     // Count unique judges (not total score entries)
     const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
     
-    // Get criteria from the event
+    // Get criteria from the event - handle both legacy and new structure
     const event = events.find(e => e.id === eventId);
-    const criteria = event?.criteria?.filter(c => c.enabled) || [];
+    const criteria = getCurrentEventCriteria();
+    
+    console.log('Live Scoreboard - Using criteria:', criteria);
     
     // Calculate average for each criteria using only the latest score from each judge
     const criteriaScores = {};
@@ -658,10 +732,10 @@ export default function LiveScoreboard() {
   };
 
   const getCriteriaAverage = (contestant) => {
-    if (!selectedEvent?.criteria) return 0;
+    const criteria = getCurrentEventCriteria();
+    if (criteria.length === 0) return 0;
     
-    const scores = selectedEvent.criteria
-      .filter(criteria => criteria.enabled)
+    const scores = criteria
       .map(criteria => {
         const score = getContestantCriteriaScore(contestant, criteria.name);
         return score > 0 ? score : null;
@@ -1101,7 +1175,7 @@ export default function LiveScoreboard() {
                 <tr>
                   <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 lg:w-20">Rank</th>
                   <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20 lg:w-32">Contestant</th>
-                  {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => (
+                  {getCurrentEventCriteria().map((criteria, index) => (
                     <th key={index} className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-[80px] sm:min-w-[100px]">
                       <div className="flex flex-col items-center lg:items-start">
                         <span className="text-xs font-medium truncate max-w-[60px] sm:max-w-[80px] lg:max-w-none">
@@ -1205,7 +1279,7 @@ export default function LiveScoreboard() {
                             </div>
                           </div>
                         </td>
-                    {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
+                    {getCurrentEventCriteria().map((criteria, criteriaIndex) => {
                       const score = getContestantCriteriaScore(contestant, criteria.name);
                       const colors = [
                         'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300',

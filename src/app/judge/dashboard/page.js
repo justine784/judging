@@ -322,7 +322,22 @@ export default function JudgeDashboard() {
             });
             return finalName;
           })(),
-          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
+          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event',
+          // Calculate totalWeightedScore for ranking
+          totalWeightedScore: (() => {
+            const criteria = currentEvent?.criteria?.filter(c => c.enabled) || [];
+            if (criteria.length === 0) return 0;
+            
+            let totalScore = 0;
+            criteria.forEach(criterion => {
+              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              const score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
+              const weight = criterion.weight / 100;
+              totalScore += score * weight;
+            });
+            
+            return parseFloat(totalScore.toFixed(1));
+          })()
         })).sort((a, b) => {
           const numA = parseInt(a.contestantNo) || 0;
           const numB = parseInt(b.contestantNo) || 0;
@@ -361,7 +376,22 @@ export default function JudgeDashboard() {
             });
             return finalName;
           })(),
-          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event'
+          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event',
+          // Calculate totalWeightedScore for ranking
+          totalWeightedScore: (() => {
+            const criteria = currentEvent?.criteria?.filter(c => c.enabled) || [];
+            if (criteria.length === 0) return 0;
+            
+            let totalScore = 0;
+            criteria.forEach(criterion => {
+              const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              const score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
+              const weight = criterion.weight / 100;
+              totalScore += score * weight;
+            });
+            
+            return parseFloat(totalScore.toFixed(1));
+          })()
         })).sort((a, b) => {
           const numA = parseInt(a.contestantNo) || 0;
           const numB = parseInt(b.contestantNo) || 0;
@@ -704,13 +734,9 @@ export default function JudgeDashboard() {
     
     if (enabledCriteria.length === 0) return 0;
     
-    // For main criteria mode, total score should be average of 1st round from final round
-    if (!usingFinalRoundCriteria) {
-      return calculateFirstRoundAverage(contestant).toFixed(1);
-    }
-    
-    // For final round mode, calculate weighted sum of all criteria
+    // Use the same logic as calculateQuickTotal for consistency
     let totalScore = 0;
+    
     enabledCriteria.forEach(criterion => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
@@ -721,7 +747,7 @@ export default function JudgeDashboard() {
       
       let score;
       if (isFirstRoundAverage) {
-        // For "AVERAGE OF THE 1ST ROUND", use original key (not prefixed) and saved value if it exists, otherwise calculate
+        // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
         const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
         score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
       } else {
@@ -738,6 +764,12 @@ export default function JudgeDashboard() {
         totalScore += score * weight;
       }
     });
+    
+    // Cap total at maximum
+    const maxScore = isPointsGrading 
+      ? enabledCriteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+      : 100;
+    totalScore = Math.min(totalScore, maxScore);
     
     return totalScore.toFixed(1);
   };

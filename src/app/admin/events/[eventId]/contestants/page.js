@@ -245,9 +245,9 @@ export default function EventContestants() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (limit to 300KB to account for base64 expansion and stay well under 1MB Firestore limit)
-      if (file.size > 300 * 1024) {
-        alert('Image size should be less than 300KB to ensure it fits within storage limits');
+      // Check file size (limit to 5MB to account for base64 expansion)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB');
         return;
       }
       
@@ -262,7 +262,7 @@ export default function EventContestants() {
         // Double-check compressed size with more accurate calculation
         const base64Data = compressedDataUrl.split(',')[1] || compressedDataUrl;
         const compressedSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
-        if (compressedSize > 800 * 1024) { // 800KB limit to be safe
+        if (compressedSize > 4 * 1024 * 1024) { // 4MB limit to be safe
           alert('Image is still too large after compression. Please choose a smaller image.');
           return;
         }
@@ -285,9 +285,9 @@ export default function EventContestants() {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        // Calculate new dimensions (max 600px width/height for smaller file size)
+        // Calculate new dimensions (max 1200px width/height for better quality)
         let { width, height } = img;
-        const maxSize = 600;
+        const maxSize = 1200;
         
         if (width > height && width > maxSize) {
           height = (height * maxSize) / width;
@@ -304,10 +304,10 @@ export default function EventContestants() {
         ctx.drawImage(img, 0, 0, width, height);
         
         // Try different quality levels to get under size limit
-        let quality = 0.8;
+        let quality = 0.9;
         const tryCompress = () => {
           canvas.toBlob((blob) => {
-            if (blob.size <= 300 * 1024 || quality <= 0.1) {
+            if (blob.size <= 3 * 1024 * 1024 || quality <= 0.3) {
               // If size is acceptable or quality is too low, use this result
               const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
               callback(compressedDataUrl);
@@ -389,14 +389,18 @@ export default function EventContestants() {
 
     // Add photo if uploaded
     if (formData.photo) {
+      console.log('Saving photo, length:', formData.photo.length);
       // Final validation of photo size before saving to Firestore
       const base64Data = formData.photo.split(',')[1] || formData.photo;
       const photoSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
-      if (photoSize > 800 * 1024) { // 800KB limit to be safe
-        alert('Photo is too large to save. Please choose a smaller image (under 300KB).');
+      if (photoSize > 4 * 1024 * 1024) { // 4MB limit to be safe
+        alert('Photo is too large to save. Please choose a smaller image (under 5MB).');
         return;
       }
       contestantData.photo = formData.photo;
+      console.log('Photo saved to contestantData');
+    } else {
+      console.log('No photo to save');
     }
 
     try {
@@ -466,14 +470,18 @@ export default function EventContestants() {
 
       // Add photo if uploaded
       if (formData.photo) {
+        console.log('Updating photo, length:', formData.photo.length);
         // Final validation of photo size before saving to Firestore
         const base64Data = formData.photo.split(',')[1] || formData.photo;
         const photoSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
-        if (photoSize > 800 * 1024) { // 800KB limit to be safe
-          alert('Photo is too large to save. Please choose a smaller image (under 300KB).');
+        if (photoSize > 4 * 1024 * 1024) { // 4MB limit to be safe
+          alert('Photo is too large to save. Please choose a smaller image (under 5MB).');
           return;
         }
         updateData.photo = formData.photo;
+        console.log('Photo saved to updateData');
+      } else {
+        console.log('No photo to update');
       }
 
       // Update in Firestore

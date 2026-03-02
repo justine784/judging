@@ -10,12 +10,30 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [contestants, setContestants] = useState([]);
+  const [showSlideshow, setShowSlideshow] = useState(false);
+  const [currentContestant, setCurrentContestant] = useState(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentEventSlideIndex, setCurrentEventSlideIndex] = useState({});
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   useEffect(() => {
     // Fetch all events from Firestore
     const eventsCollection = collection(db, 'events');
     
-    const unsubscribe = onSnapshot(eventsCollection, (snapshot) => {
+    const unsubscribeEvents = onSnapshot(eventsCollection, (snapshot) => {
       const allEvents = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -46,8 +64,54 @@ export default function Home() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Fetch contestants from Firestore
+    const contestantsCollection = collection(db, 'contestants');
+    
+    const unsubscribeContestants = onSnapshot(contestantsCollection, (snapshot) => {
+      const allContestants = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      console.log('Loaded contestants:', allContestants);
+      console.log('Contestants with photos:', allContestants.filter(c => c.photo && c.photo.trim() !== ''));
+      setContestants(allContestants);
+    }, (error) => {
+      console.error('Error fetching contestants:', error);
+      setContestants([]);
+    });
+
+    return () => {
+      unsubscribeEvents();
+      unsubscribeContestants();
+    };
   }, []);
+
+  // Add keyboard event listener for ESC key
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && showSlideshow) {
+        closeSlideshow();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showSlideshow]);
+
+  // Get contestants for a specific event
+  const getEventContestants = (eventId) => {
+    // Only show contestants with actual photos
+    const eventContestants = contestants.filter(contestant => 
+      contestant.eventId === eventId && 
+      contestant.photo && 
+      contestant.photo.trim() !== '' &&
+      contestant.photo.startsWith('data:')
+    );
+    console.log('Event ID:', eventId);
+    console.log('All contestants for event:', contestants.filter(c => c.eventId === eventId));
+    console.log('Contestants with photos:', eventContestants);
+    return eventContestants.slice(0, 6); // Limit to 6 contestants for display
+  };
 
   // Get featured event (first ongoing or upcoming event, or first event if none are ongoing/upcoming)
   const getFeaturedEvent = () => {
@@ -73,12 +137,68 @@ export default function Home() {
     return (
       event.eventName?.toLowerCase().includes(query) ||
       event.eventDescription?.toLowerCase().includes(query) ||
-      event.venue?.toLowerCase().includes(query) ||
-      event.status?.toLowerCase().includes(query) ||
       event.date?.toLowerCase().includes(query) ||
-      event.time?.toLowerCase().includes(query)
+      event.venue?.toLowerCase().includes(query)
     );
   });
+
+  // Slideshow functions
+  const openSlideshow = (contestant) => {
+    setCurrentContestant(contestant);
+    setCurrentImageIndex(0);
+    setShowSlideshow(true);
+  };
+
+  const closeSlideshow = () => {
+    setShowSlideshow(false);
+    setCurrentContestant(null);
+    setCurrentImageIndex(0);
+  };
+
+  const nextImage = () => {
+    if (currentContestant && currentContestant.photo) {
+      // For now, we only have one image per contestant, but this prepares for multiple images
+      setCurrentImageIndex((prev) => (prev + 1) % 1);
+    }
+  };
+
+  const prevImage = () => {
+    if (currentContestant && currentContestant.photo) {
+      // For now, we only have one image per contestant, but this prepares for multiple images
+      setCurrentImageIndex((prev) => (prev - 1 + 1) % 1);
+    }
+  };
+
+  // Event slideshow functions
+  const nextEventSlide = (eventId) => {
+    const contestants = getEventContestants(eventId);
+    const imagesToShow = isMobile ? 1 : 6;
+    const maxIndex = Math.max(0, contestants.length - imagesToShow + 1);
+    
+    setCurrentEventSlideIndex(prev => ({
+      ...prev,
+      [eventId]: Math.min((prev[eventId] || 0) + 1, maxIndex)
+    }));
+  };
+
+  const prevEventSlide = (eventId) => {
+    setCurrentEventSlideIndex(prev => ({
+      ...prev,
+      [eventId]: Math.max((prev[eventId] || 0) - 1, 0)
+    }));
+  };
+
+  const goToEventSlide = (eventId, index) => {
+    const contestants = getEventContestants(eventId);
+    const imagesToShow = isMobile ? 1 : 6;
+    const maxIndex = Math.max(0, contestants.length - imagesToShow + 1);
+    
+    setCurrentEventSlideIndex(prev => ({
+      ...prev,
+      [eventId]: Math.min(index, maxIndex)
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-white to-blue-50">
       {/* Hero Section */}
@@ -221,7 +341,9 @@ export default function Home() {
               {filteredEvents.length > 0 ? (
                 <div className="space-y-6">
                   {/* Display either featured event only or all events */}
-                  {(showAllEvents || searchQuery ? filteredEvents : [getFeaturedEvent()]).map((event) => (
+                  {(showAllEvents || searchQuery ? filteredEvents : [getFeaturedEvent()]).map((event) => {
+                    const eventContestants = getEventContestants(event.id);
+                    return (
                   <div key={event.id} className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
                     <div className="text-center mb-6">
                       <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
@@ -243,6 +365,106 @@ export default function Home() {
                       <h3 className="text-2xl font-bold text-gray-900 mb-2">{event.eventName}</h3>
                       <p className="text-gray-600">{event.eventDescription}</p>
                     </div>
+                    
+                    {/* Contestants Photos Section */}
+                    {eventContestants.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="text-md font-semibold text-gray-900">Featured Contestants</h5>
+                          <span className="text-sm text-gray-500">
+                            {(currentEventSlideIndex[event.id] || 0) + 1} of {eventContestants.length}
+                          </span>
+                        </div>
+                        
+                        <div className="relative">
+                          <div className="flex items-center justify-center gap-4">
+                            {/* Previous Button */}
+                            {eventContestants.length > 1 && (
+                              <button
+                                onClick={() => prevEventSlide(event.id)}
+                                className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors shadow-md"
+                                aria-label="Previous contestant"
+                              >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                              </button>
+                            )}
+                            
+                            {/* Contestant Images - Show 1 on mobile, 2 on larger screens */}
+                            <div className="flex gap-4 justify-center">
+                              {eventContestants.slice(
+                                currentEventSlideIndex[event.id] || 0, 
+                                (currentEventSlideIndex[event.id] || 0) + (isMobile ? 1 : 6)
+                              ).map((contestant, index) => (
+                                <div 
+                                  key={contestant.id}
+                                  className="relative group cursor-pointer"
+                                  onClick={() => openSlideshow(contestant)}
+                                >
+                                  <div className="w-40 h-56 sm:w-48 sm:h-72 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200 group-hover:border-blue-400 transition-all duration-200 group-hover:shadow-lg">
+                                    <img
+                                      src={contestant.photo}
+                                      alt={contestant.displayName || `${contestant.firstName} ${contestant.lastName}`}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                    />
+                                  </div>
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                    <div className="absolute bottom-0 left-0 right-0 p-2">
+                                      <p className="text-white text-xs font-medium truncate">
+                                        {contestant.displayName || `${contestant.firstName} ${contestant.lastName}`}
+                                      </p>
+                                      <p className="text-white/80 text-xs">
+                                        #{contestant.contestantNumber}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Next Button */}
+                            {eventContestants.length > 1 && (
+                              <button
+                                onClick={() => nextEventSlide(event.id)}
+                                className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors shadow-md"
+                                aria-label="Next contestant"
+                              >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Dots Indicator */}
+                          {eventContestants.length > 1 && (
+                            <div className="flex justify-center gap-2 mt-4">
+                              {Array.from({ 
+                                length: Math.max(1, eventContestants.length - (isMobile ? 0 : 5)) 
+                              }).map((_, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => goToEventSlide(event.id, index)}
+                                  className={`w-2 h-2 rounded-full transition-colors ${
+                                    index === (currentEventSlideIndex[event.id] || 0)
+                                      ? 'bg-blue-600'
+                                      : 'bg-gray-300 hover:bg-gray-400'
+                                  }`}
+                                  aria-label={`Go to slide ${index + 1}`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {eventContestants.length >= 2 && (
+                          <p className="text-sm text-gray-500 mt-3 text-center">
+                            Click on any contestant to view details • View all in scoreboard
+                          </p>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
                       <div className="text-center">
@@ -279,7 +501,7 @@ export default function Home() {
                     </div>
                     
                     <div className="border-t pt-6">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-4">
                         <div>
                           <h4 className="text-lg font-semibold text-gray-900 mb-1">Event Details</h4>
                           <p className="text-sm text-gray-600">
@@ -307,7 +529,8 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  ))}
+                  );
+                  })}
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
@@ -381,6 +604,128 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Contestant Photo Slideshow Modal */}
+      {showSlideshow && currentContestant && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          onClick={closeSlideshow}
+        >
+          <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+            {/* Close Button */}
+            <button
+              onClick={closeSlideshow}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors p-2"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Main Image Container */}
+            <div className="bg-white rounded-lg overflow-hidden shadow-2xl">
+              {/* Contestant Info Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold">
+                      {currentContestant.displayName || `${currentContestant.firstName} ${currentContestant.lastName}`}
+                    </h3>
+                    <p className="text-blue-100">
+                      Contestant #{currentContestant.contestantNumber} • {currentContestant.contestantType === 'group' ? 'Group' : `Age ${currentContestant.age}`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-blue-100">Photo</p>
+                    <p className="text-lg font-bold">1 of 1</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Image Display */}
+              <div className="relative bg-gray-100" style={{ paddingBottom: '75%' }}>
+                <img
+                  src={currentContestant.photo}
+                  alt={currentContestant.displayName || `${currentContestant.firstName} ${currentContestant.lastName}`}
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+              </div>
+
+              {/* Navigation Controls */}
+              <div className="bg-gray-50 p-4 flex items-center justify-between">
+                <button
+                  onClick={prevImage}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={true} // Disabled since we only have one image
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+
+                <div className="text-center">
+                  <p className="text-sm text-gray-500">Click outside or press ESC to close</p>
+                </div>
+
+                <button
+                  onClick={nextImage}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={true} // Disabled since we only have one image
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Additional Contestant Details */}
+            <div className="mt-4 bg-white rounded-lg p-4 shadow-lg">
+              <h4 className="font-semibold text-gray-900 mb-2">Contestant Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Full Name:</span>
+                  <span className="ml-2 font-medium">
+                    {currentContestant.displayName || `${currentContestant.firstName} ${currentContestant.lastName}`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Type:</span>
+                  <span className="ml-2 font-medium">
+                    {currentContestant.contestantType === 'group' ? 'Group Performance' : 'Solo Performance'}
+                  </span>
+                </div>
+                {currentContestant.contestantType === 'solo' && (
+                  <div>
+                    <span className="text-gray-500">Age:</span>
+                    <span className="ml-2 font-medium">{currentContestant.age}</span>
+                  </div>
+                )}
+                {currentContestant.contestantType === 'group' && currentContestant.groupName && (
+                  <div>
+                    <span className="text-gray-500">Group Name:</span>
+                    <span className="ml-2 font-medium">{currentContestant.groupName}</span>
+                  </div>
+                )}
+                {currentContestant.contestantType === 'group' && currentContestant.groupLeader && (
+                  <div>
+                    <span className="text-gray-500">Group Leader:</span>
+                    <span className="ml-2 font-medium">{currentContestant.groupLeader}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-gray-500">Contact:</span>
+                  <span className="ml-2 font-medium">{currentContestant.contactNumber}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Address:</span>
+                  <span className="ml-2 font-medium">{currentContestant.address}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -37,6 +37,13 @@ auth.settings = {
   languageCode: 'en'
 };
 
+// Debug: Log auth state changes
+auth.onAuthStateChanged((user) => {
+  console.log('Auth state changed:', user ? `User: ${user.email}` : 'No user');
+});
+
+console.log('Firebase Auth initialized with settings:', auth.settings);
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 

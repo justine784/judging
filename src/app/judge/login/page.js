@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import ForgotPasswordModal from '@/components/ForgotPasswordModal';
 
@@ -123,13 +123,47 @@ export default function JudgeLogin() {
       const judgeDoc = await getDoc(doc(db, 'judges', user.uid));
       
       if (!judgeDoc.exists()) {
-        // User is not in the judges collection, sign them out and show error
-        await auth.signOut();
-        setError('You are not authorized to access the judge portal. Please contact the administrator.');
-        return;
+        // For managescore@gmail.com, automatically create the judge document
+        if (email === 'managescore@gmail.com') {
+          try {
+            const judgeData = {
+              uid: user.uid,
+              email: user.email,
+              displayName: 'Manage Score Judge',
+              role: 'judge',
+              status: 'active',
+              createdAt: new Date(),
+              lastLogin: null,
+              assignedEvents: [],
+              permissions: [
+                'view_events',
+                'score_contestants',
+                'view_scoreboard',
+                'edit_own_scores'
+              ],
+              specialization: 'general',
+              experience: 'senior'
+            };
+            
+            await setDoc(doc(db, 'judges', user.uid), judgeData);
+            console.log('✅ Judge document created for managescore@gmail.com');
+          } catch (createError) {
+            console.error('Error creating judge document:', createError);
+            await auth.signOut();
+            setError('Failed to setup judge account. Please contact the administrator.');
+            return;
+          }
+        } else {
+          // User is not in the judges collection, sign them out and show error
+          await auth.signOut();
+          setError('You are not authorized to access the judge portal. Please contact the administrator.');
+          return;
+        }
       }
       
-      const judgeData = judgeDoc.data();
+      // Get the judge data (either existing or newly created)
+      const finalJudgeDoc = await getDoc(doc(db, 'judges', user.uid));
+      const judgeData = finalJudgeDoc.data();
       
       // Check if judge is active
       if (judgeData.status === 'inactive') {
@@ -146,16 +180,20 @@ export default function JudgeLogin() {
       }
       
       // User is verified as a judge, proceed to dashboard
-      router.push('/judge/dashboard');
+      // Special redirect for managescore@gmail.com
+      if (email === 'managescore@gmail.com') {
+        router.push('/judge/managescore');
+      } else {
+        router.push('/judge/dashboard');
+      }
     } catch (error) {
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         setError('Invalid email or password. Please try again.');
       } else if (error.code === 'auth/too-many-requests') {
         setError('Too many failed login attempts. Please try again later.');
       } else {
         setError('Login failed. Please try again.');
       }
-      console.error('Login error:', error);
     } finally {
       setLoading(false);
     }

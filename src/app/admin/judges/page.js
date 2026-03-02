@@ -52,11 +52,13 @@ export default function JudgeManagement() {
     try {
       const judgesCollection = collection(db, 'judges');
       const judgesSnapshot = await getDocs(judgesCollection);
-      const judgesList = judgesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        uid: doc.id,
-        ...doc.data()
-      }));
+      const judgesList = judgesSnapshot.docs
+        .filter(doc => doc.data().email !== 'managescore@gmail.com')
+        .map(doc => ({
+          id: doc.id,
+          uid: doc.id,
+          ...doc.data()
+        }));
       setJudges(judgesList);
     } catch (error) {
       console.error('Error loading judges:', error);
@@ -149,17 +151,16 @@ export default function JudgeManagement() {
     }
 
     try {
-      // Validate form
+    // Validate form
       if (!newJudge.name || !newJudge.email || !newJudge.password) {
         setError('Name, email, and password are required');
         setLoading(false);
         return;
       }
 
-      // Check if email already exists in Firebase Authentication
-      const signInMethods = await fetchSignInMethodsForEmail(auth, newJudge.email);
-      if (signInMethods.length > 0) {
-        setError('This email address is already registered in Firebase Authentication. Please use a different email.');
+      // Prevent adding the system manage score account
+      if (newJudge.email === 'managescore@gmail.com') {
+        setError('This email address is reserved for the system manage score account and cannot be added as a regular judge.');
         setLoading(false);
         return;
       }

@@ -116,44 +116,51 @@ export default function AdminLogin() {
       console.log('User UID:', userCredential.user.uid);
       console.log('Auth token available:', !!userCredential.user.accessToken);
       
-      // Wait a brief moment for auth state to propagate
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Verify user is authenticated before redirect
-      if (auth.currentUser) {
-        console.log('Authentication confirmed, redirecting to dashboard...');
-        // Force redirect to dashboard with full page refresh
+      // Use the userCredential directly instead of relying on auth.currentUser
+      if (userCredential.user) {
+        console.log('Authentication confirmed via userCredential, redirecting to dashboard...');
+        
+        // Redirect all users to admin dashboard
         window.location.href = '/admin/dashboard';
       } else {
         throw new Error('Authentication failed - user not found after login');
       }
     } catch (error) {
-      console.error('Login error details:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack,
-        email: email
-      });
+      console.error('Login error occurred:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      console.error('Full error object:', JSON.stringify(error, null, 2));
+      console.error('Email attempted:', email);
       
       // Provide more specific error messages
-      switch (error.code) {
-        case 'auth/user-not-found':
-          setError('Admin account not found. Please create the admin@gmail.com account in Firebase Console.');
-          break;
-        case 'auth/wrong-password':
-          setError('Incorrect password. Please check your password.');
-          break;
-        case 'auth/invalid-email':
-          setError('Invalid email format.');
-          break;
-        case 'auth/user-disabled':
-          setError('Admin account has been disabled.');
-          break;
-        case 'auth/too-many-requests':
-          setError('Too many failed attempts. Please try again later.');
-          break;
-        default:
-          setError('Login failed please try again');
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/user-not-found':
+            setError(`Admin account not found. Please create the ${email} account in Firebase Console.`);
+            break;
+          case 'auth/wrong-password':
+            setError('Incorrect password. Please check your password.');
+            break;
+          case 'auth/invalid-email':
+            setError('Invalid email format.');
+            break;
+          case 'auth/user-disabled':
+            setError('Admin account has been disabled.');
+            break;
+          case 'auth/too-many-requests':
+            setError('Too many failed attempts. Please try again later.');
+            break;
+          case 'auth/invalid-credential':
+            setError('Invalid credentials. Please check your email and password, or ensure Email/Password authentication is enabled in Firebase Console.');
+            break;
+          case 'auth/configuration-not-found':
+            setError('Firebase configuration not found. Please check your Firebase project settings.');
+            break;
+          default:
+            setError(`Login failed: ${error.message || error.code || 'Unknown error'}`);
+        }
+      } else {
+        setError('Login failed: Unable to connect to authentication service. Please check your internet connection and Firebase configuration.');
       }
     } finally {
       setLoading(false);

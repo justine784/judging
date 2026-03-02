@@ -839,7 +839,7 @@ export default function EventManagement() {
       
       // Create new sub-criteria with appropriate default weight
       category.subCriteria.push({
-        name: '',
+        name: `Sub-criteria ${category.subCriteria.length + 1}`,
         weight: Math.min(1, remainingWeight), // Default to 1% or remaining weight
         description: '',
         enabled: true

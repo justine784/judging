@@ -468,14 +468,23 @@ export default function LiveScoreboard() {
       return { totalScore: 0, judgeCount: 0, criteriaScores: {} };
     }
     
+    // Get the event to check grading type
+    const event = events.find(e => e.id === eventId);
+    const isPointsGrading = event?.gradingType === 'points';
+    
     // Count unique judges (not total score entries)
     const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
+    const judgeCount = uniqueJudges.length;
     
     // Get criteria from the event - handle both legacy and new structure
-    const event = events.find(e => e.id === eventId);
     const criteria = getCurrentEventCriteria();
     
-    console.log('Live Scoreboard - Using criteria:', criteria);
+    console.log('Live Scoreboard - Aggregating scores:', {
+      contestantId,
+      judgeCount,
+      isPointsGrading,
+      criteriaCount: criteria.length
+    });
     
     // Calculate average for each criteria using only the latest score from each judge
     const criteriaScores = {};
@@ -485,7 +494,7 @@ export default function LiveScoreboard() {
       // Get the latest score from each judge for this criteria
       const latestScoresByJudge = {};
       contestantScores.forEach(score => {
-        if (score.scores?.[key] > 0) {
+        if (score.scores?.[key] !== undefined && score.scores?.[key] > 0) {
           if (!latestScoresByJudge[score.judgeId] || 
               new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
             latestScoresByJudge[score.judgeId] = score;
@@ -496,24 +505,53 @@ export default function LiveScoreboard() {
       const criteriaValues = Object.values(latestScoresByJudge).map(score => score.scores[key]);
       
       if (criteriaValues.length > 0) {
+        // Calculate the average across all judges
         criteriaScores[key] = criteriaValues.reduce((sum, val) => sum + val, 0) / criteriaValues.length;
       } else {
         criteriaScores[key] = 0;
       }
     });
     
-    // Calculate weighted total score
+    // Calculate total score based on grading type
     let totalScore = 0;
-    criteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      const score = criteriaScores[key] || 0;
-      const weight = criterion.weight / 100;
-      totalScore += score * weight;
-    });
+    
+    if (isPointsGrading) {
+      // For points-based grading, sum all the averaged criterion scores
+      criteria.forEach(criterion => {
+        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        const score = criteriaScores[key] || 0;
+        totalScore += score;
+      });
+      
+      // If multiple judges, convert points to 100-point scale
+      if (judgeCount > 1) {
+        const maxPoints = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+        if (maxPoints > 0) {
+          totalScore = (totalScore / maxPoints) * 100;
+        }
+      } else {
+        // Single judge: convert points to 100-point scale based on max points
+        const maxPoints = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+        if (maxPoints > 0) {
+          totalScore = (totalScore / maxPoints) * 100;
+        }
+      }
+    } else {
+      // For percentage-based grading, apply weights
+      criteria.forEach(criterion => {
+        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        const score = criteriaScores[key] || 0;
+        const weight = criterion.weight / 100;
+        totalScore += score * weight;
+      });
+    }
+    
+    // Cap total at 100 for display
+    totalScore = Math.min(totalScore, 100);
     
     return {
       totalScore: parseFloat(totalScore.toFixed(1)),
-      judgeCount: uniqueJudges.length,
+      judgeCount,
       criteriaScores
     };
   };

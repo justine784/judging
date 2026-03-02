@@ -19,6 +19,7 @@ export default function JudgeManagement() {
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedJudge, setSelectedJudge] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [emailWarning, setEmailWarning] = useState(''); // Track duplicate email warning
   const router = useRouter();
   const auth = getAuth();
 
@@ -118,6 +119,44 @@ export default function JudgeManagement() {
     return events.find(e => e.id === eventId);
   };
 
+  // Function to check for duplicate email in real-time
+  const checkEmailDuplicate = async (email) => {
+    if (!email) {
+      setEmailWarning('');
+      return false;
+    }
+
+    try {
+      // Check if email exists in Firestore
+      const judgesCollection = collection(db, 'judges');
+      const q = query(judgesCollection, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        setEmailWarning('⚠️ This email is already registered as a judge');
+        return true;
+      }
+
+      // Check if email exists in Firebase Authentication
+      try {
+        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+        if (signInMethods.length > 0) {
+          setEmailWarning('⚠️ This email is already registered in the system');
+          return true;
+        }
+      } catch (e) {
+        // Continue if auth check fails
+      }
+
+      setEmailWarning('');
+      return false;
+    } catch (error) {
+      console.error('Error checking email:', error);
+      setEmailWarning('');
+      return false;
+    }
+  };
+
   const loadEvents = async () => {
     try {
       // Load events from Firestore
@@ -132,6 +171,13 @@ export default function JudgeManagement() {
       console.error('Error loading events:', error);
       setEvents([]);
     }
+  };
+
+  // Function to close add judge form and reset state
+  const closeAddForm = () => {
+    setShowAddForm(false);
+    setEmailWarning('');
+    setError('');
   };
 
   const handleAddJudge = async (e) => {
@@ -156,14 +202,6 @@ export default function JudgeManagement() {
         return;
       }
 
-      // Check if email already exists in Firebase Authentication
-      const signInMethods = await fetchSignInMethodsForEmail(auth, newJudge.email);
-      if (signInMethods.length > 0) {
-        setError('This email address is already registered in Firebase Authentication. Please use a different email.');
-        setLoading(false);
-        return;
-      }
-
       // Check if email already exists in Firestore
       const judgesCollection = collection(db, 'judges');
       const q = query(judgesCollection, where('email', '==', newJudge.email));
@@ -175,12 +213,35 @@ export default function JudgeManagement() {
         return;
       }
 
+      // Check if email already exists in Firebase Authentication
+      try {
+        const signInMethods = await fetchSignInMethodsForEmail(auth, newJudge.email);
+        if (signInMethods.length > 0) {
+          setError('This email address is already registered in Firebase Authentication. Please use a different email.');
+          setLoading(false);
+          return;
+        }
+      } catch (authCheckError) {
+        // If the auth check fails, proceed - the createUserWithEmailAndPassword will catch actual duplicates
+        console.warn('Auth check warning:', authCheckError);
+      }
+
       // Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        newJudge.email,
-        newJudge.password
-      );
+      let userCredential;
+      try {
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          newJudge.email,
+          newJudge.password
+        );
+      } catch (authError) {
+        if (authError.code === 'auth/email-already-in-use') {
+          setError('This email address is already registered. Please use a different email or reset the password if this is an existing judge.');
+          setLoading(false);
+          return;
+        }
+        throw authError; // Re-throw other auth errors to be handled below
+      }
       
       const user = userCredential.user;
 
@@ -206,7 +267,7 @@ export default function JudgeManagement() {
         phone: '',
         assignedEvents: []
       });
-      setShowAddForm(false);
+      closeAddForm();
       setSuccess('Judge added successfully!');
       
       // Reload judges list
@@ -365,7 +426,7 @@ export default function JudgeManagement() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Add New Judge</h2>
               <button
-                onClick={() => setShowAddForm(false)}
+                onClick={closeAddForm}
                 className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -402,11 +463,23 @@ export default function JudgeManagement() {
                     <input
                       type="email"
                       value={newJudge.email}
-                      onChange={(e) => setNewJudge({...newJudge, email: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      onChange={(e) => {
+                        setNewJudge({...newJudge, email: e.target.value});
+                        checkEmailDuplicate(e.target.value);
+                      }}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:border-transparent transition-all ${
+                        emailWarning 
+                          ? 'border-red-400 focus:ring-red-500 bg-red-50' 
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                       placeholder="judge@example.com"
                       required
                     />
+                    {emailWarning && (
+                      <p className="text-sm text-red-600 mt-2 flex items-center gap-2">
+                        {emailWarning}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -441,7 +514,7 @@ export default function JudgeManagement() {
               <div className="flex gap-4 pt-4 border-t border-gray-200">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !!emailWarning}
                   className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {loading ? (
@@ -458,7 +531,7 @@ export default function JudgeManagement() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={closeAddForm}
                   className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                 >
                   Cancel

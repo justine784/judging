@@ -604,11 +604,11 @@ export default function EventManagement() {
     setError('');
     
     try {
-      // Validate that total category weights equal 100%
-      if (selectedEvent.criteriaCategories) {
+      // Validate that total category weights equal 100% for percentage-based events
+      if (selectedEvent.gradingType === 'percentage' && selectedEvent.criteriaCategories) {
         const totalWeight = selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0);
         if (totalWeight !== 100) {
-          setError(`Total category weights must equal 100%. Current total: ${totalWeight}%`);
+          setError(`Total category weights must equal 100% for percentage-based events. Current total: ${totalWeight}%`);
           return;
         }
         
@@ -1931,10 +1931,10 @@ export default function EventManagement() {
                     </svg>
                   </div>
                   <div className="text-white">
-                    <h4 className="font-medium text-sm mb-2">Scoring System Instructions</h4>
+                    <h4 className="font-medium text-sm mb-2">Scoring System Information</h4>
                     <ul className="text-blue-100 text-xs space-y-1">
-                      <li>• Use the Global Scoring Type selector above to choose between Percentage or Points</li>
-                      <li>• All categories will automatically use the selected scoring type</li>
+                      <li>• Scoring type is determined by the event's grading type</li>
+                      <li>• All categories will automatically use the event's scoring type</li>
                       <li>• Configure category weights and sub-criteria for each judging category</li>
                       <li>• Percentage mode: Total category weights must equal 100%</li>
                       <li>• Points mode: No upper limit on point values</li>
@@ -1947,58 +1947,24 @@ export default function EventManagement() {
             {/* Modal Body */}
             <div className="p-6">
               <div className="space-y-6">
-                {/* Global Scoring Type Selector */}
+                {/* Global Scoring Type Display */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-lg font-semibold text-gray-900">Global Scoring Type</h4>
-                      <p className="text-sm text-gray-600 mt-1">Choose the scoring system for all criteria in this event</p>
+                      <h4 className="text-lg font-semibold text-gray-900">Scoring Type</h4>
+                      <p className="text-sm text-gray-600 mt-1">This event uses {selectedEvent.gradingType === 'points' ? 'points-based' : 'percentage-based'} scoring</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200">
                         <button
-                          onClick={() => {
-                            const updatedEvent = { ...selectedEvent };
-                            updatedEvent.gradingType = 'percentage';
-                            updatedEvent.defaultCategoryScoringType = 'percentage';
-                            // Update all existing categories to use percentage
-                            if (updatedEvent.criteriaCategories) {
-                              updatedEvent.criteriaCategories = updatedEvent.criteriaCategories.map(category => ({
-                                ...category,
-                                scoringType: 'percentage'
-                              }));
-                            }
-                            setSelectedEvent(updatedEvent);
-                          }}
+                          disabled={true}
                           className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                             selectedEvent.gradingType === 'percentage' || selectedEvent.defaultCategoryScoringType === 'percentage'
-                              ? 'bg-blue-600 text-white shadow-md'
-                              : 'text-gray-700 hover:text-gray-900'
+                              ? 'bg-blue-600 text-white shadow-md cursor-default'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
-                          📊 Percentage
-                        </button>
-                        <button
-                          onClick={() => {
-                            const updatedEvent = { ...selectedEvent };
-                            updatedEvent.gradingType = 'points';
-                            updatedEvent.defaultCategoryScoringType = 'points';
-                            // Update all existing categories to use points
-                            if (updatedEvent.criteriaCategories) {
-                              updatedEvent.criteriaCategories = updatedEvent.criteriaCategories.map(category => ({
-                                ...category,
-                                scoringType: 'points'
-                              }));
-                            }
-                            setSelectedEvent(updatedEvent);
-                          }}
-                          className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                            selectedEvent.gradingType === 'points' || selectedEvent.defaultCategoryScoringType === 'points'
-                              ? 'bg-blue-600 text-white shadow-md'
-                              : 'text-gray-700 hover:text-gray-900'
-                          }`}
-                        >
-                          🎯 Points
+                          📊 {selectedEvent.gradingType === 'percentage' ? 'Percentage' : 'Points'}
                         </button>
                       </div>
                     </div>
@@ -2006,8 +1972,8 @@ export default function EventManagement() {
                   <div className="mt-3 flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <span className="text-sm text-gray-700">
-                      Current mode: <strong>{(selectedEvent.gradingType === 'points' || selectedEvent.defaultCategoryScoringType === 'points') ? 'Points' : 'Percentage'}</strong>
-                      {(selectedEvent.gradingType === 'points' || selectedEvent.defaultCategoryScoringType === 'points') 
+                      Current mode: <strong>{selectedEvent.gradingType === 'points' ? 'Points' : 'Percentage'}</strong>
+                      {selectedEvent.gradingType === 'points' 
                         ? ' - Unlimited point values allowed' 
                         : ' - All criteria must total 100%'}
                     </span>
@@ -2239,9 +2205,9 @@ export default function EventManagement() {
                     </span>
                   </div>
                   {selectedEvent.criteriaCategories && 
-                   selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) !== 100 && (
+                   (selectedEvent.gradingType === 'percentage' && selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) !== 100) && (
                     <p className="text-sm text-red-600 mt-2">
-                      ⚠️ Total category {selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? 'points' : 'weights'} must equal 100{selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? ' points' : '%'}
+                      ⚠️ Total category weights must equal 100% for percentage-based events. Current total: {selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0)}%
                     </p>
                   )}
                 </div>

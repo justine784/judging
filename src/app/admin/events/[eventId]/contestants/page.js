@@ -245,9 +245,9 @@ export default function EventContestants() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (limit to 300KB to account for base64 expansion and stay well under 1MB Firestore limit)
-      if (file.size > 300 * 1024) {
-        alert('Image size should be less than 300KB to ensure it fits within storage limits');
+      // Check file size (limit to 20MB)
+      if (file.size > 20 * 1024 * 1024) {
+        alert('Image size should be less than 20MB');
         return;
       }
       
@@ -259,14 +259,7 @@ export default function EventContestants() {
       
       // Compress image if needed
       compressImage(file, (compressedDataUrl) => {
-        // Double-check compressed size with more accurate calculation
-        const base64Data = compressedDataUrl.split(',')[1] || compressedDataUrl;
-        const compressedSize = Math.round((base64Data.length * 3) / 4); // More accurate base64 size calculation
-        if (compressedSize > 800 * 1024) { // 800KB limit to be safe
-          alert('Image is still too large after compression. Please choose a smaller image.');
-          return;
-        }
-        
+        // No strict size limit after compression - just compress to reasonable quality
         setImagePreview(compressedDataUrl);
         setFormData(prev => ({
           ...prev,
@@ -303,18 +296,24 @@ export default function EventContestants() {
         // Draw and compress image
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Try different quality levels to get under size limit
-        let quality = 0.8;
+        // Try different quality levels to maintain quality while compressing
+        let quality = 0.85;
         const tryCompress = () => {
           canvas.toBlob((blob) => {
-            if (blob.size <= 300 * 1024 || quality <= 0.1) {
-              // If size is acceptable or quality is too low, use this result
+            if (quality <= 0.3) {
+              // Use this result if quality is too low
               const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
               callback(compressedDataUrl);
             } else {
-              // Reduce quality and try again
-              quality -= 0.1;
-              tryCompress();
+              // Check if size is reasonable, otherwise reduce quality
+              if (blob.size > 8 * 1024 * 1024) { // If over 8MB, reduce quality
+                quality -= 0.1;
+                tryCompress();
+              } else {
+                // Size is acceptable, use this result
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                callback(compressedDataUrl);
+              }
             }
           }, 'image/jpeg', quality);
         };

@@ -36,6 +36,29 @@ export default function EventContestants() {
   });
   const [imagePreview, setImagePreview] = useState('');
 
+  // Function to get next available contestant number
+  const getNextContestantNumber = () => {
+    if (contestants.length === 0) return '1';
+    
+    // Get all existing contestant numbers and convert to numbers
+    const existingNumbers = contestants
+      .map(c => parseInt(c.contestantNumber))
+      .filter(n => !isNaN(n))
+      .sort((a, b) => a - b);
+    
+    // Find the next available number
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break;
+      }
+    }
+    
+    return nextNumber.toString();
+  };
+
   // Function to check if contestant number already exists
   const isContestantNumberTaken = (number, excludeId = null) => {
     return contestants.some(contestant => 
@@ -334,24 +357,6 @@ export default function EventContestants() {
   };
 
   const handleAddContestant = async () => {
-    // Validate contestant number is not empty
-    if (!formData.contestantNumber.trim()) {
-      setFormErrors(prev => ({ 
-        ...prev, 
-        contestantNumber: 'Contestant number is required.' 
-      }));
-      return;
-    }
-    
-    // Validate contestant number is unique
-    if (isContestantNumberTaken(formData.contestantNumber.trim())) {
-      setFormErrors(prev => ({ 
-        ...prev, 
-        contestantNumber: 'This contestant number is already taken. Please choose a different number.' 
-      }));
-      return;
-    }
-    
     // Clear any existing errors
     setFormErrors({});
     
@@ -424,24 +429,6 @@ export default function EventContestants() {
   const handleEditContestant = async () => {
     if (!editingContestant) return;
 
-    // Validate contestant number is not empty
-    if (!formData.contestantNumber.trim()) {
-      setFormErrors(prev => ({ 
-        ...prev, 
-        contestantNumber: 'Contestant number is required.' 
-      }));
-      return;
-    }
-    
-    // Validate contestant number is unique (exclude current contestant from check)
-    if (isContestantNumberTaken(formData.contestantNumber.trim(), editingContestant.id)) {
-      setFormErrors(prev => ({ 
-        ...prev, 
-        contestantNumber: 'This contestant number is already taken. Please choose a different number.' 
-      }));
-      return;
-    }
-    
     // Clear any existing errors
     setFormErrors({});
 
@@ -533,8 +520,9 @@ export default function EventContestants() {
   };
 
   const resetForm = () => {
+    const nextNumber = getNextContestantNumber();
     setFormData({
-      contestantNumber: '',
+      contestantNumber: nextNumber,
       firstName: '',
       lastName: '',
       age: '',
@@ -1092,12 +1080,10 @@ export default function EventContestants() {
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
-                      placeholder="e.g., 001"
-                      required
+                      placeholder="Auto-assigned"
+                      readOnly
                     />
-                    {formErrors.contestantNumber && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.contestantNumber}</p>
-                    )}
+                    <p className="mt-1 text-xs text-gray-500">Contestant number is automatically assigned</p>
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (
@@ -1321,11 +1307,9 @@ export default function EventContestants() {
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
-                      required
+                      readOnly
                     />
-                    {formErrors.contestantNumber && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.contestantNumber}</p>
-                    )}
+                    <p className="mt-1 text-xs text-gray-500">Contestant number is automatically assigned</p>
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (

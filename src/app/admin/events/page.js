@@ -493,21 +493,8 @@ export default function EventManagement() {
     const updatedEvent = { ...event };
     
     // Initialize categorized criteria if not present
-    if (!updatedEvent.criteriaCategories && updatedEvent.criteria) {
-      // Convert legacy criteria to categorized structure
-      updatedEvent.criteriaCategories = [
-        {
-          name: 'General Criteria',
-          totalWeight: 100,
-          scoringType: 'percentage', // Default scoring type
-          subCriteria: updatedEvent.criteria.map(c => ({
-            name: c.name,
-            weight: c.weight,
-            description: '',
-            enabled: c.enabled
-          }))
-        }
-      ];
+    if (!updatedEvent.criteriaCategories) {
+      updatedEvent.criteriaCategories = [];
     }
     
     // Ensure existing categories have scoringType field
@@ -1952,19 +1939,29 @@ export default function EventManagement() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-lg font-semibold text-gray-900">Scoring Type</h4>
-                      <p className="text-sm text-gray-600 mt-1">This event uses {selectedEvent.gradingType === 'points' ? 'points-based' : 'percentage-based'} scoring</p>
+                      <p className="text-sm text-gray-600 mt-1">Configure scoring type for this event</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200">
                         <button
-                          disabled={true}
+                          onClick={() => handleGradingTypeChange('percentage')}
                           className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                            selectedEvent.gradingType === 'percentage' || selectedEvent.defaultCategoryScoringType === 'percentage'
-                              ? 'bg-blue-600 text-white shadow-md cursor-default'
-                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            selectedEvent.gradingType === 'percentage'
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                         >
-                          📊 {selectedEvent.gradingType === 'percentage' ? 'Percentage' : 'Points'}
+                          📊 Percentage
+                        </button>
+                        <button
+                          onClick={() => handleGradingTypeChange('points')}
+                          className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                            selectedEvent.gradingType === 'points'
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          🎯 Points
                         </button>
                       </div>
                     </div>

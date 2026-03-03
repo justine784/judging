@@ -7,8 +7,15 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) 
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Filter contestants that have photos
-  const contestantsWithPhotos = contestants.filter(contestant => contestant.photo);
+  // Filter contestants that have photos and sort by contestant number
+  const contestantsWithPhotos = contestants
+    .filter(contestant => contestant.photo)
+    .sort((a, b) => {
+      // Convert contestant numbers to integers for proper sorting
+      const numA = parseInt(a.contestantNumber) || 0;
+      const numB = parseInt(b.contestantNumber) || 0;
+      return numA - numB;
+    });
 
   useEffect(() => {
     if (!isPlaying || isPaused || contestantsWithPhotos.length <= 1) return;
@@ -68,7 +75,7 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) 
         <div className="aspect-w-16 aspect-h-9">
           <img
             src={currentContestant.photo}
-            alt={currentContestant.name || 'Contestant ' + (currentIndex + 1)}
+            alt={currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}
             className="w-full h-64 sm:h-80 md:h-96 object-contain bg-black"
           />
         </div>
@@ -78,7 +85,7 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) 
           <div className="text-white">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
               <span className="text-xl sm:text-2xl md:text-3xl">🏆</span>
-              <h3 className="text-lg sm:text-xl md:text-2xl font-bold truncate">{currentContestant.name || 'Contestant ' + (currentIndex + 1)}</h3>
+              <h3 className="text-lg sm:text-xl md:text-2xl font-bold truncate">{currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}</h3>
               {currentContestant.contestantType === 'group' ? (
                 <span className="bg-purple-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">👥 Group</span>
               ) : (
@@ -86,7 +93,7 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) 
               )}
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm sm:text-lg">
-              <span className="font-medium">#{currentContestant.number || currentIndex + 1}</span>
+              <span className="font-medium">#{currentContestant.contestantNumber}</span>
               <span className="font-bold text-yellow-400">
                 Score: {(currentContestant.totalScore || 0).toFixed(1)}%
               </span>

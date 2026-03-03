@@ -3,19 +3,42 @@
 import Image from "next/image";
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import ContestantSlideshow from '@/components/ContestantSlideshow';
 
 export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [contestants, setContestants] = useState({}); // Store contestants by eventId
+
+  // Load contestants for the given events
+  const loadContestantsForEvents = async (eventsList) => {
+    const contestantsCollection = collection(db, 'contestants');
+    const contestantsSnapshot = await getDocs(contestantsCollection);
+    
+    const contestantsList = contestantsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Group contestants by eventId
+    const contestantsByEvent = {};
+    eventsList.forEach(event => {
+      contestantsByEvent[event.id] = contestantsList.filter(contestant => 
+        contestant.eventId && (contestant.eventId.toString() === event.id.toString() || contestant.eventId === event.id)
+      );
+    });
+    
+    setContestants(contestantsByEvent);
+  };
 
   useEffect(() => {
     // Fetch all events from Firestore
     const eventsCollection = collection(db, 'events');
     
-    const unsubscribe = onSnapshot(eventsCollection, (snapshot) => {
+    const unsubscribe = onSnapshot(eventsCollection, async (snapshot) => {
       const allEvents = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -39,6 +62,12 @@ export default function Home() {
       });
       
       setEvents(allEvents);
+      
+      // Fetch contestants for all events (since we now show showcases for all events)
+      if (allEvents.length > 0) {
+        await loadContestantsForEvents(allEvents);
+      }
+      
       setLoading(false);
     }, (error) => {
       console.error('Error fetching events:', error);
@@ -277,6 +306,40 @@ export default function Home() {
                         <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
                       </div>
                     </div>
+                    
+                    {/* Contestant Showcase for All Events */}
+                    {(() => {
+                      const eventContestants = contestants[event.id] || [];
+                      const contestantsWithPhotos = eventContestants.filter(contestant => contestant.photo);
+                      
+                      return (
+                        <div className="mb-6">
+                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">📸</span>
+                                <h4 className="text-lg font-semibold text-gray-800">Contestant Showcase</h4>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {contestantsWithPhotos.length} photo{contestantsWithPhotos.length !== 1 ? 's' : ''} available
+                              </div>
+                            </div>
+                            {contestantsWithPhotos.length > 0 ? (
+                              <ContestantSlideshow 
+                                contestants={contestantsWithPhotos} 
+                                autoPlay={true}
+                                interval={4000}
+                              />
+                            ) : (
+                              <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6 text-center">
+                                <div className="text-gray-500 text-base">📷 No contestant photos available</div>
+                                <p className="text-gray-400 text-sm mt-2">Add photos to contestants to enable slideshow</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     
                     <div className="border-t pt-6">
                       <div className="flex items-center justify-between">

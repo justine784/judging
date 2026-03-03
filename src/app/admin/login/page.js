@@ -199,7 +199,7 @@ export default function AdminLogin() {
                   onKeyDown={(e) => handleKeyDown(e, passwordInputRef)}
                   onFocus={() => setIsFocused('email')}
                   onBlur={() => setIsFocused('')}
-                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border rounded-lg outline-none transition-all duration-200 text-sm sm:text-base ${
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border rounded-lg outline-none transition-all duration-200 text-sm sm:text-base text-black-900 ${
                     emailError 
                       ? 'border-red-300 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' 
                       : isFocused === 'email'
@@ -246,7 +246,7 @@ export default function AdminLogin() {
                   onKeyDown={(e) => handleKeyDown(e, 'submit')}
                   onFocus={() => setIsFocused('password')}
                   onBlur={() => setIsFocused('')}
-                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-10 sm:pr-12 border rounded-lg outline-none transition-all duration-200 text-sm sm:text-base ${
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-10 sm:pr-12 border rounded-lg outline-none transition-all duration-200 text-sm sm:text-base text-gray-900 ${
                     passwordError 
                       ? 'border-red-300 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' 
                       : isFocused === 'password'

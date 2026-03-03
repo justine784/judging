@@ -535,7 +535,7 @@ export default function EventManagement() {
     
     // Special validation for weight field
     if (field === 'weight') {
-      const currentWeight = parseInt(value) || 0;
+      const currentWeight = parseFloat(value) || 0;
       
       // Calculate total weight of all enabled criteria except the current one
       const otherCriteriaWeight = updatedEvent.criteria.reduce((sum, criterion, i) => {
@@ -762,7 +762,7 @@ export default function EventManagement() {
     
     // Special validation for totalWeight field
     if (field === 'totalWeight') {
-      const currentWeight = parseInt(value) || 0;
+      const currentWeight = parseFloat(value) || 0;
       
       // Validate input based on scoring type
       if (category.scoringType === 'percentage') {
@@ -873,7 +873,7 @@ export default function EventManagement() {
     
     // Special validation for weight field
     if (field === 'weight') {
-      const currentWeight = parseInt(value) || 0;
+      const currentWeight = parseFloat(value) || 0;
       
       // Validate input based on scoring type
       if (category.scoringType === 'percentage') {
@@ -932,7 +932,7 @@ export default function EventManagement() {
     
     // Special validation for weight field
     if (field === 'weight') {
-      const currentWeight = parseInt(value) || 0;
+      const currentWeight = parseFloat(value) || 0;
       
       // Validate input based on scoring type
       if (updatedEvent.gradingType === 'percentage') {
@@ -2039,8 +2039,9 @@ export default function EventManagement() {
                             </label>
                             <input
                               type="number"
+                              step="0.1"
                               value={category.totalWeight || 0}
-                              onChange={(e) => handleCategoryChange(categoryIndex, 'totalWeight', parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleCategoryChange(categoryIndex, 'totalWeight', parseFloat(e.target.value) || 0)}
                               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200 ${
                                 selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) > 100
                                   ? 'border-red-300 bg-red-50'
@@ -2102,8 +2103,9 @@ export default function EventManagement() {
                                   </label>
                                   <input
                                     type="number"
+                                    step="0.1"
                                     value={subCriterion.weight || 0}
-                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'weight', parseInt(e.target.value) || 0)}
+                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'weight', parseFloat(e.target.value) || 0)}
                                     className={`w-full px-2 py-1.5 border rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs ${
                                       category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) > (category.totalWeight || 0)
                                         ? 'border-red-300 bg-red-50'
@@ -2318,8 +2320,9 @@ export default function EventManagement() {
                                     </label>
                                     <input
                                       type="number"
+                                      step="0.1"
                                       value={criteria.weight || 0}
-                                      onChange={(e) => handleRoundCriteriaChange(roundIndex, criteriaIndex, 'weight', parseInt(e.target.value) || 0)}
+                                      onChange={(e) => handleRoundCriteriaChange(roundIndex, criteriaIndex, 'weight', parseFloat(e.target.value) || 0)}
                                       className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs"
                                       placeholder="Weight"
                                       min="0"

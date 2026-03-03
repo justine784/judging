@@ -273,40 +273,6 @@ export default function Home() {
                       <p className="text-gray-600">{event.eventDescription}</p>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">📅</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Date</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.date}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">⏰</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Time</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.time}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">📍</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Venue</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{event.venue}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">🏆</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Status</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
-                      </div>
-                    </div>
-                    
                     {/* Contestant Showcase for All Events */}
                     {(() => {
                       const eventContestants = contestants[event.id] || [];
@@ -340,6 +306,41 @@ export default function Home() {
                         </div>
                       );
                     })()}
+                    
+                    {/* Event Details Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">�</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Date</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.date}</p>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">⏰</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Time</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.time}</p>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">📍</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Venue</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{event.venue}</p>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-xl sm:text-2xl">🏆</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Status</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
+                      </div>
+                    </div>
                     
                     <div className="border-t pt-6">
                       <div className="flex items-center justify-between">

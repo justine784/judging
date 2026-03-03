@@ -199,7 +199,7 @@ export default function Home() {
                         setShowAllEvents(true); // Show all events when searching
                       }}
                       placeholder="Search events by name, description, venue, status..."
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-white shadow-sm"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-white shadow-sm text-black"
                     />
                     {searchQuery && (
                       <button

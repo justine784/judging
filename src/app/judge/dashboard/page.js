@@ -2513,7 +2513,7 @@ export default function JudgeDashboard() {
                     placeholder="Search contestants..."
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-white placeholder-blue-200 text-sm"
+                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-black placeholder-gray-500 text-sm"
                   />
                   <span className="absolute left-2.5 sm:left-3 top-2.5 text-blue-200 text-sm">🔍</span>
                 </div>

@@ -218,7 +218,7 @@ export default function JudgeLogin() {
                   onKeyDown={(e) => handleKeyDown(e, passwordInputRef)}
                   onFocus={() => setIsFocused('email')}
                   onBlur={() => setIsFocused('')}
-                  className={`w-full px-4 py-3 border rounded-lg outline-none transition-all duration-200 text-black-900 ${
+                  className={`w-full px-4 py-3 border rounded-lg outline-none transition-all duration-200 text-black ${
                     emailError 
                       ? 'border-red-300 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' 
                       : isFocused === 'email'
@@ -265,7 +265,7 @@ export default function JudgeLogin() {
                   onKeyDown={(e) => handleKeyDown(e, 'submit')}
                   onFocus={() => setIsFocused('password')}
                   onBlur={() => setIsFocused('')}
-                  className={`w-full px-4 py-3 pr-12 border rounded-lg outline-none transition-all duration-200 text-gray-900 ${
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg outline-none transition-all duration-200 text-black ${
                     passwordError 
                       ? 'border-red-300 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' 
                       : isFocused === 'password'

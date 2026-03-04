@@ -113,15 +113,44 @@ export default function Home() {
       {/* Hero Section */}
       <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center">
         {/* Event Logo */}
-        <div className="mb-8">
-          <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full shadow-xl p-2">
-            <Image
-              src="/logo.jpg"
-              alt="Bongabong Logo"
-              width={120}
-              height={120}
-              className="rounded-full object-contain"
-            />
+        <div className="mb-6">
+          <div className="flex justify-center items-center gap-2 sm:gap-4 md:gap-6 lg:gap-8">
+            <div className="">
+              <Image
+                src="/logo.jpg"
+                alt="Bongabong Logo"
+                width={150}
+                height={150}
+                className="rounded-full object-contain"
+              />
+            </div>
+            <div className="">
+              <Image
+                src="/logo3.png"
+                alt="DepEd Logo"
+                width={160}
+                height={160}
+                className="rounded-full object-contain"
+              />
+            </div>
+            <div className="">
+              <Image
+                src="/logo4.png"
+                alt="Government Logo"
+                width={160}
+                height={160}
+                className="rounded-full object-contain"
+              />
+            </div>
+            <div className="">
+              <Image
+                src="/logo5.jpg"
+                alt="Additional Logo"
+                width={150}
+                height={150}
+                className="rounded-full object-contain"
+              />
+            </div>
           </div>
         </div>
 
@@ -281,20 +310,14 @@ export default function Home() {
                       return (
                         <div className="mb-6">
                           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">📸</span>
-                                <h4 className="text-lg font-semibold text-gray-800">Contestant Showcase</h4>
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                {contestantsWithPhotos.length} photo{contestantsWithPhotos.length !== 1 ? 's' : ''} available
-                              </div>
+                            <div className="mb-4">
+                              <h4 className="text-lg font-semibold text-gray-800">Contestant</h4>
                             </div>
                             {contestantsWithPhotos.length > 0 ? (
                               <ContestantSlideshow 
                                 contestants={contestantsWithPhotos} 
                                 autoPlay={true}
-                                interval={4000}
+                                interval={3000}
                               />
                             ) : (
                               <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6 text-center">
@@ -410,27 +433,6 @@ export default function Home() {
       <footer className="bg-gray-900 text-white">
         <div className="mx-auto px-4 py-8">
           <div className="text-center">
-            {/* Logos */}
-            <div className="flex justify-center items-center gap-4 mb-4">
-              <div className="h-16 w-16 rounded-full">
-                <Image
-                  src="/logo.jpg"
-                  alt="Bongabong Logo"
-                  width={64}
-                  height={64}
-                  className="rounded-full object-contain"
-                />
-              </div>
-              <div className="h-16 w-16 rounded-full">
-                <Image
-                  src="/minsu_logo.jpg"
-                  alt="Trophy Logo"
-                  width={64}
-                  height={64}
-                  className="rounded-full object-contain"
-                />
-              </div>
-            </div>
             <h3 className="mb-2 text-xl font-bold">JUDGING & TABULATION SYSTEM</h3>
             <p className="mb-4 text-gray-300">
               Municipality of Bongabong, Oriental Mindoro

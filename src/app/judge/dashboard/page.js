@@ -41,6 +41,7 @@ export default function JudgeDashboard() {
   const [lockedScores, setLockedScores] = useState({}); // Track locked scores per contestant
   const [scoredContestants, setScoredContestants] = useState(new Set()); // Track which contestants have been scored in main criteria
   const [scoredContestantsFinal, setScoredContestantsFinal] = useState(new Set()); // Track which contestants have been scored in final rounds
+  const [showFinalistsOnly, setShowFinalistsOnly] = useState(false); // Track if showing finalists only
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
@@ -871,7 +872,10 @@ export default function JudgeDashboard() {
     // Apply elimination filter - exclude eliminated contestants
     const isNotEliminated = !contestant.eliminated;
     
-    return matchesSearch && isNotEliminated;
+    // Apply finalists only filter
+    const passesFinalistFilter = !showFinalistsOnly || getContestantRoundStatus(contestant)?.isFinal;
+    
+    return matchesSearch && isNotEliminated && passesFinalistFilter;
   });
 
   const calculateWeightedScore = (contestant, event = null) => {
@@ -1265,6 +1269,20 @@ export default function JudgeDashboard() {
     totalScore = Math.min(totalScore, maxScore);
     
     return totalScore.toFixed(1);
+  };
+
+  // Helper function to get the appropriate total score for display
+  const getDisplayTotalScore = () => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant) return '0.0';
+    
+    // If contestant is scored (form is disabled), use saved totalWeightedScore
+    if (isCurrentContestantScored() && currentContestant.totalWeightedScore) {
+      return currentContestant.totalWeightedScore.toString();
+    }
+    
+    // Otherwise, use the real-time calculation from quickScores
+    return calculateQuickTotal();
   };
 
   // Helper function to format scores for display
@@ -1716,12 +1734,10 @@ export default function JudgeDashboard() {
           : `Scores saved for ${currentContestant.name}!\n\nAll contestants scored!`;
         alert(message);
         
-        // Auto-navigate to next contestant if available
-        if (currentContestantIndex < contestants.length - 1) {
-          setTimeout(() => {
-            const nextIndex = currentContestantIndex + 1;
-            selectContestantByIndex(nextIndex);
-          }, 500);
+        // Force immediate contestants reload to ensure showcase updates instantly
+        if (user && judgeData && judgeData.uid === user.uid) {
+          console.log('🔄 Force reloading contestants for immediate showcase update...');
+          await loadContestants(judgeData);
         }
       } catch (error) {
         console.error('❌ Error saving scores:', error);
@@ -2201,11 +2217,11 @@ export default function JudgeDashboard() {
                       }
                     </div>
                   </div>
-                  <span className="text-2xl font-bold text-green-800">{calculateQuickTotal()}</span>
+                  <span className="text-2xl font-bold text-green-800">{getDisplayTotalScore()}</span>
                 </div>
                 {((currentEvent?.gradingType === 'points' 
-                      ? parseFloat(calculateQuickTotal()) >= currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
-                      : parseFloat(calculateQuickTotal()) >= 100)) && (
+                      ? parseFloat(getDisplayTotalScore()) >= currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                      : parseFloat(getDisplayTotalScore()) >= 100)) && (
                   <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-2 border border-amber-200">
                     ⚠️ Score capped at maximum of {currentEvent?.gradingType === 'points' 
                       ? currentEvent.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
@@ -2488,14 +2504,14 @@ export default function JudgeDashboard() {
                             </div>
                             <span className="text-lg font-bold text-green-700">
                               {currentEvent?.gradingType === 'points' 
-                                ? `${calculateQuickTotal()} / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}`
-                                : `${calculateQuickTotal()}%`
+                                ? `${getDisplayTotalScore()} / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}`
+                                : `${getDisplayTotalScore()}%`
                               }
                             </span>
                           </div>
                           {((currentEvent?.gradingType === 'points' 
-                                ? parseFloat(calculateQuickTotal()) >= getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
-                                : parseFloat(calculateQuickTotal()) >= 100)) && (
+                                ? parseFloat(getDisplayTotalScore()) >= getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                                : parseFloat(getDisplayTotalScore()) >= 100)) && (
                             <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-2 border border-amber-200">
                               ⚠️ Score capped at maximum of {currentEvent?.gradingType === 'points' 
                                 ? getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
@@ -2717,6 +2733,21 @@ export default function JudgeDashboard() {
                   }`}>
                     {usingFinalRoundCriteria ? '🏆 Final Rounds Mode' : '📋 Main Criteria Mode'}
                   </span>
+                  
+                  {/* Finalists Only Filter */}
+                  {getFinalRound() && (
+                    <button
+                      onClick={() => setShowFinalistsOnly(!showFinalistsOnly)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${
+                        showFinalistsOnly 
+                          ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-300 shadow-lg' 
+                          : 'bg-gray-200 text-gray-700 border-gray-300 hover:bg-gray-300'
+                      }`}
+                      title={showFinalistsOnly ? "Show all contestants" : "Show finalists only"}
+                    >
+                      {showFinalistsOnly ? '🏆 Finalists Only' : '👥 All Contestants'}
+                    </button>
+                  )}
                 </div>
                 
                 {/* Horizontal scroll indicator - Mobile only */}
@@ -2741,7 +2772,12 @@ export default function JudgeDashboard() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">Rank</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">No.</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[120px]">Contestant</th>
-                    {getCurrentEventCriteria().map((criterion, index) => (
+                    {(() => {
+                    // When showing finalists only, show final round criteria in header
+                    const shouldShowFinalRoundCriteria = showFinalistsOnly && getFinalRound();
+                    const criteriaToShow = shouldShowFinalRoundCriteria ? getFinalRound().criteria : getCurrentEventCriteria();
+                    
+                    return criteriaToShow.map((criterion, index) => (
                       <th key={index} className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[100px]">
                         <div className="hidden sm:block">
                           <div className="font-medium">{criterion.name}</div>
@@ -2759,7 +2795,8 @@ export default function JudgeDashboard() {
                           </div>
                         </div>
                       </th>
-                    ))}
+                    ));
+                  })()}
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Total</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-24">Status</th>
                   </tr>
@@ -2842,7 +2879,9 @@ export default function JudgeDashboard() {
                           </div>
                         </td>
                         {getCurrentEventCriteria().map((criterion, index) => {
-                          const useFinalRoundPrefix = usingFinalRoundCriteria;
+                          // When showing finalists only and contestant is a finalist, force final round criteria
+                          const shouldForceFinalRound = showFinalistsOnly && getContestantRoundStatus(contestant)?.isFinal;
+                          const useFinalRoundPrefix = usingFinalRoundCriteria || shouldForceFinalRound;
                           const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                           
                           // Check if this is "AVERAGE OF THE 1ST ROUND" criterion

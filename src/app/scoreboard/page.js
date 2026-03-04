@@ -1151,7 +1151,13 @@ export default function LiveScoreboard() {
                           </span>
                         )}
                       </div>
-                      <p className="text-yellow-100 text-sm font-bold">{highestScorer.totalScore.toFixed(1)} pts</p>
+                      <p className="text-yellow-100 text-sm font-bold">
+                            {highestScorer.totalScore.toFixed(1)}
+                            {selectedEvent?.gradingType === 'points' 
+                              ? ` / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.weight || 0), 0)}`
+                              : '%'
+                            }
+                          </p>
                     </div>
                   )}
                 </div>
@@ -1374,7 +1380,12 @@ export default function LiveScoreboard() {
                             {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
                           </span>
                           {contestant.totalScore > 0 && (
-                            <span className="text-xs sm:text-sm text-gray-500 font-medium">/100</span>
+                            <span className="text-xs sm:text-sm text-gray-500 font-medium">
+                              {selectedEvent?.gradingType === 'points' 
+                                ? `/${getCurrentEventCriteria().reduce((sum, c) => sum + (c.weight || 0), 0)}`
+                                : '/100'
+                              }
+                            </span>
                           )}
                         </div>
                         {rank === 1 && contestant.totalScore > 0 && (
@@ -1496,7 +1507,13 @@ export default function LiveScoreboard() {
                         
                         {/* Total Score Display */}
                         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
-                          <div className="text-4xl font-bold mb-1">{selectedContestant.totalScore.toFixed(1)}%</div>
+                          <div className="text-4xl font-bold mb-1">
+                            {selectedContestant.totalScore.toFixed(1)}
+                            {selectedEvent?.gradingType === 'points' 
+                              ? ` / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.weight || 0), 0)}`
+                              : '%'
+                            }
+                          </div>
                           <div className="text-sm opacity-90">Total Score</div>
                           <div className="mt-3 flex justify-around text-center">
                             <div>

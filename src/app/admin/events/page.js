@@ -658,7 +658,7 @@ export default function EventManagement() {
     const updatedEvent = { ...selectedEvent };
     updatedEvent.gradingType = gradingType;
     
-    // Convert weights based on grading type
+    // Convert main criteria weights based on grading type
     if (gradingType === 'percentage') {
       // Convert points to percentages (assuming max 100 points)
       updatedEvent.criteria = updatedEvent.criteria.map(criterion => ({
@@ -670,6 +670,33 @@ export default function EventManagement() {
       updatedEvent.criteria = updatedEvent.criteria.map(criterion => ({
         ...criterion,
         weight: Math.min(100, Math.max(0, criterion.weight))
+      }));
+    }
+    
+    // Update criteria categories and their sub-criteria to match the new grading type
+    if (updatedEvent.criteriaCategories) {
+      updatedEvent.criteriaCategories = updatedEvent.criteriaCategories.map(category => ({
+        ...category,
+        scoringType: gradingType, // Update category scoring type
+        // Keep the same numeric weight values but they'll be interpreted differently
+        totalWeight: category.totalWeight || 0,
+        // Update sub-criteria
+        subCriteria: category.subCriteria ? category.subCriteria.map(subCriterion => ({
+          ...subCriterion,
+          // Keep the same numeric weight values but they'll be interpreted differently
+          weight: subCriterion.weight || 0
+        })) : []
+      }));
+    }
+    
+    // Also update rounds criteria if they exist
+    if (updatedEvent.rounds) {
+      updatedEvent.rounds = updatedEvent.rounds.map(round => ({
+        ...round,
+        criteria: round.criteria ? round.criteria.map(criterion => ({
+          ...criterion,
+          weight: Math.min(100, Math.max(0, criterion.weight))
+        })) : []
       }));
     }
     
@@ -2171,15 +2198,15 @@ export default function EventManagement() {
                               value={category.totalWeight || 0}
                               onChange={(e) => handleCategoryChange(categoryIndex, 'totalWeight', parseFloat(e.target.value) || 0)}
                               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200 ${
-                                selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) > 100
+                                selectedEvent.gradingType === 'percentage' && selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) > 100
                                   ? 'border-red-300 bg-red-50'
-                                  : selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) === 100
+                                  : selectedEvent.gradingType === 'percentage' && selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0) === 100
                                   ? 'border-green-300 bg-green-50'
                                   : 'border-gray-300 bg-white'
                               }`}
-                              placeholder="10"
+                              placeholder={selectedEvent.gradingType === 'points' ? '25' : '10'}
                               min="0"
-                              max="100"
+                              max={selectedEvent.gradingType === 'points' ? undefined : '100'}
                             />
                           </div>
                         </div>
@@ -2235,15 +2262,15 @@ export default function EventManagement() {
                                     value={subCriterion.weight || 0}
                                     onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'weight', parseFloat(e.target.value) || 0)}
                                     className={`w-full px-2 py-1.5 border rounded focus:ring-1 focus:ring-blue-600 focus:border-transparent text-xs ${
-                                      category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) > (category.totalWeight || 0)
+                                      category.scoringType === 'percentage' && category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) > (category.totalWeight || 0)
                                         ? 'border-red-300 bg-red-50'
-                                        : category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) === (category.totalWeight || 0)
+                                        : category.scoringType === 'percentage' && category.subCriteria.reduce((sum, sub) => sum + (sub.weight || 0), 0) === (category.totalWeight || 0)
                                         ? 'border-green-300 bg-green-50'
                                         : 'border-gray-300 bg-white'
                                     }`}
-                                    placeholder="3"
+                                    placeholder={category.scoringType === 'points' ? '10' : '3'}
                                     min="0"
-                                    max={category.totalWeight || 0}
+                                    max={category.scoringType === 'points' ? undefined : (category.totalWeight || 0)}
                                   />
                                 </div>
                               </div>

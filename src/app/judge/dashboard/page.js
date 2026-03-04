@@ -905,8 +905,8 @@ export default function JudgeDashboard() {
       }
       
       if (isPointsGrading) {
-        // For points grading, apply weight to the 0-100 score
-        totalScore += score * (criterion.weight / 100);
+        // For points grading, directly sum the points (no weight calculation needed)
+        totalScore += score;
       } else {
         // For percentage grading, apply weight
         totalScore += score * (criterion.weight / 100);
@@ -1250,8 +1250,8 @@ export default function JudgeDashboard() {
       }
       
       if (isPointsGrading) {
-        // For points grading, apply weight to the 0-100 score
-        totalScore += score * (criterion.weight / 100);
+        // For points grading, directly sum the points (no weight calculation needed)
+        totalScore += score;
       } else {
         // For percentage grading, apply weight
         totalScore += score * (criterion.weight / 100);
@@ -1265,6 +1265,19 @@ export default function JudgeDashboard() {
     totalScore = Math.min(totalScore, maxScore);
     
     return totalScore.toFixed(1);
+  };
+
+  // Helper function to format scores for display
+  const formatScoreDisplay = (score, maxScore, isPointsGrading) => {
+    if (isPointsGrading) {
+      // For points-based grading, show whole numbers without decimal when possible
+      const formattedScore = Number.isInteger(score) ? score.toString() : score.toFixed(1);
+      const formattedMaxScore = Number.isInteger(maxScore) ? maxScore.toString() : maxScore.toFixed(1);
+      return `${formattedScore} / ${formattedMaxScore}`;
+    } else {
+      // For percentage-based grading, always show one decimal place
+      return `${score.toFixed(1)}%`;
+    }
   };
 
   const getFormattedTotalScore = (contestant, criteria, isPointsGrading, useFinalRoundPrefix = usingFinalRoundCriteria, scoresOverride = null) => {
@@ -1287,7 +1300,7 @@ export default function JudgeDashboard() {
       }
       
       if (isPointsGrading) {
-        totalScore += score * (criterion.weight / 100);
+        totalScore += score;
       } else {
         const weight = criterion.weight / 100;
         totalScore += score * weight;
@@ -1299,7 +1312,7 @@ export default function JudgeDashboard() {
       : 100;
     totalScore = Math.min(totalScore, maxScore);
     
-    return isPointsGrading ? `${totalScore.toFixed(1)} / ${maxScore}` : `${totalScore.toFixed(1)}%`;
+    return formatScoreDisplay(totalScore, maxScore, isPointsGrading);
   };
 
   const handleSubmitScores = async () => {
@@ -1321,6 +1334,7 @@ export default function JudgeDashboard() {
       const contestantsWithScores = contestants.map(contestant => {
         // Calculate weighted total for each individual contestant
         const criteria = getCurrentEventCriteria();
+        const isPointsGrading = currentEvent?.gradingType === 'points';
         let totalScore = 0;
         criteria.forEach(criterion => {
           const useFinalRoundPrefix = usingFinalRoundCriteria;
@@ -1341,8 +1355,14 @@ export default function JudgeDashboard() {
             score = contestant[key] || 0;
           }
           
-          const weight = criterion.weight / 100;
-          totalScore += score * weight;
+          if (isPointsGrading) {
+            // For points grading, directly sum the points (no weight calculation needed)
+            totalScore += score;
+          } else {
+            // For percentage grading, apply weight
+            const weight = criterion.weight / 100;
+            totalScore += score * weight;
+          }
         });
         
         return {
@@ -1358,6 +1378,7 @@ export default function JudgeDashboard() {
         if (contestant.id) {
           // Calculate weighted total for this specific contestant
           const criteria = getCurrentEventCriteria();
+          const isPointsGrading = currentEvent?.gradingType === 'points';
           let totalScore = 0;
           criteria.forEach(criterion => {
             const useFinalRoundPrefix = usingFinalRoundCriteria;
@@ -1378,8 +1399,14 @@ export default function JudgeDashboard() {
               score = contestant[key] || 0;
             }
             
-            const weight = criterion.weight / 100;
-            totalScore += score * weight;
+            if (isPointsGrading) {
+              // For points grading, directly sum the points (no weight calculation needed)
+              totalScore += score;
+            } else {
+              // For percentage grading, apply weight
+              const weight = criterion.weight / 100;
+              totalScore += score * weight;
+            }
           });
           
           // Create score data for the scores collection
@@ -2098,7 +2125,7 @@ export default function JudgeDashboard() {
                             {isPointsGrading ? `${criterion.weight} pts` : `${criterion.weight}%`}
                           </span>
                           <span className={`text-sm font-bold text-${color}-600`}>
-                            {isPointsGrading ? `${score.toFixed(1)} / ${criterion.weight}` : `${score.toFixed(1)}%`}
+                            {formatScoreDisplay(score, criterion.weight, isPointsGrading)}
                           </span>
                         </div>
                       </div>
@@ -2138,7 +2165,7 @@ export default function JudgeDashboard() {
                         />
                       </div>
                       <div className="mt-1 text-xs text-gray-500 text-right">
-                        → {score.toFixed(1)}%
+                        → {formatScoreDisplay(score, criterionMaxScore, isPointsGrading)}
                       </div>
                     </div>
                   );
@@ -2362,7 +2389,7 @@ export default function JudgeDashboard() {
                             // Determine grading type and max score
                             const isPointsGrading = currentEvent?.gradingType === 'points';
                             const criterionMaxScore = isPointsGrading ? criterion.weight : 100;
-                            const scoreDisplayFormat = isPointsGrading ? `${score.toFixed(1)} / ${criterionMaxScore}` : `${score.toFixed(1)}%`;
+                            const scoreDisplayFormat = formatScoreDisplay(score, criterionMaxScore, isPointsGrading);
                             const isOverMax = isPointsGrading ? score > criterionMaxScore : score > 100;
                             
                             return (
@@ -2537,7 +2564,7 @@ export default function JudgeDashboard() {
                             // Determine grading type and display format
                             const isPointsGrading = currentEvent?.gradingType === 'points';
                             const criterionMaxScore = isPointsGrading ? criterion.weight : 100;
-                            const scoreDisplayFormat = isPointsGrading ? `${score.toFixed(1)} / ${criterionMaxScore}` : `${score.toFixed(1)}%`;
+                            const scoreDisplayFormat = formatScoreDisplay(score, criterionMaxScore, isPointsGrading);
                             
                             return (
                               <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200">
@@ -2566,10 +2593,11 @@ export default function JudgeDashboard() {
                               </div>
                             </div>
                             <span className="text-lg font-bold text-green-700">
-                              {currentEvent?.gradingType === 'points' 
-                                ? `${(contestant.totalWeightedScore || 0).toFixed(1)} / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}`
-                                : `${(contestant.totalWeightedScore || 0).toFixed(1)}%`
-                              }
+                              {formatScoreDisplay(
+                                contestant.totalWeightedScore || 0, 
+                                getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0), 
+                                currentEvent?.gradingType === 'points'
+                              )}
                             </span>
                           </div>
                         </div>
@@ -2835,7 +2863,7 @@ export default function JudgeDashboard() {
                           return (
                             <td key={index} className="px-4 py-3 text-center">
                               <span className={`inline-flex items-center justify-center px-2 py-1 text-xs sm:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-gray-500'} rounded-full ${hasScore ? 'shadow-sm' : ''}`}>
-                                {score.toFixed(1)}% / 100%
+                                {formatScoreDisplay(score, 100, false)}
                               </span>
                             </td>
                           );
@@ -2858,7 +2886,7 @@ export default function JudgeDashboard() {
                                 const maxScore = isPointsGrading 
                                   ? criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
                                   : 100;
-                                return isPointsGrading ? `${contestant.totalWeightedScore.toFixed(1)} / ${maxScore}` : `${contestant.totalWeightedScore.toFixed(1)}%`;
+                                return formatScoreDisplay(contestant.totalWeightedScore, maxScore, isPointsGrading);
                               }
                               
                               // Fallback calculation - use same logic as getFormattedTotalScore

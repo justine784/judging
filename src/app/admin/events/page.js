@@ -272,6 +272,18 @@ export default function EventManagement() {
       setEvents(sampleEvents);
     } finally {
       setLoading(false);
+      
+      // Automatically clean up orphaned judge assignments
+      setTimeout(async () => {
+        try {
+          const cleanedCount = await cleanupOrphanedAssignments();
+          if (cleanedCount > 0) {
+            console.log(`Automatically cleaned up assignments for ${cleanedCount} judges`);
+          }
+        } catch (error) {
+          console.error('Error in automatic cleanup:', error);
+        }
+      }, 1000); // Run cleanup 1 second after loading
     }
   };
 
@@ -280,16 +292,30 @@ export default function EventManagement() {
     if (activeDropdown && dropdownButtonRef) {
       const updatePosition = () => {
         const rect = dropdownButtonRef.getBoundingClientRect();
-        
-        // Calculate left position to align with right edge of button
+        const dropdownHeight = 280; // Estimated dropdown height in pixels
         const dropdownWidth = 192; // w-48 = 12rem = 192px
-        const leftPosition = rect.right - dropdownWidth;
         
-        // Ensure dropdown stays within viewport
+        // Calculate horizontal position
+        const leftPosition = rect.right - dropdownWidth;
         const finalLeft = Math.max(8, Math.min(leftPosition, window.innerWidth - dropdownWidth - 8));
         
+        // Calculate vertical position
+        let topPosition = rect.bottom + 4;
+        
+        // Check if dropdown would go below viewport
+        if (topPosition + dropdownHeight > window.innerHeight) {
+          // Position dropdown above the button instead
+          topPosition = rect.top - dropdownHeight - 4;
+          
+          // Ensure it doesn't go above viewport
+          if (topPosition < 8) {
+            // If still too high, position at top of viewport
+            topPosition = 8;
+          }
+        }
+        
         setDropdownPosition({
-          top: rect.bottom + 4,
+          top: topPosition,
           left: finalLeft
         });
       };
@@ -403,6 +429,49 @@ export default function EventManagement() {
     }
   };
 
+  // Utility function to clean up orphaned judge assignments
+  const cleanupOrphanedAssignments = async () => {
+    try {
+      const judgesCollection = collection(db, 'judges');
+      const judgesSnapshot = await getDocs(judgesCollection);
+      const eventsCollection = collection(db, 'events');
+      const eventsSnapshot = await getDocs(eventsCollection);
+      
+      // Get all existing event IDs
+      const existingEventIds = eventsSnapshot.docs.map(doc => doc.id);
+      
+      const batchUpdates = [];
+      judgesSnapshot.forEach((judgeDoc) => {
+        const judgeData = judgeDoc.data();
+        if (judgeData.assignedEvents && judgeData.assignedEvents.length > 0) {
+          // Filter out event IDs that no longer exist
+          const validAssignedEvents = judgeData.assignedEvents.filter(eventId => 
+            existingEventIds.includes(eventId)
+          );
+          
+          // Update if there were invalid assignments
+          if (validAssignedEvents.length !== judgeData.assignedEvents.length) {
+            batchUpdates.push(
+              updateDoc(judgeDoc.ref, { assignedEvents: validAssignedEvents })
+            );
+          }
+        }
+      });
+      
+      // Execute all updates
+      if (batchUpdates.length > 0) {
+        await Promise.all(batchUpdates);
+        console.log(`Cleaned up orphaned assignments for ${batchUpdates.length} judges`);
+        return batchUpdates.length;
+      }
+      
+      return 0;
+    } catch (error) {
+      console.error('Error cleaning up orphaned assignments:', error);
+      return 0;
+    }
+  };
+
   const handleDeleteEvent = async (eventId) => {
     if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
       return;
@@ -416,10 +485,32 @@ export default function EventManagement() {
       const eventRef = doc(db, 'events', eventId);
       await deleteDoc(eventRef);
       
+      // Clean up judge assignments - remove this event ID from all judges
+      const judgesCollection = collection(db, 'judges');
+      const judgesSnapshot = await getDocs(judgesCollection);
+      
+      const batchUpdates = [];
+      judgesSnapshot.forEach((judgeDoc) => {
+        const judgeData = judgeDoc.data();
+        if (judgeData.assignedEvents && judgeData.assignedEvents.includes(eventId)) {
+          // Remove the deleted event ID from the judge's assignments
+          const updatedAssignedEvents = judgeData.assignedEvents.filter(id => id !== eventId);
+          batchUpdates.push(
+            updateDoc(judgeDoc.ref, { assignedEvents: updatedAssignedEvents })
+          );
+        }
+      });
+      
+      // Execute all judge updates
+      if (batchUpdates.length > 0) {
+        await Promise.all(batchUpdates);
+        console.log(`Cleaned up event assignments for ${batchUpdates.length} judges`);
+      }
+      
       // Update local state
       setEvents(events.filter(event => event.id !== eventId));
       
-      alert('Event has been deleted successfully!');
+      alert('Event has been deleted successfully! Judge assignments have been cleaned up.');
     } catch (error) {
       console.error('Error deleting event:', error);
       setError('Failed to delete event. Please try again.');
@@ -1071,6 +1162,14 @@ export default function EventManagement() {
     }
   };
 
+  // Function to determine if dropdown should appear above
+  const isDropdownAbove = () => {
+    if (!dropdownButtonRef) return false;
+    const rect = dropdownButtonRef.getBoundingClientRect();
+    const dropdownHeight = 280; // Estimated dropdown height in pixels
+    return rect.bottom + dropdownHeight + 4 > window.innerHeight;
+  };
+
   const closeDropdown = () => {
     setActiveDropdown(null);
   };
@@ -1231,6 +1330,22 @@ export default function EventManagement() {
             <div className="mt-2 text-xs text-gray-500">
               Status updates every 30 seconds
             </div>
+            <button
+              onClick={async () => {
+                if (confirm('This will clean up any judge assignments to deleted events. Continue?')) {
+                  const cleanedCount = await cleanupOrphanedAssignments();
+                  if (cleanedCount > 0) {
+                    alert(`Successfully cleaned up assignments for ${cleanedCount} judges.`);
+                  } else {
+                    alert('No orphaned assignments found.');
+                  }
+                }
+              }}
+              className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs rounded-lg transition-colors shadow"
+              title="Clean up judge assignments to deleted events"
+            >
+              🧹 Cleanup Assignments
+            </button>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -1401,7 +1516,7 @@ export default function EventManagement() {
                 
                 {/* Mobile Dropdown Menu */}
                 {activeDropdown === event.id && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="pt-3 border-t border-gray-200">
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => { openEditModal(event); closeDropdown(); }}
@@ -1432,18 +1547,18 @@ export default function EventManagement() {
                         {event.scoresLocked ? 'Unlock' : 'Lock'}
                       </button>
                       <button
-                        onClick={() => { router.push(`/admin/scoreboard?eventId=${event.id}`); closeDropdown(); }}
-                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
-                      >
-                        <span className="text-blue-600">📊</span>
-                        Scoreboard
-                      </button>
-                      <button
                         onClick={() => { handleDeleteEvent(event.id); closeDropdown(); }}
                         className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors touch-manipulation active:scale-95"
                       >
                         <span>🗑️</span>
                         Delete
+                      </button>
+                      <button
+                        onClick={() => { router.push(`/admin/scoreboard?eventId=${event.id}`); closeDropdown(); }}
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors touch-manipulation active:scale-95 col-span-2"
+                      >
+                        <span>📊</span>
+                        View Scoreboard
                       </button>
                     </div>
                   </div>
@@ -1536,57 +1651,70 @@ export default function EventManagement() {
 
                         {/* Dropdown Menu */}
                         {activeDropdown === event.id && (
-                          <div 
-                            className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999]"
-                            style={{
-                              top: `${dropdownPosition.top}px`,
-                              left: `${dropdownPosition.left}px`
-                            }}
-                          >
-                            <button
-                              onClick={() => { openEditModal(event); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          <>
+                            {isDropdownAbove() && (
+                              <div 
+                                className="fixed w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-200 z-[9999]"
+                                style={{
+                                  top: `${dropdownPosition.top - 8}px`,
+                                  left: `${dropdownPosition.left + dropdownButtonRef?.getBoundingClientRect().width - 40}px`
+                                }}
+                              />
+                            )}
+                            <div 
+                              className={`fixed w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[9999] transition-all duration-200 ${
+                                isDropdownAbove() ? 'mb-2' : 'mt-2'
+                              }`}
+                              style={{
+                                top: `${dropdownPosition.top}px`,
+                                left: `${dropdownPosition.left}px`
+                              }}
                             >
-                              <span className="text-blue-600">✏️</span>
-                              Edit Event
-                            </button>
-                            <button
-                              onClick={() => { openCriteriaModal(event); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <span className="text-blue-600">📋</span>
-                              Manage Criteria
-                            </button>
-                            <button
-                              onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <span className="text-green-600">👥</span>
-                              Manage Contestants
-                            </button>
-                            <button
-                              onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <span>{event.scoresLocked ? '🔓' : '🔒'}</span>
-                              {event.scoresLocked ? 'Unlock Scores' : 'Lock Scores'}
-                            </button>
-                            <button
-                              onClick={() => { router.push(`/admin/scoreboard?eventId=${event.id}`); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <span className="text-blue-600">📊</span>
-                              View Scoreboard
-                            </button>
-                            <hr className="my-1 border-gray-200" />
-                            <button
-                              onClick={() => { handleDeleteEvent(event.id); closeDropdown(); }}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <span>🗑️</span>
-                              Delete Event
-                            </button>
-                          </div>
+                              <button
+                                onClick={() => { openEditModal(event); closeDropdown(); }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <span className="text-blue-600">✏️</span>
+                                Edit Event
+                              </button>
+                              <button
+                                onClick={() => { openCriteriaModal(event); closeDropdown(); }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <span className="text-blue-600">📋</span>
+                                Manage Criteria
+                              </button>
+                              <button
+                                onClick={() => { router.push(`/admin/events/${event.id}/contestants`); closeDropdown(); }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <span className="text-green-600">👥</span>
+                                Manage Contestants
+                              </button>
+                              <button
+                                onClick={() => { handleToggleScoresLock(event.id); closeDropdown(); }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <span>{event.scoresLocked ? '🔓' : '🔒'}</span>
+                                {event.scoresLocked ? 'Unlock Scores' : 'Lock Scores'}
+                              </button>
+                              <button
+                                onClick={() => { router.push(`/admin/scoreboard?eventId=${event.id}`); closeDropdown(); }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <span className="text-blue-600">📊</span>
+                                View Scoreboard
+                              </button>
+                              <hr className="my-1 border-gray-200" />
+                              <button
+                                onClick={() => { handleDeleteEvent(event.id); closeDropdown(); }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <span>🗑️</span>
+                                Delete Event
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
                     </td>

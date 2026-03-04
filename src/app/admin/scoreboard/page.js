@@ -677,11 +677,11 @@ export default function AdminScoreboard() {
                         {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, criteriaIndex) => {
                           const score = getContestantCriteriaScore(contestant, criteria.name);
                           const criteriaIcons = {
-                            'Vocal Quality': '🎤',
+                            'Vocal Quality': '�',
                             'Stage Presence': '🎭',
                             'Song Interpretation': '🎵',
                             'Audience Impact': '👏',
-                            'Talent': '🎤',
+                            'Talent': '⭐',
                             'Beauty': '👗',
                             'QA': '🧠',
                             'Poise and Bearing': '👑',
@@ -849,11 +849,11 @@ export default function AdminScoreboard() {
                         {selectedEvent?.criteria?.filter(criteria => criteria.enabled).map((criteria, index) => {
                           const score = getContestantCriteriaScore(selectedContestant, criteria.name);
                           const criteriaIcons = {
-                            'Vocal Quality': '🎤',
+                            'Vocal Quality': '�',
                             'Stage Presence': '🎭',
                             'Song Interpretation': '🎵',
                             'Audience Impact': '👏',
-                            'Talent': '🎤',
+                            'Talent': '⭐',
                             'Beauty': '👗',
                             'QA': '🧠',
                             'Poise and Bearing': '👑',

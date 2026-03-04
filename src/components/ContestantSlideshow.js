@@ -84,16 +84,15 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) 
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 sm:p-6">
           <div className="text-white">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-              <span className="text-xl sm:text-2xl md:text-3xl">🏆</span>
               <h3 className="text-lg sm:text-xl md:text-2xl font-bold truncate">{currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}</h3>
               {currentContestant.contestantType === 'group' ? (
                 <span className="bg-purple-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">👥 Group</span>
               ) : (
-                <span className="bg-blue-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">🎤 Solo</span>
+                <span className="bg-blue-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">Solo</span>
               )}
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm sm:text-lg">
-              <span className="font-medium">#{currentContestant.contestantNumber}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-lg sm:text-xl">
+              <span className="font-bold text-lg sm:text-xl">#{currentContestant.contestantNumber}</span>
               <span className="font-bold text-yellow-400">
                 Score: {(currentContestant.totalScore || 0).toFixed(1)}%
               </span>

@@ -534,7 +534,15 @@ export default function EventContestants() {
       photo: ''
     });
     setImagePreview('');
+    setFormErrors({});
   };
+
+  // Sort contestants alphabetically by contestant number for display
+  const sortedContestants = [...contestants].sort((a, b) => {
+    const numA = a.contestantNumber.toString().toLowerCase();
+    const numB = b.contestantNumber.toString().toLowerCase();
+    return numA.localeCompare(numB);
+  });
 
   const getStatusColor = (status) => {
     return status === 'registered' ? 'bg-green-100 text-green-800' : 
@@ -781,7 +789,7 @@ export default function EventContestants() {
         
         {/* Mobile Card View */}
         <div className="lg:hidden divide-y divide-gray-100">
-          {contestants.map((contestant) => (
+          {sortedContestants.map((contestant) => (
             <div key={contestant.id} className="p-4 space-y-3">
               {/* Contestant Header */}
               <div className="flex items-start justify-between">
@@ -893,7 +901,7 @@ export default function EventContestants() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {contestants.map((contestant) => (
+              {sortedContestants.map((contestant) => (
                 <tr key={contestant.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200">
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-blue-600">#{contestant.contestantNumber}</div>
@@ -1080,10 +1088,9 @@ export default function EventContestants() {
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
-                      placeholder="Auto-assigned"
-                      readOnly
+                      placeholder="Enter contestant number"
                     />
-                    <p className="mt-1 text-xs text-gray-500">Contestant number is automatically assigned</p>
+                    <p className="mt-1 text-xs text-gray-500">Enter a unique contestant number (e.g., 1, 2, 3, or custom like 101)</p>
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (
@@ -1307,9 +1314,8 @@ export default function EventContestants() {
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
-                      readOnly
                     />
-                    <p className="mt-1 text-xs text-gray-500">Contestant number is automatically assigned</p>
+                    <p className="mt-1 text-xs text-gray-500">Enter a unique contestant number</p>
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (

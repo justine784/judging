@@ -670,13 +670,17 @@ export default function JudgeDashboard() {
 
   // Check if any scores exceed their maximum allowed value
   const hasInvalidScores = () => {
-    const criteria = getCurrentEventCriteria();
+    const criteriaToUse = getCurrentEventCriteria();
+    const enabledCriteria = criteriaToUse.filter(c => c.enabled);
     const useFinalRoundPrefix = usingFinalRoundCriteria;
+    const isPointsGrading = currentEvent?.gradingType === 'points';
     
-    return criteria.some(criterion => {
+    if (enabledCriteria.length === 0) return false;
+    
+    return enabledCriteria.some(criterion => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       const score = quickScores[key] || 0;
-      const maxScore = currentEvent?.gradingType === 'points' ? criterion.weight : 100;
+      const maxScore = isPointsGrading ? criterion.weight : 100;
       return score > maxScore;
     });
   };
@@ -1194,9 +1198,27 @@ export default function JudgeDashboard() {
   // Quick scoring functions
   const handleQuickScoreChange = (criteria, value) => {
     const numValue = parseFloat(value) || 0;
+    
+    // Find the criterion to get its weight for points-based grading
+    const criterionName = criteria.replace('final_', ''); // Remove final prefix if present
+    const criterion = getCurrentEventCriteria().find(c => 
+      c.name.toLowerCase().replace(/\s+/g, '_') === criterionName
+    );
+    
+    let finalValue = numValue;
+    
+    // Enforce limits based on grading type
+    if (currentEvent?.gradingType === 'points' && criterion) {
+      // For points-based grading, limit to criterion weight
+      finalValue = Math.min(numValue, criterion.weight);
+    } else if (currentEvent?.gradingType !== 'points') {
+      // For percentage-based grading, limit to 100
+      finalValue = Math.min(numValue, 100);
+    }
+    
     setQuickScores(prev => ({
       ...prev,
-      [criteria]: numValue
+      [criteria]: finalValue
     }));
   };
 
@@ -2049,6 +2071,10 @@ export default function JudgeDashboard() {
                   const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
                   const color = colors[index % colors.length];
                   
+                  // Determine grading type and max score
+                  const isPointsGrading = currentEvent?.gradingType === 'points';
+                  const criterionMaxScore = isPointsGrading ? criterion.weight : 100;
+                  
                   return (
                     <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                       <div className="flex items-center justify-between mb-2">
@@ -2069,10 +2095,10 @@ export default function JudgeDashboard() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                           <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
-                            {criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight} pts` : `${criterion.weight}%`}
+                            {isPointsGrading ? `${criterion.weight} pts` : `${criterion.weight}%`}
                           </span>
                           <span className={`text-sm font-bold text-${color}-600`}>
-                            {currentEvent?.gradingType === 'points' ? `${score.toFixed(1)} / ${criterion.weight}` : `${score.toFixed(1)}%`}
+                            {isPointsGrading ? `${score.toFixed(1)} / ${criterion.weight}` : `${score.toFixed(1)}%`}
                           </span>
                         </div>
                       </div>
@@ -2080,7 +2106,7 @@ export default function JudgeDashboard() {
                         <input
                           type="range"
                           min="0"
-                          max="100"
+                          max={criterionMaxScore}
                           step="0.1"
                           value={score}
                           onChange={(e) => handleQuickScoreChange(key, e.target.value)}
@@ -2092,13 +2118,22 @@ export default function JudgeDashboard() {
                         <input
                           type="number"
                           min="0"
-                          max="100"
+                          max={criterionMaxScore}
                           step="0.1"
                           value={score}
-                          onChange={(e) => handleQuickScoreChange(key, e.target.value)}
+                          onChange={(e) => {
+                            let newValue = parseFloat(e.target.value) || 0;
+                            // Enforce maximum limit for points-based grading
+                            if (isPointsGrading && newValue > criterionMaxScore) {
+                              newValue = criterionMaxScore;
+                            } else if (!isPointsGrading && newValue > 100) {
+                              newValue = 100;
+                            }
+                            handleQuickScoreChange(key, newValue);
+                          }}
                           disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
                           className={`w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-xs font-medium ${
-                            !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'bg-gray-100 cursor-not-allowed' : ''
+                            !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored ? 'bg-gray-100 cursor-not-allowed' : ''
                           }`}
                         />
                       </div>
@@ -2324,9 +2359,15 @@ export default function JudgeDashboard() {
                             const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
                             const color = colors[index % colors.length];
                             
+                            // Determine grading type and max score
+                            const isPointsGrading = currentEvent?.gradingType === 'points';
+                            const criterionMaxScore = isPointsGrading ? criterion.weight : 100;
+                            const scoreDisplayFormat = isPointsGrading ? `${score.toFixed(1)} / ${criterionMaxScore}` : `${score.toFixed(1)}%`;
+                            const isOverMax = isPointsGrading ? score > criterionMaxScore : score > 100;
+                            
                             return (
                               <div key={index} className={`bg-gray-50 rounded-lg p-2 border-2 ${
-                                score > 100 ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                                isOverMax ? 'border-red-300 bg-red-50' : 'border-gray-200'
                               }`}>
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -2344,24 +2385,29 @@ export default function JudgeDashboard() {
                                       </span>
                                     )}
                                   </div>
-                                  <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                    score > 100 
-                                      ? 'text-red-700 bg-red-100 border border-red-300' 
-                                      : 'text-blue-600 bg-blue-50'
-                                  }`}>
-                                    {score.toFixed(1)}%
-                                  </span>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                                      {isPointsGrading ? `${criterion.weight} pts` : `${criterion.weight}%`}
+                                    </span>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                      isOverMax 
+                                        ? 'text-red-700 bg-red-100 border border-red-300' 
+                                        : 'text-blue-600 bg-blue-50'
+                                    }`}>
+                                      {scoreDisplayFormat}
+                                    </span>
+                                  </div>
                                 </div>
-                                {score > 100 && (
+                                {isOverMax && (
                                   <div className="mb-2 p-1 bg-red-100 border border-red-300 rounded text-xs text-red-700 font-medium">
-                                    ⚠️ Score exceeds 100%! Maximum allowed is 100%.
+                                    ⚠️ Score exceeds maximum of {criterionMaxScore}{isPointsGrading ? ' points' : '%'}!
                                   </div>
                                 )}
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="range"
                                     min="0"
-                                    max="100"
+                                    max={criterionMaxScore}
                                     step="0.1"
                                     value={score}
                                     onChange={(e) => handleQuickScoreChange(key, e.target.value)}
@@ -2373,17 +2419,22 @@ export default function JudgeDashboard() {
                                   <input
                                     type="number"
                                     min="0"
-                                    max="100"
+                                    max={criterionMaxScore}
                                     step="0.1"
                                     value={score}
                                     onChange={(e) => {
-                                      const newValue = parseFloat(e.target.value) || 0;
-                                      // Allow any value but let the validation handle it
+                                      let newValue = parseFloat(e.target.value) || 0;
+                                      // Enforce maximum limit for points-based grading
+                                      if (isPointsGrading && newValue > criterionMaxScore) {
+                                        newValue = criterionMaxScore;
+                                      } else if (!isPointsGrading && newValue > 100) {
+                                        newValue = 100;
+                                      }
                                       handleQuickScoreChange(key, newValue);
                                     }}
                                     disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
                                     className={`w-16 px-1 py-1 border rounded text-center font-semibold text-xs ${
-                                      score > 100 
+                                      isOverMax 
                                         ? 'border-red-300 bg-red-100 text-red-700' 
                                         : 'border-gray-300'
                                     } ${
@@ -2399,11 +2450,32 @@ export default function JudgeDashboard() {
                         {/* Total Score Display */}
                         <div className="mt-4 pt-3 border-t border-gray-200">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-700">Total Score:</span>
+                            <div>
+                              <span className="font-semibold text-gray-700">Total Score:</span>
+                              <div className="text-xs text-gray-500">
+                                Maximum {currentEvent?.gradingType === 'points' 
+                                  ? getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                                  : '100.0'
+                                } {currentEvent?.gradingType === 'points' ? 'points' : '%'}
+                              </div>
+                            </div>
                             <span className="text-lg font-bold text-green-700">
-                              {calculateQuickTotal()}
+                              {currentEvent?.gradingType === 'points' 
+                                ? `${calculateQuickTotal()} / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}`
+                                : `${calculateQuickTotal()}%`
+                              }
                             </span>
                           </div>
+                          {((currentEvent?.gradingType === 'points' 
+                                ? parseFloat(calculateQuickTotal()) >= getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                                : parseFloat(calculateQuickTotal()) >= 100)) && (
+                            <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-2 border border-amber-200">
+                              ⚠️ Score capped at maximum of {currentEvent?.gradingType === 'points' 
+                                ? getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                                : '100'
+                              } {currentEvent?.gradingType === 'points' ? 'points' : '%'}
+                            </div>
+                          )}
                         </div>
 
                         {/* Action Buttons */}
@@ -2462,11 +2534,21 @@ export default function JudgeDashboard() {
                             const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
                             const color = colors[index % colors.length];
                             
+                            // Determine grading type and display format
+                            const isPointsGrading = currentEvent?.gradingType === 'points';
+                            const criterionMaxScore = isPointsGrading ? criterion.weight : 100;
+                            const scoreDisplayFormat = isPointsGrading ? `${score.toFixed(1)} / ${criterionMaxScore}` : `${score.toFixed(1)}%`;
+                            
                             return (
                               <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200">
-                                <span className="text-sm font-medium text-gray-700 truncate">{criterion.name}</span>
-                                <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-2 py-1 rounded`}>
-                                  {score.toFixed(1)}%
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-gray-700 truncate">{criterion.name}</span>
+                                  <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded flex-shrink-0">
+                                    {isPointsGrading ? `${criterion.weight} pts` : `${criterion.weight}%`}
+                                  </span>
+                                </div>
+                                <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-2 py-1 rounded flex-shrink-0`}>
+                                  {scoreDisplayFormat}
                                 </span>
                               </div>
                             );
@@ -2474,9 +2556,20 @@ export default function JudgeDashboard() {
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-700">Total Score:</span>
+                            <div>
+                              <span className="font-semibold text-gray-700">Total Score:</span>
+                              <div className="text-xs text-gray-500">
+                                Maximum {currentEvent?.gradingType === 'points' 
+                                  ? getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)
+                                  : '100.0'
+                                } {currentEvent?.gradingType === 'points' ? 'points' : '%'}
+                              </div>
+                            </div>
                             <span className="text-lg font-bold text-green-700">
-                              {(contestant.totalWeightedScore || 0).toFixed(1)}
+                              {currentEvent?.gradingType === 'points' 
+                                ? `${(contestant.totalWeightedScore || 0).toFixed(1)} / ${getCurrentEventCriteria().reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0)}`
+                                : `${(contestant.totalWeightedScore || 0).toFixed(1)}%`
+                              }
                             </span>
                           </div>
                         </div>

@@ -1147,7 +1147,7 @@ export default function LiveScoreboard() {
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-200 text-blue-900 rounded-full" title="Solo Contestant">
-                            🎤
+                            Solo
                           </span>
                         )}
                       </div>
@@ -1304,7 +1304,7 @@ export default function LiveScoreboard() {
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo Contestant">
-                                    🎤
+                                    Solo
                                   </span>
                                 )}
                                 {isContestantInFinalRound(contestant) && (
@@ -1322,7 +1322,7 @@ export default function LiveScoreboard() {
                                 )}
                               </div>
                               <div className="flex items-center gap-1 sm:gap-2 mt-1">
-                                <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">#{contestant.number || rank}</span>
+                                <span className="text-lg font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded">#{contestant.number || rank}</span>
                                 {contestant.eliminated && (
                                   <span className="inline-flex items-center px-1 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold" title="Eliminated">
                                     ❌ Eliminated
@@ -1485,11 +1485,11 @@ export default function LiveScoreboard() {
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium bg-white/20 backdrop-blur-sm text-white rounded-full border border-white/30">
-                              🎤 Solo
+                              Solo
                             </span>
                           )}
-                          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-sm font-semibold text-white border border-white/30">
-                            <span className="text-base">🎯</span>
+                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-lg font-bold text-white border border-white/30">
+                            <span className="text-lg">🎯</span>
                             #{selectedContestant.number || 'N/A'}
                           </div>
                         </div>

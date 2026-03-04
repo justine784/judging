@@ -96,10 +96,11 @@ export default function EventJudgeManagement() {
         uid: doc.id,
         ...doc.data()
       }));
-      setJudges(judgesList);
+      // Filter out managescore@gmail.com from list
+      const filteredJudges = judgesList.filter(judge => judge.email !== 'managescore@gmail.com');
+      setJudges(filteredJudges);
     } catch (error) {
       console.error('Error loading judges:', error);
-      setJudges([]);
     }
   };
 

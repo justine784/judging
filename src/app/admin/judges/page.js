@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, setDoc, getDocs, collection, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
+import { doc, setDoc, getDocs, getDoc, collection, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, getAuth, fetchSignInMethodsForEmail, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth, fetchSignInMethodsForEmail, signOut, deleteUser } from 'firebase/auth';
 
 export default function JudgeManagement() {
   const [judges, setJudges] = useState([]);
@@ -58,7 +58,9 @@ export default function JudgeManagement() {
         uid: doc.id,
         ...doc.data()
       }));
-      setJudges(judgesList);
+      // Filter out managescore@gmail.com from the list
+      const filteredJudges = judgesList.filter(judge => judge.email !== 'managescore@gmail.com');
+      setJudges(filteredJudges);
     } catch (error) {
       console.error('Error loading judges:', error);
       setError('Failed to load judges');
@@ -304,17 +306,104 @@ export default function JudgeManagement() {
   };
 
   const handleDeleteJudge = async (judgeId) => {
-    if (!confirm('Are you sure you want to delete this judge? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this judge? This action cannot be undone.\n\nNote: This will remove the judge from the system and delete their authentication account.')) {
       return;
     }
 
     try {
-      await deleteDoc(doc(db, 'judges', judgeId));
-      setSuccess('Judge deleted successfully');
+      // First, get the judge data to check if they have an auth account
+      const judgeRef = doc(db, 'judges', judgeId);
+      const judgeDoc = await getDoc(judgeRef);
+      const judgeData = judgeDoc.data();
+      
+      // Attempt to delete the Firebase Authentication account via API
+      let authDeleted = false;
+      let authError = null;
+      let manualInstructions = null;
+      
+      try {
+        const response = await fetch('/api/admin/delete-judge-auth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ uid: judgeId }),
+        });
+
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const result = await response.json();
+          
+          if (result.success) {
+            authDeleted = true;
+            console.log('Auth account deleted successfully');
+          } else {
+            authError = result.error || 'Unknown error occurred';
+            console.error('Auth deletion failed:', result);
+            
+            // If manual instructions are provided, store them
+            if (result.instructions) {
+              manualInstructions = result.instructions;
+              authError = `${result.error}. Manual deletion required - see instructions.`;
+            }
+            
+            // If it's a configuration error, provide more helpful message
+            if (result.details?.includes('Firebase Admin SDK not configured')) {
+              authError = 'Firebase Admin SDK not configured on server. Manual deletion required.';
+            }
+          }
+        } else {
+          // Handle non-JSON response (likely HTML error page)
+          const text = await response.text();
+          console.error('Non-JSON response:', text.substring(0, 200));
+          authError = 'Server returned non-JSON response. Check server logs for Firebase Admin SDK configuration errors.';
+        }
+      } catch (apiError) {
+        authError = apiError.message;
+        console.error('API call failed:', apiError);
+      }
+      
+      // Delete the judge document from Firestore
+      await deleteDoc(judgeRef);
+      
+      // Clean up any event assignments for this judge
+      const eventsCollection = collection(db, 'events');
+      const eventsSnapshot = await getDocs(eventsCollection);
+      
+      const batchUpdates = [];
+      eventsSnapshot.forEach((eventDoc) => {
+        const eventData = eventDoc.data();
+        if (eventData.assignedJudges && eventData.assignedJudges.includes(judgeId)) {
+          const updatedAssignedJudges = eventData.assignedJudges.filter(id => id !== judgeId);
+          batchUpdates.push(
+            updateDoc(eventDoc.ref, { assignedJudges: updatedAssignedJudges })
+          );
+        }
+      });
+      
+      if (batchUpdates.length > 0) {
+        await Promise.all(batchUpdates);
+        console.log(`Cleaned up judge assignments from ${batchUpdates.length} events`);
+      }
+      
+      // Show appropriate success message
+      if (authDeleted) {
+        setSuccess('Judge and their authentication account deleted successfully');
+      } else if (authError && manualInstructions) {
+        // Show detailed manual instructions
+        const instructionText = Object.values(manualInstructions).join('\n');
+        setSuccess(`Judge deleted from system. Manual auth deletion required:\n\n${instructionText}\n\nJudge UID: ${judgeId}`);
+      } else if (authError) {
+        setSuccess(`Judge deleted from system. Note: ${authError}. The auth account may need manual deletion.`);
+      } else {
+        setSuccess('Judge deleted successfully');
+      }
+      
       await loadJudges();
     } catch (error) {
       console.error('Error deleting judge:', error);
-      setError('Failed to delete judge');
+      setError('Failed to delete judge: ' + error.message);
     }
   };
 

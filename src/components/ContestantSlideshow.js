@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) => {
+const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000, eventName, eventStatus }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
 
@@ -52,42 +52,72 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000 }) 
   const currentContestant = contestantsWithPhotos[currentIndex];
 
   return (
-    <div className="relative bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl overflow-hidden shadow-2xl mx-auto max-w-full">
+    <div className="relative bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden shadow-2xl mx-auto max-w-full">
       {/* Main Image Display */}
-      <div className="relative bg-black">
+      <div className="relative bg-transparent">
         <div className="aspect-w-16 aspect-h-9">
           <img
             src={currentContestant.photo}
             alt={currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}
-            className="w-full h-48 sm:h-64 md:h-80 lg:h-96 object-contain bg-black"
+            className="w-full h-72 sm:h-96 md:h-[28rem] lg:h-[32rem] object-contain bg-transparent"
           />
         </div>
         
         {/* Overlay Information */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 sm:p-3 md:p-4 lg:p-6">
+          
           <div className="text-white">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 md:gap-3 mb-1 sm:mb-2">
-              <h3 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold truncate">{currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}</h3>
-              {currentContestant.contestantType === 'group' ? (
-                <span className="bg-purple-500 text-white px-1 sm:px-2 md:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm">👥 Group</span>
-              ) : (
-                <span className="bg-blue-500 text-white px-1 sm:px-2 md:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm">Solo</span>
-              )}
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 md:gap-4 text-sm sm:text-base md:text-lg lg:text-xl">
-              <span className="font-bold text-sm sm:text-base md:text-lg lg:text-xl">#{currentContestant.contestantNumber}</span>
-              <span className="font-bold text-yellow-400 text-xs sm:text-sm md:text-base lg:text-lg">
-                Score: {(currentContestant.totalScore || 0).toFixed(1)}%
-              </span>
-              {(currentContestant.judgeCount || 0) > 0 && (
-                <span className="text-xs sm:text-xs md:text-sm opacity-90">
-                  {currentContestant.judgeCount || 0} judge{(currentContestant.judgeCount || 0) > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
+                <div className="flex flex-col gap-2 sm:gap-3 mb-1 sm:mb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 md:gap-3">
+                    <h3 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold truncate">{currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}</h3>
+                    {currentContestant.contestantType === 'group' && (
+                      <span className="bg-purple-500 text-white px-1 sm:px-2 md:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm">👥 Group</span>
+                    )}
+                  </div>
+                  
+                  {/* Contestant Number and Score - Below Name */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 md:gap-4 text-lg sm:text-xl md:text-2xl lg:text-3xl">
+                    <span className="font-bold text-lg sm:text-xl md:text-2xl lg:text-3xl">#{currentContestant.contestantNumber}</span>
+                    <span className="font-bold text-yellow-400 text-base sm:text-lg md:text-xl lg:text-2xl">
+                      Score: {(currentContestant.totalScore || 0).toFixed(1)}%
+                    </span>
+                    {(currentContestant.judgeCount || 0) > 0 && (
+                      <span className="text-base sm:text-lg md:text-xl opacity-90">
+                        {currentContestant.judgeCount || 0} judge{(currentContestant.judgeCount || 0) > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
           </div>
         </div>
       </div>
+
+      {/* Event Information - Above Pagination Dots */}
+      {(eventName || eventStatus) && (
+        <div className="absolute bottom-8 sm:bottom-10 md:bottom-12 left-1/2 -translate-x-1/2 text-center">
+          <div className={`inline-flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium mb-1 bg-black/60 text-white ${
+            eventStatus === 'ongoing' 
+              ? 'ring-1 ring-red-400' 
+              : eventStatus === 'upcoming'
+              ? 'ring-1 ring-blue-400'
+              : 'ring-1 ring-gray-400'
+          }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              eventStatus === 'ongoing' ? 'bg-red-400 animate-pulse' : 
+              eventStatus === 'upcoming' ? 'bg-blue-400' : 'bg-gray-400'
+            }`}></div>
+            <span className="uppercase tracking-wide">
+              {eventStatus === 'ongoing' ? 'Live' : 
+               eventStatus === 'upcoming' ? 'Upcoming' : 'Finished'}
+            </span>
+          </div>
+          {eventName && (
+            <h4 className="text-white text-sm sm:text-base md:text-lg font-bold truncate bg-black/60 px-3 py-1 rounded-full">
+              {eventName}
+            </h4>
+          )}
+        </div>
+      )}
 
       {/* Navigation Controls */}
       <button

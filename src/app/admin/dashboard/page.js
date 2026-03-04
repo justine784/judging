@@ -190,9 +190,9 @@ export default function AdminDashboard() {
   }, [showExportDropdown]);
 
   const getProgressColor = (progress) => {
-    if (progress >= 80) return 'text-green-600';
-    if (progress >= 50) return 'text-yellow-600';
-    return 'text-red-600';
+    if (progress >= 80) return 'text-black';
+    if (progress >= 50) return 'text-black';
+    return 'text-black';
   };
 
   const getProgressBg = (progress) => {
@@ -234,10 +234,10 @@ export default function AdminDashboard() {
 
   const getActivityBadgeColor = (color) => {
     switch(color) {
-      case 'green': return 'bg-green-100 text-green-800';
-      case 'blue': return 'bg-blue-100 text-blue-800';
-      case 'purple': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'green': return 'bg-green-100 text-black';
+      case 'blue': return 'bg-blue-100 text-black';
+      case 'purple': return 'bg-blue-100 text-black';
+      default: return 'bg-gray-100 text-black';
     }
   };
 
@@ -541,15 +541,15 @@ export default function AdminDashboard() {
       <div className="mb-4 sm:mb-6 lg:mb-8">
         <div className="flex flex-col gap-3 sm:gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-1 sm:mb-2 bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-black mb-1 sm:mb-2 bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
               Admin Dashboard
             </h1>
-            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600">Welcome back! Here's what's happening with your judging system today.</p>
+            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-black">Welcome back! Here's what's happening with your judging system today.</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <button 
               onClick={() => router.push('/admin/events')}
-              className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-medium touch-manipulation active:scale-95"
+              className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-blue-600 to-blue-600 text-black rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-medium touch-manipulation active:scale-95"
             >
               <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
@@ -560,7 +560,7 @@ export default function AdminDashboard() {
             <div className="relative export-dropdown">
               <button 
                 onClick={() => setShowExportDropdown(!showExportDropdown)}
-                className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-white text-gray-700 border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base font-medium"
+                className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-white text-black border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base font-medium"
               >
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
@@ -575,7 +575,7 @@ export default function AdminDashboard() {
               {showExportDropdown && (
                 <div className="absolute right-0 mt-2 w-56 sm:w-64 md:w-72 lg:w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 xs:z-[60] sm:z-50">
                   <div className="px-3 sm:px-4 py-2 border-b border-gray-100">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Select Event</label>
+                    <label className="block text-xs font-medium text-black mb-1">Select Event</label>
                     <select
                       value={selectedEventForPrint?.id || ''}
                       onChange={(e) => {
@@ -593,7 +593,7 @@ export default function AdminDashboard() {
                   </div>
                   <button
                     onClick={() => { handlePrint(); setShowExportDropdown(false); }}
-                    className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 touch-manipulation active:bg-gray-200 transition-colors"
+                    className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm text-black hover:bg-gray-100 flex items-center gap-2 touch-manipulation active:bg-gray-200 transition-colors"
                   >
                     <span>🖨️</span>
                     <span className="hidden xs:inline">Print Event Scoreboard</span>
@@ -606,12 +606,12 @@ export default function AdminDashboard() {
         </div>
         
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 mt-3 sm:mt-4 lg:mt-6">
-          <span className="hover:text-gray-700 cursor-pointer transition-colors">Home</span>
+        <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-black mt-3 sm:mt-4 lg:mt-6">
+          <span className="hover:text-black cursor-pointer transition-colors">Home</span>
           <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
           </svg>
-          <span className="text-blue-600 font-medium">Dashboard</span>
+          <span className="text-black font-medium">Dashboard</span>
         </nav>
       </div>
 
@@ -632,20 +632,20 @@ export default function AdminDashboard() {
                   <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalContestants}</span>
+                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-black">{stats.totalContestants}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Contestants</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Total registered</p>
+          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Contestants</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Total registered</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 xs:gap-2">
               <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs xs:text-sm sm:text-base text-green-600 font-medium">
+              <span className="text-xs xs:text-sm sm:text-base text-black font-medium">
                 {loading ? 'Loading...' : `${stats.totalContestants} total`}
               </span>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -666,20 +666,20 @@ export default function AdminDashboard() {
                   <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalJudges}</span>
+                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-black">{stats.totalJudges}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Judges</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Active judges</p>
+          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Judges</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Active judges</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 xs:gap-2">
               <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs xs:text-sm sm:text-base text-blue-600 font-medium">
+              <span className="text-xs xs:text-sm sm:text-base text-black font-medium">
                 {loading ? 'Loading...' : `${stats.totalJudges} active`}
               </span>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-blue-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -700,20 +700,20 @@ export default function AdminDashboard() {
                   <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stats.totalEvents}</span>
+                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-black">{stats.totalEvents}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Events</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Total events</p>
+          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Events</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Total events</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 xs:gap-2">
               <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs xs:text-sm sm:text-base text-green-600 font-medium">
+              <span className="text-xs xs:text-sm sm:text-base text-black font-medium">
                 {loading ? 'Loading...' : `${stats.ongoingEvents} ongoing`}
               </span>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-green-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -740,8 +740,8 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-          <h3 className="font-bold text-gray-900 text-sm xs:text-base sm:text-lg mb-1">Progress</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-gray-500 mb-2 xs:mb-3 sm:mb-4">Scoring completed</p>
+          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Progress</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Scoring completed</p>
           <div className="flex items-center justify-between">
             <div className="flex-1 mr-1.5 xs:mr-2 sm:mr-3">
               {loading ? (
@@ -760,7 +760,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-orange-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -773,18 +773,18 @@ export default function AdminDashboard() {
       {/* Recent Activity */}
       <div className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl border border-gray-100 overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
-          <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white flex items-center gap-1.5 xs:gap-2">
+          <h2 className="text-base xs:text-lg sm:text-xl font-bold text-black flex items-center gap-1.5 xs:gap-2">
             <span className="text-lg xs:text-xl sm:text-2xl">📈</span>
             Recent Activity
           </h2>
-          <p className="text-blue-100 text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
+          <p className="text-black text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
         </div>
         <div className="p-3 xs:p-4 sm:p-6">
           {recentActivities.length === 0 ? (
             <div className="text-center py-4 xs:py-6 sm:py-8">
               <div className="text-2xl xs:text-3xl sm:text-4xl mb-3 xs:mb-4">📋</div>
-              <h3 className="text-sm xs:text-base sm:text-lg font-medium text-gray-900 mb-1 xs:mb-2">No recent activity</h3>
-              <p className="text-xs xs:text-sm sm:text-sm text-gray-500 px-2 xs:px-4">Activities will appear here as contestants, judges, and events are added to the system.</p>
+              <h3 className="text-sm xs:text-base sm:text-lg font-medium text-black mb-1 xs:mb-2">No recent activity</h3>
+              <p className="text-xs xs:text-sm sm:text-sm text-black px-2 xs:px-4">Activities will appear here as contestants, judges, and events are added to the system.</p>
             </div>
           ) : (
             <div className="space-y-2 xs:space-y-3 sm:space-y-4">
@@ -795,11 +795,11 @@ export default function AdminDashboard() {
                 >
                   <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-0">
                     <div className={`h-6 w-6 xs:h-8 xs:w-8 sm:h-10 sm:w-10 ${getActivityIconColor(activity.color)} rounded-full flex items-center justify-center flex-shrink-0`}>
-                      <span className="text-white text-xs xs:text-sm sm:text-base">{activity.icon}</span>
+                      <span className="text-black text-xs xs:text-sm sm:text-base">{activity.icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-xs xs:text-sm sm:text-base truncate pr-2">{activity.title}</p>
-                      <p className="text-xs xs:text-sm sm:text-sm text-gray-500 truncate pr-2">{activity.description}</p>
+                      <p className="font-semibold text-black text-xs xs:text-sm sm:text-base truncate pr-2">{activity.title}</p>
+                      <p className="text-xs xs:text-sm sm:text-sm text-black truncate pr-2">{activity.description}</p>
                     </div>
                   </div>
                   <div className="flex-shrink-0">
@@ -818,7 +818,7 @@ export default function AdminDashboard() {
       <div className="lg:hidden fixed bottom-6 right-6 z-40">
         <button
           onClick={() => router.push('/admin/events')}
-          className="w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
+          className="w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-600 text-black rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
           aria-label="Add Event"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

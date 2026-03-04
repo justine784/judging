@@ -109,339 +109,301 @@ export default function Home() {
     );
   });
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-t from-green-500/50 to-white relative overflow-hidden">
       {/* Hero Section */}
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center">
-        {/* Event Logo */}
-        <div className="mb-6">
-          <div className="flex justify-center items-center gap-2 sm:gap-4 md:gap-6 lg:gap-8">
-            <div className="">
-              <Image
-                src="/logo.jpg"
-                alt="Bongabong Logo"
-                width={150}
-                height={150}
-                className="rounded-full object-contain"
-              />
+      <main className="flex min-h-screen flex-row items-center justify-between px-8 py-16 relative">
+        {/* Left Side Content */}
+        <div className="flex flex-col items-center md:items-start max-w-lg w-full md:w-auto pt-0">
+          {/* Event Logo */}
+          <div className="mb-4">
+            <div className="flex justify-center md:justify-start items-center gap-2 sm:gap-4">
+              <div className="">
+                <Image
+                  src="/logo.jpg"
+                  alt="Government Logo"
+                  width={80}
+                  height={80}
+                  className="rounded-full object-contain"
+                />
+              </div>
+              <div className="">
+                <Image
+                  src="/logo1.png"
+                  alt="Additional Logo"
+                  width={80}
+                  height={80}
+                  className="rounded-full object-contain"
+                />
+              </div>
+              <div className="">
+                <Image
+                  src="/logo5.jpg"
+                  alt="Third Logo"
+                  width={80}
+                  height={80}
+                  className="rounded-full object-contain"
+                />
+              </div>
             </div>
-            <div className="">
-              <Image
-                src="/logo3.png"
-                alt="DepEd Logo"
-                width={160}
-                height={160}
-                className="rounded-full object-contain"
-              />
-            </div>
-            <div className="">
-              <Image
-                src="/logo4.png"
-                alt="Government Logo"
-                width={160}
-                height={160}
-                className="rounded-full object-contain"
-              />
-            </div>
-            <div className="">
-              <Image
-                src="/logo5.jpg"
-                alt="Additional Logo"
-                width={150}
-                height={150}
-                className="rounded-full object-contain"
-              />
+          </div>
+
+          {/* System Title - Left Position */}
+          <div className="mb-8 flex flex-col items-center md:items-start gap-1">
+            <h1 className="text-5xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-green-600 text-center md:text-left drop-shadow-lg tracking-tight">
+              JUDGING &
+            </h1>
+            <h1 className="text-5xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-green-600 text-center md:text-left drop-shadow-lg tracking-tight">
+              TABULATION
+            </h1>
+            <h1 className="text-5xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-green-600 text-center md:text-left drop-shadow-lg tracking-tight">
+              SYSTEM
+            </h1>
+            <div className="mt-4 w-24 h-1 bg-gradient-to-r from-green-500 to-green-700 rounded-full"></div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-5 mb-16 items-center md:items-center">
+            <button 
+              onClick={() => window.location.href = '/judge/login'}
+              className="group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 px-10 py-5 font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-green-500/30 w-full shadow-lg shadow-green-500/20 transform"
+            >
+              <span className="text-xl group-hover:scale-110 transition-transform duration-300">🔐</span>
+              <span className="text-lg">Login as Judge</span>
+            </button>
+            <button 
+              onClick={() => window.location.href = '/admin/login'}
+              className="group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black px-10 py-5 font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-gray-800/30 w-full shadow-lg shadow-gray-800/20 transform"
+            >
+              <span className="text-xl group-hover:scale-110 transition-transform duration-300">🛠</span>
+              <span className="text-lg">Admin Login</span>
+            </button>
+            <button 
+              onClick={() => window.location.href = '/scoreboard'}
+              className="group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 px-10 py-5 font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-gray-500/30 w-full shadow-lg shadow-gray-500/20 transform"
+            >
+              <span className="text-xl group-hover:scale-110 transition-transform duration-300">📊</span>
+              <span className="text-lg">View Live Scoreboard</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right Side Image */}
+        <div className="hidden md:flex flex-col items-end justify-center relative">
+          <div className="absolute top-0 right-0">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-black">
+              Sulyog Festival 2026
+            </h2>
+          </div>
+          <div className="flex justify-end">
+            <Image
+              src="/sulyog1.png"
+              alt="Sulyog Festival"
+              width={1500}
+              height={1500}
+              className="rounded-2xl object-contain"
+            />
+          </div>
+        </div>
+      </main>
+
+      {/* Live Events Information */}
+      <div className="mt-16 w-full mb-16">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-white/20 p-8 md:p-12">
+            {loading ? (
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <div className="animate-pulse">
+                  <div className="h-8 bg-gray-200 rounded mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                </div>
+              </div>
+            ) : events.length > 0 ? (
+              <div className="space-y-6">
+                <div className="text-center mb-12">
+                  <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4 drop-shadow-sm">
+                    {searchQuery ? 'Search Results' : 'Live Events'}
+                  </h2>
+                  <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+                    {searchQuery ? 'Events matching your search criteria' : 'Discover and join ongoing competitions'}
+                  </p>
+                  
+                  {/* Search and Toggle Controls */}
+                  <div className="max-w-md mx-auto mb-6">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-400">🔍</span>
+                      </div>
+                      <input
+                        type="text"
+                        id="event-search"
+                        name="eventSearch"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowAllEvents(true); // Show all events when searching
+                        }}
+                        placeholder="Search events by name, description, venue, status..."
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-white shadow-sm text-black"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => {
+                            setSearchQuery('');
+                            setShowAllEvents(false);
+                          }}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        >
+                          <span className="text-gray-400 hover:text-gray-600">✕</span>
+                        </button>
+                      )}
+                    </div>
+                    {searchQuery && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        Found {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'} matching "{searchQuery}"
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Show All Events Button - Only show when not searching */}
+                  {!searchQuery && !showAllEvents && filteredEvents.length > 1 && (
+                    <div className="flex justify-center mb-6">
+                      <button
+                        onClick={() => setShowAllEvents(true)}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-lg"
+                      >
+                        <span>📋</span>
+                        View All {filteredEvents.length} Events
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Show Less Button */}
+                  {!searchQuery && showAllEvents && (
+                    <div className="flex justify-center mb-6">
+                      <button
+                        onClick={() => setShowAllEvents(false)}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors shadow-lg"
+                      >
+                        <span>⬆️</span>
+                        Show Featured Event Only
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {filteredEvents.length > 0 ? (
+                  <div className="space-y-6">
+                    {/* Display either featured event only or all events */}
+                    {(showAllEvents || searchQuery ? filteredEvents : [getFeaturedEvent()]).map((event) => (
+                      <div key={event.id} className="">
+                        {/* Contestant Showcase for All Events */}
+                        {(() => {
+                          const eventContestants = contestants[event.id] || [];
+                          const contestantsWithPhotos = eventContestants.filter(contestant => contestant.photo);
+                          
+                          return (
+                            <div className="mb-6">
+                              {contestantsWithPhotos.length > 0 ? (
+                                <ContestantSlideshow 
+                                  contestants={contestantsWithPhotos} 
+                                  autoPlay={true}
+                                  interval={3000}
+                                  eventName={event.eventName}
+                                  eventStatus={event.status}
+                                />
+                              ) : (
+                                <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6 text-center mx-4">
+                                  <div className="text-gray-500 text-base">📷 No contestant photos available</div>
+                                  <p className="text-gray-400 text-sm mt-2">Add photos to contestants to enable slideshow</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        
+                        {/* Event Details Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                          <div className="text-center bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-blue-200">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                              <span className="text-2xl sm:text-3xl">📅</span>
+                            </div>
+                            <p className="text-sm sm:text-base text-blue-700 mb-2 font-semibold">Date</p>
+                            <p className="font-bold text-blue-900 text-base sm:text-lg">{event.date}</p>
+                          </div>
+                          
+                          <div className="text-center bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-green-200">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                              <span className="text-2xl sm:text-3xl">⏰</span>
+                            </div>
+                            <p className="text-sm sm:text-base text-green-700 mb-2 font-semibold">Time</p>
+                            <p className="font-bold text-green-900 text-base sm:text-lg">{event.time}</p>
+                          </div>
+                          
+                          <div className="text-center bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-purple-200">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                              <span className="text-2xl sm:text-3xl">📍</span>
+                            </div>
+                            <p className="text-sm sm:text-base text-purple-700 mb-2 font-semibold">Venue</p>
+                            <p className="font-bold text-purple-900 text-base sm:text-lg truncate">{event.venue}</p>
+                          </div>
+                          
+                          <div className="text-center bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-orange-200">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                              <span className="text-2xl sm:text-3xl">🏆</span>
+                            </div>
+                            <p className="text-sm sm:text-base text-orange-700 mb-2 font-semibold">Status</p>
+                            <p className="font-bold text-orange-900 text-base sm:text-lg capitalize">{event.status}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                    <div className="text-6xl mb-4">🔍</div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Events Found</h3>
+                    <p className="text-gray-600">
+                      {searchQuery 
+                        ? `No events found matching "${searchQuery}". Try a different search term.`
+                        : 'No events have been created yet. Check back later for upcoming competitions.'
+                      }
+                    </p>
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                <div className="text-6xl mb-4">📅</div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Events</h3>
+                <p className="text-gray-600">No events have been created yet. Check back later for upcoming competitions.</p>
+              </div>
+            )}
             </div>
           </div>
         </div>
 
-        {/* System Title */}
-        <div className="mb-6">
-          <h1 className="mb-4 text-4xl font-bold text-gray-900 md:text-6xl">
-            JUDGING & TABULATION SYSTEM
-          </h1>
-          <h2 className="text-2xl font-semibold text-gray-700 md:text-3xl">
-            Contest Judging & Tabulation System
-          </h2>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-          <button 
-            onClick={() => window.location.href = '/judge/login'}
-            className="flex items-center justify-center gap-3 rounded-xl bg-blue-600 px-6 py-4 font-medium text-white transition-all duration-200 hover:bg-blue-700 hover:scale-105 shadow-lg w-full sm:w-auto order-1 sm:order-1"
-          >
-            <span className="text-lg">🔐</span>
-            <span className="font-semibold">Login as Judge</span>
-          </button>
-          <button 
-            onClick={() => window.location.href = '/admin/login'}
-            className="flex items-center justify-center gap-3 rounded-xl bg-gray-800 px-6 py-4 font-medium text-white transition-all duration-200 hover:bg-gray-900 hover:scale-105 shadow-lg w-full sm:w-auto order-2 sm:order-2"
-          >
-            <span className="text-lg">🛠</span>
-            <span className="font-semibold">Admin Login</span>
-          </button>
-          <button 
-            onClick={() => window.location.href = '/scoreboard'}
-            className="flex items-center justify-center gap-3 rounded-xl border-2 border-blue-600 bg-transparent px-6 py-4 font-medium text-blue-600 transition-all duration-200 hover:bg-blue-50 hover:scale-105 shadow-lg w-full sm:w-auto order-3 sm:order-3"
-          >
-            <span className="text-lg">📊</span>
-            <span className="font-semibold">View Live Scoreboard</span>
-          </button>
-        </div>
-
-        {/* Live Events Information */}
-        <div className="mt-16 w-full max-w-6xl">
-          {loading ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8">
-              <div className="animate-pulse">
-                <div className="h-8 bg-gray-200 rounded mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-              </div>
-            </div>
-          ) : events.length > 0 ? (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  {searchQuery ? 'Search Results' : 'Live Events'}
-                </h2>
-                <p className="text-lg text-gray-600 mb-6">
-                  {searchQuery 
-                    ? `Events matching "${searchQuery}"`
-                    : showAllEvents 
-                      ? 'All competitions and events'
-                      : 'Featured competition'
-                  }
-                </p>
-                
-                {/* Search and Toggle Controls */}
-                <div className="max-w-md mx-auto mb-6">
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-400">🔍</span>
-                    </div>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setShowAllEvents(true); // Show all events when searching
-                      }}
-                      placeholder="Search events by name, description, venue, status..."
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-white shadow-sm text-black"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => {
-                          setSearchQuery('');
-                          setShowAllEvents(false);
-                        }}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      >
-                        <span className="text-gray-400 hover:text-gray-600">✕</span>
-                      </button>
-                    )}
-                  </div>
-                  {searchQuery && (
-                    <p className="mt-2 text-sm text-gray-600">
-                      Found {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'} matching "{searchQuery}"
-                    </p>
-                  )}
-                </div>
-
-                {/* Show All Events Button - Only show when not searching */}
-                {!searchQuery && !showAllEvents && filteredEvents.length > 1 && (
-                  <div className="flex justify-center mb-6">
-                    <button
-                      onClick={() => setShowAllEvents(true)}
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-lg"
-                    >
-                      <span>📋</span>
-                      View All {filteredEvents.length} Events
-                    </button>
-                  </div>
-                )}
-
-                {/* Show Less Button */}
-                {!searchQuery && showAllEvents && (
-                  <div className="flex justify-center mb-6">
-                    <button
-                      onClick={() => setShowAllEvents(false)}
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors shadow-lg"
-                    >
-                      <span>⬆️</span>
-                      Show Featured Event Only
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {filteredEvents.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Display either featured event only or all events */}
-                  {(showAllEvents || searchQuery ? filteredEvents : [getFeaturedEvent()]).map((event) => (
-                  <div key={event.id} className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-                    <div className="text-center mb-6">
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 ${
-                        event.status === 'ongoing' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : event.status === 'upcoming'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          event.status === 'ongoing' ? 'bg-blue-500 animate-pulse' : 
-                          event.status === 'upcoming' ? 'bg-blue-500' : 'bg-gray-500'
-                        }`}></div>
-                        <span className="font-medium capitalize">
-                          {event.status === 'ongoing' ? 'LIVE EVENT' : 
-                           event.status === 'upcoming' ? 'UPCOMING EVENT' : 'FINISHED EVENT'}
-                        </span>
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">{event.eventName}</h3>
-                      <p className="text-gray-600">{event.eventDescription}</p>
-                    </div>
-                    
-                    {/* Contestant Showcase for All Events */}
-                    {(() => {
-                      const eventContestants = contestants[event.id] || [];
-                      const contestantsWithPhotos = eventContestants.filter(contestant => contestant.photo);
-                      
-                      return (
-                        <div className="mb-6">
-                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
-                            <div className="mb-4">
-                              <h4 className="text-lg font-semibold text-gray-800">Contestant</h4>
-                            </div>
-                            {contestantsWithPhotos.length > 0 ? (
-                              <ContestantSlideshow 
-                                contestants={contestantsWithPhotos} 
-                                autoPlay={true}
-                                interval={3000}
-                              />
-                            ) : (
-                              <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6 text-center">
-                                <div className="text-gray-500 text-base">📷 No contestant photos available</div>
-                                <p className="text-gray-400 text-sm mt-2">Add photos to contestants to enable slideshow</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    
-                    {/* Event Details Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">�</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Date</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.date}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">⏰</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Time</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{event.time}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">📍</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Venue</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{event.venue}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl sm:text-2xl">🏆</span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-1 font-medium">Status</p>
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base capitalize">{event.status}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="border-t pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900 mb-1">Event Details</h4>
-                          <p className="text-sm text-gray-600">
-                            {event.status === 'ongoing' 
-                              ? 'Join us for this exciting live competition!' 
-                              : event.status === 'upcoming'
-                              ? 'Get ready for this upcoming competition!'
-                              : 'This competition has concluded.'
-                            }
-                          </p>
-                          {event.scoresLocked && (
-                            <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                              <span>🔒</span>
-                              Scores Locked
-                            </div>
-                          )}
-                        </div>
-                        <button 
-                          onClick={() => window.location.href = '/scoreboard'}
-                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium shadow-lg"
-                        >
-                          <span>📊</span>
-                          View Scoreboard
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Events Found</h3>
-                  <p className="text-gray-600">
-                    {searchQuery 
-                      ? `No events found matching "${searchQuery}". Try a different search term.`
-                      : 'No events have been created yet. Check back later for upcoming competitions.'
-                    }
-                  </p>
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      Clear search
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-              <div className="text-6xl mb-4">📅</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Events</h3>
-              <p className="text-gray-600">No events have been created yet. Check back later for upcoming competitions.</p>
-            </div>
-          )}
-        </div>
-
-        
-              </main>
-
       {/* Footer */}
-      <footer className="bg-gray-900 text-white">
+      <footer className="bg-white text-gray-900">
         <div className="mx-auto px-4 py-8">
           <div className="text-center">
             <h3 className="mb-2 text-xl font-bold">JUDGING & TABULATION SYSTEM</h3>
-            <p className="mb-4 text-gray-300">
+            <p className="mb-4 text-gray-600">
               Municipality of Bongabong, Oriental Mindoro
             </p>
-            <div className="mb-4 text-sm text-gray-400">
+            <div className="mb-4 text-sm text-gray-500">
               <p>📧 contact@judgingsystem.com</p>
               <p>📱 +63 912 345 6789</p>
             </div>
-            <div className="border-t border-gray-700 pt-4 text-sm text-gray-400">
+            <div className="border-t border-gray-300 pt-4 text-sm text-gray-500">
               <p>@ Developed by BSIT Students – Mindoro State University Bongabong Campus</p>
             </div>
           </div>

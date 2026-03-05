@@ -1728,21 +1728,9 @@ export default function JudgeDashboard() {
       )}
 
       {/* Header */}
-      <header className="relative w-full shadow-xl border-b border-emerald-500/20 sticky top-0 z-40 overflow-hidden">
+      <header className="relative w-full shadow-xl border-b border-emerald-500/20 sticky top-0 z-25 overflow-hidden bg-emerald-600">
         {/* Background Image with Gradient Overlay */}
-        <div className="absolute inset-0">
-          <Image
-            src="/header1.jpg"
-            alt="Header Background"
-            fill
-            className="object-cover"
-            priority
-          />
-          {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/90 via-emerald-700/85 to-emerald-800/90"></div>
-          {/* Additional transparent overlay for better text readability */}
-          <div className="absolute inset-0 bg-black/20"></div>
-        </div>
+        
 
         <div className="relative w-full px-4 sm:px-6 lg:px-8">
           <div className="py-4 sm:py-6">

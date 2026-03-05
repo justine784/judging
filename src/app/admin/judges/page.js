@@ -469,7 +469,7 @@ export default function JudgeManagement() {
         <div className="flex gap-3">
           <button
             onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+            className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors shadow-lg"
           >
             <span className="text-xl">+</span>
             Add New Judge
@@ -528,7 +528,7 @@ export default function JudgeManagement() {
               {/* Personal Information Section */}
               <div className="bg-gray-50 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="text-blue-600">👤</span>
+                  <span className="text-green-600">👤</span>
                   Personal Information
                 </h3>
                 <div className="space-y-4">
@@ -540,7 +540,7 @@ export default function JudgeManagement() {
                       type="text"
                       value={newJudge.name}
                       onChange={(e) => setNewJudge({...newJudge, name: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent transition-all"
                       placeholder="Enter judge's full name"
                       required
                     />
@@ -578,7 +578,7 @@ export default function JudgeManagement() {
                       type="tel"
                       value={newJudge.phone}
                       onChange={(e) => setNewJudge({...newJudge, phone: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent transition-all"
                       placeholder="+1234567890"
                     />
                   </div>
@@ -590,7 +590,7 @@ export default function JudgeManagement() {
                       type="password"
                       value={newJudge.password}
                       onChange={(e) => setNewJudge({...newJudge, password: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent transition-all"
                       placeholder="Min 6 characters"
                       required
                       minLength="6"
@@ -604,7 +604,7 @@ export default function JudgeManagement() {
                 <button
                   type="submit"
                   disabled={loading || !!emailWarning}
-                  className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -633,9 +633,9 @@ export default function JudgeManagement() {
 
       {/* Judges Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="bg-green-600 px-4 sm:px-6 py-3 sm:py-4">
           <h3 className="text-base sm:text-lg font-semibold text-white">All Judges</h3>
-          <p className="text-blue-100 text-xs sm:text-sm">Manage judge accounts and assignments</p>
+          <p className="text-green-100 text-xs sm:text-sm">Manage judge accounts and assignments</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -672,7 +672,7 @@ export default function JudgeManagement() {
                               </div>
                             ) : null;
                           })}
-                          <div className="text-xs text-blue-600 italic">
+                          <div className="text-xs text-green-600 italic">
                             ✓ Single event assignment
                           </div>
                         </div>
@@ -721,7 +721,7 @@ export default function JudgeManagement() {
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
-                            <span className="text-blue-600">✏️</span>
+                            <span className="text-green-600">✏️</span>
                             Assign Events
                           </button>
                           <button
@@ -807,7 +807,7 @@ export default function JudgeManagement() {
                         };
                         setSelectedJudge(updatedJudge);
                       }}
-                      className={`rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 ${
+                      className={`rounded border-gray-300 text-green-600 focus:ring-green-500 w-4 h-4 ${
                         hasOtherAssignment ? 'cursor-not-allowed opacity-50' : ''
                       }`}
                     />
@@ -828,7 +828,7 @@ export default function JudgeManagement() {
                           router.push(`/admin/events/${event.id}/judges`);
                           setShowEventModal(false);
                         }}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        className="text-green-600 hover:text-green-800 text-sm font-medium"
                       >
                         Manage →
                       </button>
@@ -837,10 +837,10 @@ export default function JudgeManagement() {
                 );
               })}
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4">
               <div className="flex items-start gap-2">
-                <span className="text-blue-600 text-sm">ℹ️</span>
-                <div className="text-sm text-blue-800">
+                <span className="text-green-600 text-sm">ℹ️</span>
+                <div className="text-sm text-green-800">
                   <strong>Important:</strong> A judge can only be assigned to one event at a time. 
                   Selecting a new event will automatically remove any existing assignments.
                 </div>
@@ -864,7 +864,7 @@ export default function JudgeManagement() {
                     setError('Failed to update event assignments');
                   }
                 }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
               >
                 Save Changes
               </button>

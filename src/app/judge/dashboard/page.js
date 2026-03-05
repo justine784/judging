@@ -1793,7 +1793,7 @@ export default function JudgeDashboard() {
       )}
 
       {/* Header */}
-      <header className="w-full bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 shadow-xl border-b border-blue-500/20 sticky top-0 z-40">
+      <header className="w-full bg-emerald-600 shadow-xl border-b border-emerald-500/20 sticky top-0 z-40">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="py-4 sm:py-6">
             {/* Main Header Row */}
@@ -1822,19 +1822,19 @@ export default function JudgeDashboard() {
                     </div>
                   </div>
                   <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-cyan-100 bg-clip-text text-transparent">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white">
                       Judge Dashboard
                     </h1>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                      <p className="text-sm text-black font-medium">
+                      <p className="text-sm text-white font-medium">
                         Welcome back,
                       </p>
-                      <p className="text-sm font-semibold text-black bg-white/10 px-2 py-1 rounded-md backdrop-blur-sm border border-white/20">
+                      <p className="text-sm font-semibold text-white bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm border border-white/30">
                         {user?.displayName || user?.email?.split('@')[0] || 'Judge'}
                       </p>
                     </div>
                     {judgeData?.judgeId && (
-                      <p className="text-xs text-black/70 mt-1">
+                      <p className="text-xs text-white/80 mt-1">
                         Judge ID: {judgeData.judgeId}
                       </p>
                     )}
@@ -1853,7 +1853,7 @@ export default function JudgeDashboard() {
                     <span className="font-medium text-sm">🟢 Live</span>
                   </div>
                   <div className="h-4 w-px bg-white/20"></div>
-                  <div className="text-xs text-black">
+                  <div className="text-xs text-white">
                     <div className="font-medium">Updated</div>
                     <div>{lastUpdated ? lastUpdated.toLocaleTimeString() : 'Just now'}</div>
                   </div>
@@ -2003,11 +2003,11 @@ export default function JudgeDashboard() {
           onTouchEnd={onTouchEnd}
         >
           {/* Combined Card: Contestant Info + Quick Scoring */}
-          <div className={`bg-white rounded-2xl shadow-lg overflow-hidden mb-4 border-2 border-blue-200 transition-all duration-300 ${
+          <div className={`bg-white rounded-2xl shadow-lg overflow-hidden mb-4 border-2 border-emerald-200 transition-all duration-300 ${
             isAnimating ? (slideDirection === 'left' ? 'slide-exit-left' : 'slide-exit-right') : (slideDirection === 'left' ? 'slide-enter-left' : 'slide-enter-right')
           }`}>
             {/* Card Header: Contestant Info */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-black p-4">
+            <div className="bg-emerald-600 text-white p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -2027,7 +2027,7 @@ export default function JudgeDashboard() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-black truncate transition-all duration-300">#{currentContestant.number}</p>
+                  <p className="text-sm text-white truncate transition-all duration-300">#{currentContestant.number}</p>
                 </div>
                 <span className="text-sm font-bold bg-white/20 px-3 py-1 rounded-full whitespace-nowrap ml-2">
                   {currentContestantIndex + 1}/{contestants.length}
@@ -2036,17 +2036,17 @@ export default function JudgeDashboard() {
               
               {/* Progress Indicator */}
               <div>
-                <div className="flex items-center justify-between text-xs text-black mb-2">
+                <div className="flex items-center justify-between text-xs text-white mb-2">
                   <span>Progress</span>
                   <span>{Math.round(((currentContestantIndex + 1) / contestants.length) * 100)}%</span>
                 </div>
-                <div className="w-full bg-blue-400 rounded-full h-2">
+                <div className="w-full bg-emerald-400 rounded-full h-2">
                   <div 
-                    className="bg-green-400 h-2 rounded-full transition-all duration-300"
+                    className="bg-white h-2 rounded-full transition-all duration-300"
                     style={{ width: `${((currentContestantIndex + 1) / contestants.length) * 100}%` }}
                   ></div>
                 </div>
-                <p className="text-xs text-black mt-2">👆 Swipe left/right to navigate</p>
+                <p className="text-xs text-white mt-2">👆 Swipe left/right to navigate</p>
               </div>
             </div>
 
@@ -2062,7 +2062,7 @@ export default function JudgeDashboard() {
               <button
                 onClick={() => selectContestantByIndex(currentContestantIndex + 1)}
                 disabled={currentContestantIndex === contestants.length - 1}
-                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-black rounded-lg font-medium transition-colors text-sm"
+                className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
               >
                 Next →
               </button>
@@ -2126,7 +2126,7 @@ export default function JudgeDashboard() {
                             {criterion.name}
                           </label>
                           {criterion.category && (
-                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-black rounded-full flex-shrink-0">
+                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-full flex-shrink-0">
                               {criterion.category}
                             </span>
                           )}
@@ -2175,7 +2175,7 @@ export default function JudgeDashboard() {
                             handleQuickScoreChange(key, newValue);
                           }}
                           disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
-                          className={`w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-center text-xs font-medium ${
+                          className={`w-16 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-xs font-medium ${
                             !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored ? 'bg-gray-100 cursor-not-allowed' : ''
                           }`}
                         />
@@ -2257,7 +2257,7 @@ export default function JudgeDashboard() {
                   </button>
                   <button
                     onClick={openSubmitModal}
-                    className="bg-blue-600 hover:bg-blue-700 text-black px-4 py-2 rounded-lg transition-colors font-medium shadow text-sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow text-sm"
                   >
                     📤 Submit
                   </button>
@@ -2267,8 +2267,8 @@ export default function JudgeDashboard() {
           </div>
 
           {/* Navigation Hints */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center mb-3">
-            <p className="text-xs text-black font-medium">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center mb-3">
+            <p className="text-xs text-emerald-800 font-medium">
               ← Swipe to move between contestants →
             </p>
           </div>
@@ -2300,7 +2300,7 @@ export default function JudgeDashboard() {
                 <button
                   onClick={() => selectContestantByIndex(Math.min(contestants.length - 1, currentContestantIndex + 3))}
                   disabled={currentContestantIndex >= contestants.length - 1}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-black rounded-lg font-medium transition-colors"
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
                 >
                   Next 6 →
                 </button>
@@ -2317,12 +2317,12 @@ export default function JudgeDashboard() {
               
               return (
                 <div key={contestant.id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 ${
-                  isCurrentCard ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
+                  isCurrentCard ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200'
                 }`}>
                   {/* Card Header */}
                   <div className={`text-black p-4 ${
                     isCurrentCard 
-                      ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800' 
+                      ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-green-800' 
                       : 'bg-gradient-to-r from-gray-500 to-gray-600'
                   }`}>
                     <div className="flex items-center justify-between">
@@ -2339,7 +2339,7 @@ export default function JudgeDashboard() {
                                   👥 Group
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-black rounded-full" title="Solo Contestant">
+                                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-full" title="Solo Contestant">
                                   Solo
                                 </span>
                               )}
@@ -2418,7 +2418,7 @@ export default function JudgeDashboard() {
                                       {criterion.name}
                                     </label>
                                     {criterion.category && (
-                                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-black rounded-full flex-shrink-0">
+                                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-full flex-shrink-0">
                                         {criterion.category}
                                       </span>
                                     )}
@@ -2435,7 +2435,7 @@ export default function JudgeDashboard() {
                                     <span className={`text-xs font-bold px-2 py-1 rounded ${
                                       isOverMax 
                                         ? 'text-black bg-red-100 border border-red-300' 
-                                        : 'text-black bg-blue-50'
+                                        : 'text-black bg-emerald-50'
                                     }`}>
                                       {scoreDisplayFormat}
                                     </span>
@@ -2590,7 +2590,7 @@ export default function JudgeDashboard() {
                                     {isPointsGrading ? `${criterion.weight} pts` : `${criterion.weight}%`}
                                   </span>
                                 </div>
-                                <span className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-2 py-1 rounded flex-shrink-0`}>
+                                <span className={`text-sm font-bold text-${color === 'blue' ? 'emerald' : color}-600 bg-${color === 'blue' ? 'emerald' : color}-50 px-2 py-1 rounded flex-shrink-0`}>
                                   {scoreDisplayFormat}
                                 </span>
                               </div>
@@ -2619,7 +2619,7 @@ export default function JudgeDashboard() {
                         </div>
                         <button
                           onClick={() => selectContestantByIndex(actualIndex)}
-                          className="w-full mt-3 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-black rounded-lg font-medium text-sm transition-colors"
+                          className="w-full mt-3 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm transition-colors"
                         >
                           Select This Contestant
                         </button>
@@ -2637,11 +2637,11 @@ export default function JudgeDashboard() {
 
         {/* Scoring Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 sm:mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-black p-3 sm:p-4">
+          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="text-lg sm:text-xl font-bold">📊 Contestant Scoring</h2>
-                <p className="text-black text-xs sm:text-sm">Evaluate and score contestants</p>
+                <p className="text-white text-xs sm:text-sm">Evaluate and score contestants</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1 sm:flex-initial">
@@ -2650,7 +2650,7 @@ export default function JudgeDashboard() {
                     placeholder="Search contestants..."
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50 text-black placeholder-gray-500 text-sm"
+                    className="w-full sm:w-64 px-3 sm:px-4 py-2 pl-8 sm:pl-10 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-emerald-50 text-black placeholder-gray-500 text-sm"
                   />
                   <span className="absolute left-2.5 sm:left-3 top-2.5 text-black text-sm">🔍</span>
                 </div>
@@ -2710,7 +2710,7 @@ export default function JudgeDashboard() {
                         }
                       }
                     }}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-black rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-lg border border-blue-300 whitespace-nowrap"
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 text-sm font-medium shadow-lg border border-emerald-300 whitespace-nowrap"
                     title="Switch back to main scoring criteria"
                   >
                     📋 Main Criteria
@@ -2754,13 +2754,13 @@ export default function JudgeDashboard() {
                 <div className="flex gap-2 lg:hidden">
                   <button 
                     onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: -200, behavior: 'smooth' })}
-                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-black transition-colors"
+                    className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 rounded-lg text-xs font-medium text-black transition-colors"
                   >
                     ←
                   </button>
                   <button 
                     onClick={() => document.querySelector('.judge-scoring-table')?.scrollBy({ left: 200, behavior: 'smooth' })}
-                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs font-medium text-black transition-colors"
+                    className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 rounded-lg text-xs font-medium text-black transition-colors"
                   >
                     →
                   </button>

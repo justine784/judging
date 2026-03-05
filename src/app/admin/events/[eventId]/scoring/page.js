@@ -291,7 +291,7 @@ export default function EventScoring() {
         <div className="flex items-center gap-4 mb-4">
           <button
             onClick={() => router.push(`/admin/events/${eventId}/contestants`)}
-            className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
+            className="text-green-600 hover:text-green-700 font-medium flex items-center gap-2"
           >
             <span>←</span>
             Back to Contestants
@@ -301,7 +301,7 @@ export default function EventScoring() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">🏆 Event Scoring</h1>
             <p className="text-gray-600">
-              Manage scores for <span className="font-semibold text-blue-600">{event?.eventName}</span>
+              Manage scores for <span className="font-semibold text-green-600">{event?.eventName}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -317,7 +317,7 @@ export default function EventScoring() {
               className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors shadow-lg ${
                 scoresLocked 
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
               }`}
             >
               <span className="text-xl">➕</span>
@@ -329,22 +329,22 @@ export default function EventScoring() {
 
       {/* Event Info Card */}
       {event && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 rounded-xl p-6 mb-8 text-white">
+        <div className="bg-green-600 rounded-xl p-6 mb-8 text-white">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <p className="text-blue-100 text-sm">Date</p>
+              <p className="text-green-100 text-sm">Date</p>
               <p className="font-semibold">{event.date}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Time</p>
+              <p className="text-green-100 text-sm">Time</p>
               <p className="font-semibold">{event.time}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Venue</p>
+              <p className="text-green-100 text-sm">Venue</p>
               <p className="font-semibold">{event.venue}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Total Contestants</p>
+              <p className="text-green-100 text-sm">Total Contestants</p>
               <p className="font-semibold">{contestants.length}</p>
             </div>
           </div>
@@ -353,16 +353,16 @@ export default function EventScoring() {
 
       {/* Criteria Info */}
       {event && event.criteria && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-blue-900 mb-2">📌 Judging Criteria:</h3>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-green-900 mb-2">📌 Judging Criteria:</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {event.criteria.filter(c => c.enabled).map((criterion, index) => (
-              <div key={index} className="text-sm text-blue-800">
+              <div key={index} className="text-sm text-green-800">
                 <span className="font-medium">{criterion.name}:</span> {criterion.weight}%
               </div>
             ))}
           </div>
-          <p className="text-sm text-blue-700 mt-2">
+          <p className="text-sm text-green-700 mt-2">
             Total Weight: {event.criteria.filter(c => c.enabled).reduce((sum, c) => sum + c.weight, 0)}%
           </p>
         </div>
@@ -370,9 +370,9 @@ export default function EventScoring() {
 
       {/* Scoreboard Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 text-white p-4">
+        <div className="bg-green-600 text-white p-4">
           <h2 className="text-xl font-bold">📊 Event Scoreboard</h2>
-          <p className="text-blue-100 text-sm">Weighted scores based on event criteria</p>
+          <p className="text-green-100 text-sm">Weighted scores based on event criteria</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -428,7 +428,7 @@ export default function EventScoring() {
                         className={`p-2 rounded-lg transition-all duration-200 group ${
                           scoresLocked 
                             ? 'text-gray-400 cursor-not-allowed' 
-                            : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                            : 'text-green-600 hover:bg-green-50 hover:text-green-700'
                         }`}
                         title="Edit Scores"
                       >
@@ -463,7 +463,7 @@ export default function EventScoring() {
           <p className="text-gray-500 mb-4">Add contestants first before managing scores</p>
           <button
             onClick={() => router.push(`/admin/events/${eventId}/contestants`)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
           >
             Manage Contestants
           </button>
@@ -474,9 +474,9 @@ export default function EventScoring() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-green-600 px-6 py-5 rounded-t-2xl">
               <h3 className="text-xl font-bold text-white">Add Contestant Scores</h3>
-              <p className="text-blue-100 text-sm mt-1">Enter scores for {event?.eventName}</p>
+              <p className="text-green-100 text-sm mt-1">Enter scores for {event?.eventName}</p>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => { e.preventDefault(); handleAddScores(); }} className="space-y-4">
@@ -488,7 +488,7 @@ export default function EventScoring() {
                     name="contestantId"
                     value={formData.contestantId}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     required
                   >
                     <option value="">Choose a contestant...</option>
@@ -513,7 +513,7 @@ export default function EventScoring() {
                       min="0"
                       max="50"
                       step="0.1"
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       required
                     />
                   </div>
@@ -535,7 +535,7 @@ export default function EventScoring() {
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                    className="flex-1 bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                   >
                     <span className="flex items-center justify-center gap-2">
                       <span>💾</span>
@@ -560,9 +560,9 @@ export default function EventScoring() {
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-green-600 px-6 py-5 rounded-t-2xl">
               <h3 className="text-xl font-bold text-white">Edit Contestant Scores</h3>
-              <p className="text-blue-100 text-sm mt-1">Update scores for {formData.contestantName}</p>
+              <p className="text-green-100 text-sm mt-1">Update scores for {formData.contestantName}</p>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => { e.preventDefault(); handleEditScores(); }} className="space-y-4">
@@ -586,7 +586,7 @@ export default function EventScoring() {
                       min="0"
                       max="50"
                       step="0.1"
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       required
                     />
                   </div>
@@ -608,7 +608,7 @@ export default function EventScoring() {
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                    className="flex-1 bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                   >
                     <span className="flex items-center justify-center gap-2">
                       <span>💾</span>

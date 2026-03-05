@@ -1247,19 +1247,19 @@ export default function EventManagement() {
       }`}>
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 py-6">
+          <div className="bg-green-600 px-4 py-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Event Management</h2>
               <button
                 onClick={() => setMobileSidebarOpen(false)}
-                className="text-white hover:text-blue-200 transition-colors p-1"
+                className="text-white hover:text-green-200 transition-colors p-1"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <p className="text-blue-100 text-sm">Create and manage competition events</p>
+            <p className="text-green-100 text-sm">Create and manage competition events</p>
           </div>
           
           {/* Sidebar Content */}
@@ -1267,7 +1267,7 @@ export default function EventManagement() {
             <button
               onClick={() => { setShowAddModal(true); setMobileSidebarOpen(false); }}
               disabled={loading}
-              className="w-full flex items-center gap-3 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mb-6 touch-manipulation active:scale-95"
+              className="w-full flex items-center gap-3 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mb-6 touch-manipulation active:scale-95"
             >
               <span className="text-xl">➕</span>
               <span className="font-medium">{loading ? 'Loading...' : 'Add Event'}</span>
@@ -1275,14 +1275,14 @@ export default function EventManagement() {
             
             {/* Quick Stats */}
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <div className="h-10 w-10 bg-green-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-lg">📋</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-blue-900">Total Events</p>
-                    <p className="text-2xl font-bold text-blue-600">{events.length}</p>
+                    <p className="text-sm font-semibold text-green-900">Total Events</p>
+                    <p className="text-2xl font-bold text-green-600">{events.length}</p>
                   </div>
                 </div>
               </div>
@@ -1299,14 +1299,14 @@ export default function EventManagement() {
                 </div>
               </div>
               
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <div className="h-10 w-10 bg-green-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-lg">🔒</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-blue-900">Locked Events</p>
-                    <p className="text-2xl font-bold text-blue-600">{events.filter(e => e.scoresLocked).length}</p>
+                    <p className="text-sm font-semibold text-green-900">Locked Events</p>
+                    <p className="text-2xl font-bold text-green-600">{events.filter(e => e.scoresLocked).length}</p>
                   </div>
                 </div>
               </div>
@@ -1345,12 +1345,12 @@ export default function EventManagement() {
             <p className="text-gray-600">Create and manage competition events</p>
           </div>
           <div className="text-right">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-lg">
-              <div className="text-xs text-blue-100">Current Time</div>
+            <div className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
+              <div className="text-xs text-green-100">Current Time</div>
               <div className="text-lg font-bold">
                 {currentTime.toLocaleTimeString()}
               </div>
-              <div className="text-xs text-blue-100">
+              <div className="text-xs text-green-100">
                 {currentTime.toLocaleDateString()}
               </div>
             </div>
@@ -1377,7 +1377,7 @@ export default function EventManagement() {
           <button
             onClick={() => setShowAddModal(true)}
             disabled={loading}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-xl">➕</span>
             {loading ? 'Loading...' : 'Add Event'}
@@ -1398,7 +1398,7 @@ export default function EventManagement() {
           <button
             onClick={() => setShowAddModal(true)}
             disabled={loading}
-            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation active:scale-95"
+            className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation active:scale-95"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1407,19 +1407,19 @@ export default function EventManagement() {
         </div>
 
         {/* Mobile Time Display */}
-        <div className="lg:hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3">
+        <div className="lg:hidden bg-green-600 text-white p-3">
           <div className="flex justify-between items-center">
             <div>
-              <div className="text-xs text-blue-100">Live Current Time</div>
+              <div className="text-xs text-green-100">Live Current Time</div>
               <div className="text-lg font-bold">
                 {currentTime.toLocaleTimeString()}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs text-blue-100">
+              <div className="text-xs text-green-100">
                 {currentTime.toLocaleDateString()}
               </div>
-              <div className="text-xs text-blue-200">
+              <div className="text-xs text-green-200">
                 Updates: 30s
               </div>
             </div>
@@ -1446,7 +1446,7 @@ export default function EventManagement() {
         {loading && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
               <span className="text-gray-700">Processing...</span>
             </div>
           </div>
@@ -1454,15 +1454,15 @@ export default function EventManagement() {
 
         {/* Events Table */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 mx-4 lg:mx-6 mb-6">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-4 lg:px-6 py-3 lg:py-4">
+          <div className="bg-green-600 px-4 lg:px-6 py-3 lg:py-4">
             <h3 className="text-base lg:text-lg font-semibold text-white">Events List</h3>
-            <p className="text-blue-100 text-xs lg:text-sm">Manage and track all competition events</p>
+            <p className="text-green-100 text-xs lg:text-sm">Manage and track all competition events</p>
           </div>
           
           {/* Mobile Card View */}
           <div className="lg:hidden">
             {events.map((event) => (
-              <div key={event.id} className="border-b border-gray-100 last:border-b-0 p-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200">
+              <div key={event.id} className="border-b border-gray-100 last:border-b-0 p-4 hover:bg-gradient-to-r hover:from-green-50 hover:to-green-50 transition-all duration-200">
                 {/* Event Header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -1780,7 +1780,7 @@ export default function EventManagement() {
                 </div>
                 <button
                   onClick={() => { setShowAddModal(false); resetForm(); }}
-                  className="text-white hover:text-blue-200 transition-colors p-1"
+                  className="text-white hover:text-green-200 transition-colors p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1810,7 +1810,7 @@ export default function EventManagement() {
                     name="eventName"
                     value={formData.eventName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     placeholder="Enter event name"
                     required
                   />
@@ -1826,7 +1826,7 @@ export default function EventManagement() {
                     value={formData.eventDescription}
                     onChange={handleInputChange}
                     rows="4"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white resize-none"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white resize-none"
                     placeholder="Describe the event details"
                     required
                   />
@@ -1843,7 +1843,7 @@ export default function EventManagement() {
                       name="date"
                       value={formData.date}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       required
                     />
                   </div>
@@ -1856,7 +1856,7 @@ export default function EventManagement() {
                       name="time"
                       value={formData.time}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       required
                     />
                   </div>
@@ -1872,7 +1872,7 @@ export default function EventManagement() {
                     name="venue"
                     value={formData.venue}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     placeholder="Enter venue location"
                     required
                   />
@@ -1887,7 +1887,7 @@ export default function EventManagement() {
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                   >
                     <option value="upcoming">📅 Upcoming</option>
                     <option value="ongoing">🎭 Ongoing</option>
@@ -2048,15 +2048,15 @@ export default function EventManagement() {
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-5 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-5 rounded-t-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-white">Manage Criteria</h3>
-                  <p className="text-blue-100 text-sm mt-1">Configure judging criteria for {selectedEvent.eventName}</p>
+                  <p className="text-green-100 text-sm mt-1">Configure judging criteria for {selectedEvent.eventName}</p>
                 </div>
                 <button
                   onClick={() => { setShowCriteriaModal(false); setSelectedEvent(null); }}
-                  className="text-white hover:text-blue-200 transition-colors p-1"
+                  className="text-white hover:text-green-200 transition-colors p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2074,7 +2074,7 @@ export default function EventManagement() {
                   </div>
                   <div className="text-white">
                     <h4 className="font-medium text-sm mb-2">Scoring System Information</h4>
-                    <ul className="text-blue-100 text-xs space-y-1">
+                    <ul className="text-green-100 text-xs space-y-1">
                       <li>• Scoring type is determined by the event's grading type</li>
                       <li>• All categories will automatically use the event's scoring type</li>
                       <li>• Configure category weights and sub-criteria for each judging category</li>
@@ -2090,7 +2090,7 @@ export default function EventManagement() {
             <div className="p-6">
               <div className="space-y-6">
                 {/* Global Scoring Type Display */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-lg font-semibold text-gray-900">Scoring Type</h4>
@@ -2102,7 +2102,7 @@ export default function EventManagement() {
                           onClick={() => handleGradingTypeChange('percentage')}
                           className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                             selectedEvent.gradingType === 'percentage'
-                              ? 'bg-blue-600 text-white shadow-md'
+                              ? 'bg-green-600 text-white shadow-md'
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                         >
@@ -2112,7 +2112,7 @@ export default function EventManagement() {
                           onClick={() => handleGradingTypeChange('points')}
                           className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                             selectedEvent.gradingType === 'points'
-                              ? 'bg-blue-600 text-white shadow-md'
+                              ? 'bg-green-600 text-white shadow-md'
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                         >
@@ -2138,7 +2138,7 @@ export default function EventManagement() {
                     <h4 className="text-lg font-semibold text-gray-900">Criteria Categories</h4>
                     <button
                       onClick={addCategory}
-                      className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
                     >
                       <span className="text-sm">➕</span>
                       Add Category
@@ -2147,20 +2147,20 @@ export default function EventManagement() {
 
                   {selectedEvent.criteriaCategories && selectedEvent.criteriaCategories.length > 0 ? (
                     selectedEvent.criteriaCategories.map((category, categoryIndex) => (
-                      <div key={categoryIndex} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                      <div key={categoryIndex} className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
                               {categoryIndex + 1}
                             </div>
                             <div>
                               <h5 className="font-semibold text-gray-900 text-lg">{category.name || `Category ${categoryIndex + 1}`}</h5>
                               <div className="flex items-center gap-3 text-sm text-gray-600">
                                 <span>
-                                  {category.scoringType === 'percentage' ? 'Total Weight:' : 'Total Points:'} <span className="font-bold text-blue-600">{category.totalWeight || 0}{category.scoringType === 'percentage' ? '%' : ' pts'}</span>
+                                  {category.scoringType === 'percentage' ? 'Total Weight:' : 'Total Points:'} <span className="font-bold text-green-600">{category.totalWeight || 0}{category.scoringType === 'percentage' ? '%' : ' pts'}</span>
                                 </span>
                                 <span className="text-gray-400">•</span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {category.scoringType === 'percentage' ? 'Percentage' : 'Points'}
                                 </span>
                               </div>
@@ -2217,7 +2217,7 @@ export default function EventManagement() {
                             <h6 className="text-sm font-medium text-gray-700">Sub-Criteria</h6>
                             <button
                               onClick={() => addSubCriteria(categoryIndex)}
-                              className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                              className="px-2 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors flex items-center gap-1"
                             >
                               <span className="text-xs">➕</span>
                               Add Sub-Criteria
@@ -2292,7 +2292,7 @@ export default function EventManagement() {
                                     type="checkbox"
                                     checked={subCriterion.enabled !== false}
                                     onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'enabled', e.target.checked)}
-                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                    className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
                                   />
                                   <span className="ml-1 text-xs text-gray-700">Enabled</span>
                                 </label>
@@ -2307,9 +2307,9 @@ export default function EventManagement() {
                             </div>
                           )}
 
-                          <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                          <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm font-medium text-blue-900">Category Total:</span>
+                              <span className="text-sm font-medium text-green-900">Category Total:</span>
                               <span className={
                                 "text-sm font-bold " + (
                                   (!category.subCriteria || category.subCriteria.length === 0) || 
@@ -2341,9 +2341,9 @@ export default function EventManagement() {
                 </div>
 
                 {/* Overall Total Weight Display */}
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-blue-900">
+                    <span className="font-semibold text-green-900">
                       Overall Total {selectedEvent.criteriaCategories && selectedEvent.criteriaCategories[0]?.scoringType === 'points' ? 'Points:' : 'Weight:'}
                     </span>
                     <span className={`font-bold text-lg ${
@@ -2395,7 +2395,7 @@ export default function EventManagement() {
                         }}
                         className="sr-only peer"
                       />
-                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[&quot;&quot;] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[&quot;&quot;] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                       <span className="ml-3 text-sm font-medium text-gray-700">
                         {selectedEvent.hasRounds ? 'Enabled' : 'Disabled'}
                       </span>
@@ -2451,7 +2451,7 @@ export default function EventManagement() {
                                     type="checkbox"
                                     checked={round.enabled || false}
                                     onChange={(e) => handleRoundChange(roundIndex, 'enabled', e.target.checked)}
-                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                                   />
                                   <span className="text-sm font-medium text-gray-700">Enable Round</span>
                                 </label>
@@ -2490,7 +2490,7 @@ export default function EventManagement() {
                                         type="checkbox"
                                         checked={criteria.enabled || false}
                                         onChange={(e) => handleRoundCriteriaChange(roundIndex, criteriaIndex, 'enabled', e.target.checked)}
-                                        className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                        className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
                                       />
                                       <span className="ml-1 text-xs text-gray-700">Enable</span>
                                     </label>
@@ -2507,12 +2507,12 @@ export default function EventManagement() {
                                 Add Criteria for Final Round
                               </button>
                               
-                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-sm font-medium text-blue-900">
+                                  <span className="text-sm font-medium text-green-900">
                                     {selectedEvent.gradingType === 'percentage' ? 'Total Weight:' : 'Total Points:'}
                                   </span>
-                                  <span className="text-sm font-bold text-blue-600">
+                                  <span className="text-sm font-bold text-green-600">
                                     {round.criteria ? round.criteria.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0) : 0}
                                     {selectedEvent.gradingType === 'percentage' ? '%' : ' pts'}
                                   </span>
@@ -2531,7 +2531,7 @@ export default function EventManagement() {
 
                       <button
                         onClick={addRound}
-                        className="w-full py-3 px-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-2"
+                        className="w-full py-3 px-4 border-2 border-dashed border-green-300 rounded-xl text-green-600 hover:border-green-400 hover:bg-green-50 transition-all duration-200 flex items-center justify-center gap-2"
                       >
                         <span className="text-xl">➕</span>
                         <span className="font-medium">Add Round</span>
@@ -2545,7 +2545,7 @@ export default function EventManagement() {
               <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 mt-6">
                 <button
                   onClick={handleSaveCriteria}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 px-6 rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-500 text-white py-3 px-6 rounded-xl hover:from-green-700 hover:to-green-600 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                 >
                   <span className="flex items-center justify-center gap-2">
                     <span>💾</span>

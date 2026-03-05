@@ -60,7 +60,7 @@ export default function AdminLayout({ children }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
       </div>
     );
   }
@@ -80,7 +80,7 @@ export default function AdminLayout({ children }) {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white shadow-sm border-b border-gray-200">
         <div className="flex items-center justify-between p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-600 flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-green-600 flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
               {user.email.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
@@ -148,7 +148,7 @@ export default function AdminLayout({ children }) {
                   <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c6 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                   </svg>
-                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full whitespace-nowrap">Admin View</span>
+                  <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full whitespace-nowrap">Admin View</span>
                 </button>
                 
                 {/* Date & Time */}
@@ -172,7 +172,7 @@ export default function AdminLayout({ children }) {
                     <p className="text-xs text-gray-500">Administrator</p>
                   </div>
                   <div className="relative">
-                    <div className="h-7 w-7 sm:h-8 sm:w-10 lg:h-10 lg:w-10 bg-gradient-to-br from-blue-600 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg text-xs sm:text-sm lg:text-base">
+                    <div className="h-7 w-7 sm:h-8 sm:w-10 lg:h-10 lg:w-10 bg-green-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg text-xs sm:text-sm lg:text-base">
                       {user.email.charAt(0).toUpperCase()}
                     </div>
                     <div className="absolute bottom-0 right-0 h-2 w-2 sm:h-3 sm:w-3 bg-green-500 border-2 border-white rounded-full"></div>

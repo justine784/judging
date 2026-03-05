@@ -718,7 +718,7 @@ export default function EventContestants() {
         <div className="flex items-center gap-4 mb-4">
           <button
             onClick={() => router.push('/admin/events')}
-            className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
+            className="text-green-600 hover:text-green-700 font-medium flex items-center gap-2"
           >
             <span>←</span>
             Back to Events
@@ -728,13 +728,13 @@ export default function EventContestants() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Contestants Management</h1>
             <p className="text-gray-600">
-              Manage contestants for <span className="font-semibold text-blue-600">{event?.eventName}</span>
+              Manage contestants for <span className="font-semibold text-green-600">{event?.eventName}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => { setFormErrors({}); setShowAddModal(true); }}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+              className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors shadow-lg"
             >
               <span className="text-xl">➕</span>
               Add Contestant
@@ -752,26 +752,26 @@ export default function EventContestants() {
 
       {/* Event Info Card */}
       {event && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 rounded-xl p-6 mb-8 text-white">
+        <div className="bg-green-600 rounded-xl p-6 mb-8 text-white">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
-              <p className="text-blue-100 text-sm">Date</p>
+              <p className="text-green-100 text-sm">Date</p>
               <p className="text-lg font-semibold">{event.date}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Time</p>
+              <p className="text-green-100 text-sm">Time</p>
               <p className="text-lg font-semibold">{event.time}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Venue</p>
+              <p className="text-green-100 text-sm">Venue</p>
               <p className="text-lg font-semibold">{event.venue}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Status</p>
+              <p className="text-green-100 text-sm">Status</p>
               <p className="text-lg font-semibold">{event.status}</p>
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Current Round</p>
+              <p className="text-green-100 text-sm">Current Round</p>
               <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-bold rounded-full ${getRoundColor(currentRound)}`}>
                 🏆 {currentRound.charAt(0).toUpperCase() + currentRound.slice(1)}
               </span>
@@ -782,9 +782,9 @@ export default function EventContestants() {
 
       {/* Contestants Table */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-6 py-4">
+        <div className="bg-green-600 px-6 py-4">
           <h3 className="text-lg font-semibold text-white">Registered Contestants</h3>
-          <p className="text-blue-100 text-sm">List of all registered contestants for this event</p>
+          <p className="text-green-100 text-sm">List of all registered contestants for this event</p>
         </div>
         
         {/* Mobile Card View */}
@@ -1032,16 +1032,16 @@ export default function EventContestants() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-green-600 px-6 py-5 rounded-t-2xl">
               <h3 className="text-xl font-bold text-white">Add New Contestant</h3>
-              <p className="text-blue-100 text-sm mt-1">Register a new contestant for {event?.eventName}</p>
+              <p className="text-green-100 text-sm mt-1">Register a new contestant for {event?.eventName}</p>
               
               {/* Contestant Type Toggle */}
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 mt-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-white font-medium text-sm">Contestant Type</label>
-                    <p className="text-blue-100 text-xs mt-1">Choose between solo performer or group</p>
+                    <p className="text-green-100 text-xs mt-1">Choose between solo performer or group</p>
                   </div>
                   <div className="flex items-center bg-white/20 rounded-lg p-1">
                     <button
@@ -1049,8 +1049,8 @@ export default function EventContestants() {
                       onClick={() => setFormData(prev => ({ ...prev, contestantType: 'solo' }))}
                       className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                         formData.contestantType === 'solo'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-white hover:text-blue-200'
+                          ? 'bg-white text-green-600 shadow-sm'
+                          : 'text-white hover:text-green-200'
                       }`}
                     >
                       Solo
@@ -1060,8 +1060,8 @@ export default function EventContestants() {
                       onClick={() => setFormData(prev => ({ ...prev, contestantType: 'group' }))}
                       className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                         formData.contestantType === 'group'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-white hover:text-blue-200'
+                          ? 'bg-white text-green-600 shadow-sm'
+                          : 'text-white hover:text-green-200'
                       }`}
                     >
                       Group
@@ -1103,7 +1103,7 @@ export default function EventContestants() {
                         name="age"
                         value={formData.age}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="Age"
                         min="1"
                         max="100"
@@ -1125,7 +1125,7 @@ export default function EventContestants() {
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="First name"
                         required
                       />
@@ -1139,7 +1139,7 @@ export default function EventContestants() {
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="Last name"
                         required
                       />
@@ -1158,7 +1158,7 @@ export default function EventContestants() {
                       name="groupName"
                       value={formData.groupName}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       placeholder="Enter group name"
                       required
                     />
@@ -1172,7 +1172,7 @@ export default function EventContestants() {
                         name="groupLeader"
                         value={formData.groupLeader}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="Enter group leader name"
                         required
                       />
@@ -1190,7 +1190,7 @@ export default function EventContestants() {
                     name="address"
                     value={formData.address}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     placeholder="Complete address"
                     required
                   />
@@ -1205,7 +1205,7 @@ export default function EventContestants() {
                     name="contactNumber"
                     value={formData.contactNumber}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     placeholder="09XX-XXX-XXXX"
                     maxLength="11"
                     pattern="[0-9]{11}"
@@ -1221,7 +1221,7 @@ export default function EventContestants() {
                   </label>
                   <div className="flex items-start gap-4">
                     <div className="flex-1">
-                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-400 transition-colors">
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-green-400 transition-colors">
                         <input
                           type="file"
                           accept="image/*"
@@ -1268,7 +1268,7 @@ export default function EventContestants() {
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                    className="flex-1 bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                   >
                     <span className="flex items-center justify-center gap-2">
                       <span>➕</span>
@@ -1293,7 +1293,7 @@ export default function EventContestants() {
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 rounded-t-2xl">
+            <div className="bg-green-600 px-6 py-5 rounded-t-2xl">
               <h3 className="text-xl font-bold text-white">Edit Contestant</h3>
               <p className="text-purple-100 text-sm mt-1">Update contestant information</p>
             </div>
@@ -1328,7 +1328,7 @@ export default function EventContestants() {
                         name="age"
                         value={formData.age}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         min="1"
                         max="100"
                         required
@@ -1349,7 +1349,7 @@ export default function EventContestants() {
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
@@ -1362,7 +1362,7 @@ export default function EventContestants() {
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
@@ -1381,7 +1381,7 @@ export default function EventContestants() {
                         name="groupName"
                         value={formData.groupName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
@@ -1394,7 +1394,7 @@ export default function EventContestants() {
                         name="groupLeader"
                         value={formData.groupLeader}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
@@ -1410,7 +1410,7 @@ export default function EventContestants() {
                     name="address"
                     value={formData.address}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     required
                   />
                 </div>
@@ -1424,7 +1424,7 @@ export default function EventContestants() {
                     name="contactNumber"
                     value={formData.contactNumber}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     placeholder="09XX-XXX-XXXX"
                     maxLength="11"
                     pattern="[0-9]{11}"
@@ -1440,7 +1440,7 @@ export default function EventContestants() {
                   </label>
                   <div className="flex items-start gap-4">
                     <div className="flex-1">
-                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-400 transition-colors">
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-green-400 transition-colors">
                         <input
                           type="file"
                           accept="image/*"
@@ -1487,7 +1487,7 @@ export default function EventContestants() {
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                    className="flex-1 bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                   >
                     <span className="flex items-center justify-center gap-2">
                       <span>💾</span>

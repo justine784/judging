@@ -95,7 +95,7 @@ export default function AdminSettings() {
           </button>
           <button
             onClick={() => setShowEditModal(true)}
-            className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm sm:text-base"
+            className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm sm:text-base"
           >
             <span>💾</span>
             <span className="hidden sm:inline">Save Changes</span>
@@ -122,7 +122,7 @@ export default function AdminSettings() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`py-3 sm:py-4 px-2 sm:px-4 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
+                    ? 'border-green-600 text-green-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -151,7 +151,7 @@ export default function AdminSettings() {
                     name="systemName"
                     value={settings.systemName}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   />
                 </div>
                 
@@ -164,7 +164,7 @@ export default function AdminSettings() {
                     name="organization"
                     value={settings.organization}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   />
                 </div>
                 
@@ -177,7 +177,7 @@ export default function AdminSettings() {
                     name="adminEmail"
                     value={settings.adminEmail}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   />
                 </div>
                 
@@ -192,7 +192,7 @@ export default function AdminSettings() {
                     onChange={handleInputChange}
                     min="1"
                     max="100"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   />
                 </div>
               </div>
@@ -213,7 +213,7 @@ export default function AdminSettings() {
                     name="scoringSystem"
                     value={settings.scoringSystem}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   >
                     <option value="weighted">Weighted Scoring</option>
                     <option value="simple">Simple Average</option>
@@ -227,7 +227,7 @@ export default function AdminSettings() {
                     name="autoRanking"
                     checked={settings.autoRanking}
                     onChange={handleInputChange}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Enable automatic ranking after score updates
@@ -240,7 +240,7 @@ export default function AdminSettings() {
                     name="allowJudgeComments"
                     checked={settings.allowJudgeComments}
                     onChange={handleInputChange}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Allow judges to add comments to scores
@@ -253,7 +253,7 @@ export default function AdminSettings() {
                     name="publicResults"
                     checked={settings.publicResults}
                     onChange={handleInputChange}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Make results publicly viewable
@@ -268,9 +268,9 @@ export default function AdminSettings() {
             <div className="space-y-4 sm:space-y-6">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Judge Management</h3>
               
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
-                <h4 className="font-medium text-blue-900 mb-2 text-sm sm:text-base">🧑‍⚖️ Judge Permissions</h4>
-                <p className="text-sm sm:text-base text-blue-800 mb-3 sm:mb-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                <h4 className="font-medium text-green-900 mb-2 text-sm sm:text-base">🧑‍⚖️ Judge Permissions</h4>
+                <p className="text-sm sm:text-base text-green-800 mb-3 sm:mb-4">
                   Configure what judges can see and do in the system. These settings affect all judge accounts.
                 </p>
               </div>
@@ -280,7 +280,7 @@ export default function AdminSettings() {
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Allow judges to view other judges' scores
@@ -291,7 +291,7 @@ export default function AdminSettings() {
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Allow judges to edit submitted scores
@@ -301,7 +301,7 @@ export default function AdminSettings() {
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Require judge approval before finalizing scores
@@ -325,7 +325,7 @@ export default function AdminSettings() {
                     name="backupFrequency"
                     value={settings.backupFrequency}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   >
                     <option value="hourly">Hourly</option>
                     <option value="daily">Daily</option>
@@ -345,7 +345,7 @@ export default function AdminSettings() {
                     onChange={handleInputChange}
                     min="5"
                     max="480"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm sm:text-base"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm sm:text-base"
                   />
                 </div>
               </div>
@@ -357,7 +357,7 @@ export default function AdminSettings() {
                     name="darkMode"
                     checked={settings.darkMode}
                     onChange={handleInputChange}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Enable dark mode (experimental)
@@ -379,7 +379,7 @@ export default function AdminSettings() {
                     name="emailNotifications"
                     checked={settings.emailNotifications}
                     onChange={handleInputChange}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Enable email notifications
@@ -391,7 +391,7 @@ export default function AdminSettings() {
                     <input
                       type="checkbox"
                       defaultChecked
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                     />
                     <label className="text-sm font-medium text-gray-700">
                       Notify when new judge accounts are created
@@ -402,7 +402,7 @@ export default function AdminSettings() {
                     <input
                       type="checkbox"
                       defaultChecked
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                     />
                     <label className="text-sm font-medium text-gray-700">
                       Notify when scores are submitted
@@ -413,7 +413,7 @@ export default function AdminSettings() {
                     <input
                       type="checkbox"
                       defaultChecked
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                     />
                     <label className="text-sm font-medium text-gray-700">
                       Send daily summary reports
@@ -438,7 +438,7 @@ export default function AdminSettings() {
               <button
                 onClick={handleSaveSettings}
                 disabled={loading}
-                className="flex-1 bg-blue-600 text-white py-2 sm:py-2 px-3 sm:px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
+                className="flex-1 bg-green-600 text-white py-2 sm:py-2 px-3 sm:px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
               >
                 {loading ? 'Saving...' : 'Save Settings'}
               </button>

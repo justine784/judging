@@ -217,8 +217,8 @@ export default function AdminDashboard() {
   const getActivityColor = (color) => {
     switch(color) {
       case 'green': return 'bg-green-50 border-green-100 hover:bg-green-100';
-      case 'blue': return 'bg-blue-50 border-blue-100 hover:bg-blue-100';
-      case 'purple': return 'bg-blue-50 border-blue-100 hover:bg-blue-100';
+      case 'blue': return 'bg-green-50 border-green-100 hover:bg-green-100';
+      case 'purple': return 'bg-green-50 border-green-100 hover:bg-green-100';
       default: return 'bg-gray-50 border-gray-100 hover:bg-gray-100';
     }
   };
@@ -226,8 +226,8 @@ export default function AdminDashboard() {
   const getActivityIconColor = (color) => {
     switch(color) {
       case 'green': return 'bg-green-500';
-      case 'blue': return 'bg-blue-500';
-      case 'purple': return 'bg-blue-500';
+      case 'blue': return 'bg-green-500';
+      case 'purple': return 'bg-green-500';
       default: return 'bg-gray-500';
     }
   };
@@ -235,8 +235,8 @@ export default function AdminDashboard() {
   const getActivityBadgeColor = (color) => {
     switch(color) {
       case 'green': return 'bg-green-100 text-black';
-      case 'blue': return 'bg-blue-100 text-black';
-      case 'purple': return 'bg-blue-100 text-black';
+      case 'blue': return 'bg-green-100 text-black';
+      case 'purple': return 'bg-green-100 text-black';
       default: return 'bg-gray-100 text-black';
     }
   };
@@ -285,12 +285,12 @@ export default function AdminDashboard() {
               }
               .header { 
                 text-align: center; 
-                border-bottom: 2px solid #4F46E5; 
+                border-bottom: 2px solid #059669; 
                 padding-bottom: 20px; 
                 margin-bottom: 30px;
               }
               .header h1 { 
-                color: #4F46E5; 
+                color: #059669; 
                 margin: 0;
                 font-size: 28px;
               }
@@ -315,7 +315,7 @@ export default function AdminDashboard() {
                 height: 80px; 
                 border-radius: 50%; 
                 object-fit: cover; 
-                border: 3px solid #4F46E5;
+                border: 3px solid #059669;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1);
               }
               .event-info { 
@@ -323,10 +323,10 @@ export default function AdminDashboard() {
                 padding: 15px; 
                 border-radius: 8px; 
                 margin-bottom: 20px;
-                border-left: 4px solid #4F46E5;
+                border-left: 4px solid #059669;
               }
               .event-info h3 { 
-                color: #4F46E5; 
+                color: #059669; 
                 margin: 0 0 10px 0;
                 font-size: 18px;
               }
@@ -338,7 +338,7 @@ export default function AdminDashboard() {
                 margin-bottom: 30px;
               }
               .scoreboard h2 { 
-                color: #4F46E5; 
+                color: #059669; 
                 border-bottom: 1px solid #ddd; 
                 padding-bottom: 10px;
                 font-size: 20px;
@@ -354,7 +354,7 @@ export default function AdminDashboard() {
                 text-align: left;
               }
               th { 
-                background-color: #4F46E5; 
+                background-color: #059669; 
                 color: white;
                 font-weight: bold;
               }
@@ -370,7 +370,7 @@ export default function AdminDashboard() {
                 text-align: right; 
                 font-weight: bold;
                 font-size: 16px;
-                color: #4F46E5;
+                color: #059669;
               }
               .no-score { 
                 color: #999;
@@ -396,7 +396,7 @@ export default function AdminDashboard() {
               }
               .summary-item h4 { 
                 margin: 0 0 5px 0;
-                color: #4F46E5;
+                color: #059669;
                 font-size: 24px;
               }
               .summary-item p { 
@@ -541,7 +541,7 @@ export default function AdminDashboard() {
       <div className="mb-4 sm:mb-6 lg:mb-8">
         <div className="flex flex-col gap-3 sm:gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-black mb-1 sm:mb-2 bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-green-600 mb-1 sm:mb-2">
               Admin Dashboard
             </h1>
             <p className="text-xs sm:text-sm md:text-base lg:text-lg text-black">Welcome back! Here's what's happening with your judging system today.</p>
@@ -549,7 +549,7 @@ export default function AdminDashboard() {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <button 
               onClick={() => router.push('/admin/events')}
-              className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-blue-600 to-blue-600 text-black rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-medium touch-manipulation active:scale-95"
+              className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl hover:bg-green-700 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-medium touch-manipulation active:scale-95"
             >
               <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
@@ -623,7 +623,7 @@ export default function AdminDashboard() {
           className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
           <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-green-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">👥</span>
             </div>
             <div className="text-right">
@@ -657,7 +657,7 @@ export default function AdminDashboard() {
           className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
         >
           <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-green-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">🧑‍⚖️</span>
             </div>
             <div className="text-right">
@@ -772,12 +772,12 @@ export default function AdminDashboard() {
 
       {/* Recent Activity */}
       <div className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
-          <h2 className="text-base xs:text-lg sm:text-xl font-bold text-black flex items-center gap-1.5 xs:gap-2">
+        <div className="bg-green-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+          <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white flex items-center gap-1.5 xs:gap-2">
             <span className="text-lg xs:text-xl sm:text-2xl">📈</span>
             Recent Activity
           </h2>
-          <p className="text-black text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
+          <p className="text-white text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
         </div>
         <div className="p-3 xs:p-4 sm:p-6">
           {recentActivities.length === 0 ? (
@@ -818,7 +818,7 @@ export default function AdminDashboard() {
       <div className="lg:hidden fixed bottom-6 right-6 z-40">
         <button
           onClick={() => router.push('/admin/events')}
-          className="w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-600 text-black rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
+          className="w-14 h-14 bg-green-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
           aria-label="Add Event"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

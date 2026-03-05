@@ -83,7 +83,7 @@ export default function AdminSidebar({ onCloseMobile }) {
               }}
               className={`w-full text-left p-2.5 sm:p-3 rounded-lg transition-all duration-200 group ${
                 isActive(item.path)
-                  ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600'
+                  ? 'bg-emerald-100 text-emerald-700 border-l-4 border-emerald-600'
                   : 'hover:bg-gray-100 text-gray-700 hover:text-gray-900'
               }`}
             >
@@ -112,7 +112,7 @@ export default function AdminSidebar({ onCloseMobile }) {
               router.push('/');
             }
           }}
-          className="w-full flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+          className="w-full flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
         >
           <span className="text-base sm:text-xl">🚪</span>
           <div className="flex-1">

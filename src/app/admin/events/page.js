@@ -96,8 +96,8 @@ export default function EventManagement() {
           const eventDateTime = parseEventDateTime(event.date, event.time);
           if (!eventDateTime) return event;
           
-          // Calculate end time (assume 4 hours after start time)
-          const eventEndTime = new Date(eventDateTime.getTime() + (4 * 60 * 60 * 1000));
+          // Calculate end time (assume 12 hours after start time)
+          const eventEndTime = new Date(eventDateTime.getTime() + (12 * 60 * 60 * 1000));
           
           // Also check if the current date is past the event date (regardless of time)
           const eventDateOnly = new Date(eventDateTime.getFullYear(), eventDateTime.getMonth(), eventDateTime.getDate());

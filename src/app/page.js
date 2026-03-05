@@ -78,6 +78,21 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // Filter events based on search query
+  const filteredEvents = events.filter(event => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    
+    return (
+      event.eventName?.toLowerCase().includes(query) ||
+      event.eventDescription?.toLowerCase().includes(query) ||
+      event.venue?.toLowerCase().includes(query) ||
+      event.status?.toLowerCase().includes(query) ||
+      event.date?.toLowerCase().includes(query) ||
+      event.time?.toLowerCase().includes(query)
+    );
+  });
+
   // Get featured event (first ongoing or upcoming event, or first event if none are ongoing/upcoming)
   const getFeaturedEvent = () => {
     if (filteredEvents.length === 0) return null;
@@ -94,24 +109,20 @@ export default function Home() {
     return filteredEvents[0];
   };
 
-  // Filter events based on search query
-  const filteredEvents = events.filter(event => {
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return true;
+  // Function to convert military time to 12-hour format
+  const convertTo12Hour = (timeString) => {
+    if (!timeString) return '';
     
-    return (
-      event.eventName?.toLowerCase().includes(query) ||
-      event.eventDescription?.toLowerCase().includes(query) ||
-      event.venue?.toLowerCase().includes(query) ||
-      event.status?.toLowerCase().includes(query) ||
-      event.date?.toLowerCase().includes(query) ||
-      event.time?.toLowerCase().includes(query)
-    );
-  });
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
   return (
     <div className="min-h-screen bg-gradient-to-t from-green-500/50 to-white relative overflow-hidden">
       {/* Hero Section */}
-      <main className="flex min-h-screen flex-row items-center justify-between px-8 py-16 relative">
+      <main className="flex min-h-screen flex-row items-center justify-between px-10 py-10 relative">
         {/* Left Side Content */}
         <div className="flex flex-col items-center md:items-start max-w-lg w-full md:w-auto pt-0">
           {/* Event Logo */}
@@ -121,8 +132,8 @@ export default function Home() {
                 <Image
                   src="/logo.jpg"
                   alt="Government Logo"
-                  width={80}
-                  height={80}
+                  width={90}
+                  height={90}
                   className="rounded-full object-contain"
                 />
               </div>
@@ -130,8 +141,8 @@ export default function Home() {
                 <Image
                   src="/logo1.png"
                   alt="Additional Logo"
-                  width={80}
-                  height={80}
+                  width={90}
+                  height={90}
                   className="rounded-full object-contain"
                 />
               </div>
@@ -139,8 +150,8 @@ export default function Home() {
                 <Image
                   src="/logo5.jpg"
                   alt="Third Logo"
-                  width={80}
-                  height={80}
+                  width={90}
+                  height={90}
                   className="rounded-full object-contain"
                 />
               </div>
@@ -308,7 +319,7 @@ export default function Home() {
                                 <ContestantSlideshow 
                                   contestants={contestantsWithPhotos} 
                                   autoPlay={true}
-                                  interval={3000}
+                                  interval={5000}
                                   eventName={event.eventName}
                                   eventStatus={event.status}
                                 />
@@ -337,7 +348,7 @@ export default function Home() {
                               <span className="text-2xl sm:text-3xl">⏰</span>
                             </div>
                             <p className="text-sm sm:text-base text-green-700 mb-2 font-semibold">Time</p>
-                            <p className="font-bold text-green-900 text-base sm:text-lg">{event.time}</p>
+                            <p className="font-bold text-green-900 text-base sm:text-lg">{convertTo12Hour(event.time)}</p>
                           </div>
                           
                           <div className="text-center bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-purple-200">

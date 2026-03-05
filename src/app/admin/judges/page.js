@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, setDoc, getDocs, getDoc, collection, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -22,6 +22,7 @@ export default function JudgeManagement() {
   const [emailWarning, setEmailWarning] = useState(''); // Track duplicate email warning
   const router = useRouter();
   const auth = getAuth();
+  const emailCheckTimeoutRef = useRef(null); // For debouncing email checks
 
   // Form state for adding new judge
   const [newJudge, setNewJudge] = useState({
@@ -121,42 +122,56 @@ export default function JudgeManagement() {
     return events.find(e => e.id === eventId);
   };
 
-  // Function to check for duplicate email in real-time
+  // Function to check for duplicate email with debouncing
   const checkEmailDuplicate = async (email) => {
-    if (!email) {
+    if (!email || !email.includes('@')) {
       setEmailWarning('');
       return false;
     }
 
-    try {
-      // Check if email exists in Firestore
-      const judgesCollection = collection(db, 'judges');
-      const q = query(judgesCollection, where('email', '==', email));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        setEmailWarning('⚠️ This email is already registered as a judge');
-        return true;
-      }
+    // Clear any existing timeout
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+    }
 
-      // Check if email exists in Firebase Authentication
+    // Set a new timeout for debounced checking
+    emailCheckTimeoutRef.current = setTimeout(async () => {
       try {
-        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-        if (signInMethods.length > 0) {
-          setEmailWarning('⚠️ This email is already registered in the system');
+        setEmailWarning('🔍 Checking email availability...');
+
+        // Check if email exists in Firestore
+        const judgesCollection = collection(db, 'judges');
+        const q = query(judgesCollection, where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          setEmailWarning('⚠️ This email is already registered as a judge. Please use a different email address.');
           return true;
         }
-      } catch (e) {
-        // Continue if auth check fails
-      }
 
-      setEmailWarning('');
-      return false;
-    } catch (error) {
-      console.error('Error checking email:', error);
-      setEmailWarning('');
-      return false;
-    }
+        // Check if email exists in Firebase Authentication
+        try {
+          const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+          if (signInMethods.length > 0) {
+            setEmailWarning('⚠️ This email is already registered in the system. Please use a different email address.');
+            return true;
+          }
+        } catch (e) {
+          // Continue if auth check fails - the createUserWithEmailAndPassword will catch actual duplicates
+        }
+
+        setEmailWarning('✅ Email is available');
+        // Clear the success message after 2 seconds
+        setTimeout(() => setEmailWarning(''), 2000);
+        return false;
+      } catch (error) {
+        console.error('Error checking email:', error);
+        setEmailWarning('');
+        return false;
+      }
+    }, 500); // 500ms debounce
+
+    return false;
   };
 
   const loadEvents = async () => {
@@ -180,6 +195,12 @@ export default function JudgeManagement() {
     setShowAddForm(false);
     setEmailWarning('');
     setError('');
+
+    // Clear any pending email check timeout
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+      emailCheckTimeoutRef.current = null;
+    }
   };
 
   const handleAddJudge = async (e) => {
@@ -525,6 +546,20 @@ export default function JudgeManagement() {
             </div>
             
             <form onSubmit={handleAddJudge} className="space-y-6">
+              {/* Email Warning Banner */}
+              {emailWarning.includes('⚠️') && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-red-500 text-xl flex-shrink-0">🚫</span>
+                    <div>
+                      <h4 className="text-sm font-semibold text-red-800 mb-1">Duplicate Email Address</h4>
+                      <p className="text-sm text-red-700">{emailWarning.replace('⚠️ ', '')}</p>
+                      <p className="text-xs text-red-600 mt-2">Please use a different email address to continue.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Personal Information Section */}
               <div className="bg-gray-50 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -549,23 +584,52 @@ export default function JudgeManagement() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Email Address *
                     </label>
-                    <input
-                      type="email"
-                      value={newJudge.email}
-                      onChange={(e) => {
-                        setNewJudge({...newJudge, email: e.target.value});
-                        checkEmailDuplicate(e.target.value);
-                      }}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:border-transparent transition-all ${
-                        emailWarning 
-                          ? 'border-red-400 focus:ring-red-500 bg-red-50' 
-                          : 'border-gray-300 focus:ring-blue-500'
-                      }`}
-                      placeholder="judge@example.com"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={newJudge.email}
+                        onChange={(e) => {
+                          setNewJudge({...newJudge, email: e.target.value});
+                          checkEmailDuplicate(e.target.value);
+                        }}
+                        className={`w-full px-4 py-3 pr-10 border rounded-lg focus:ring-2 focus:border-transparent transition-all ${
+                          emailWarning.includes('⚠️')
+                            ? 'border-red-400 focus:ring-red-500 bg-red-50'
+                            : emailWarning.includes('✅')
+                            ? 'border-green-400 focus:ring-green-500 bg-green-50'
+                            : emailWarning.includes('🔍')
+                            ? 'border-blue-400 focus:ring-blue-500 bg-blue-50'
+                            : 'border-gray-300 focus:ring-blue-500'
+                        }`}
+                        placeholder="judge@example.com"
+                        required
+                      />
+                      {/* Status Icon */}
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        {emailWarning.includes('🔍') && (
+                          <svg className="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                        )}
+                        {emailWarning.includes('✅') && (
+                          <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {emailWarning.includes('⚠️') && (
+                          <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
                     {emailWarning && (
-                      <p className="text-sm text-red-600 mt-2 flex items-center gap-2">
+                      <p className={`text-sm mt-2 flex items-center gap-2 ${
+                        emailWarning.includes('⚠️') ? 'text-red-600' :
+                        emailWarning.includes('✅') ? 'text-green-600' :
+                        emailWarning.includes('🔍') ? 'text-blue-600' : 'text-gray-600'
+                      }`}>
                         {emailWarning}
                       </p>
                     )}

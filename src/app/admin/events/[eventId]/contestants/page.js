@@ -31,7 +31,6 @@ export default function EventContestants() {
     contactNumber: '',
     contestantType: 'solo', // 'solo' or 'group'
     groupName: '',
-    groupLeader: '',
     photo: '' // Store image URL
   });
   const [imagePreview, setImagePreview] = useState('');
@@ -370,7 +369,6 @@ export default function EventContestants() {
       eventName: eventName,
       contestantNumber: formData.contestantNumber,
       address: formData.address,
-      contactNumber: formData.contactNumber,
       contestantType: formData.contestantType,
       status: 'registered'
     };
@@ -378,6 +376,7 @@ export default function EventContestants() {
     // Add age only for solo contestants
     if (formData.contestantType === 'solo') {
       contestantData.age = formData.age;
+      contestantData.contactNumber = formData.contactNumber;
     }
 
     // Add type-specific data
@@ -387,7 +386,6 @@ export default function EventContestants() {
       contestantData.displayName = `${formData.firstName} ${formData.lastName}`;
     } else {
       contestantData.groupName = formData.groupName;
-      contestantData.groupLeader = formData.groupLeader;
       contestantData.displayName = formData.groupName;
     }
 
@@ -436,8 +434,7 @@ export default function EventContestants() {
       // Prepare update data based on contestant type
       const updateData = {
         contestantNumber: formData.contestantNumber,
-        address: formData.address,
-        contactNumber: formData.contactNumber
+        address: formData.address
       };
 
       // Add solo-specific fields
@@ -445,9 +442,9 @@ export default function EventContestants() {
         updateData.firstName = formData.firstName;
         updateData.lastName = formData.lastName;
         updateData.age = formData.age;
+        updateData.contactNumber = formData.contactNumber;
       } else {
         updateData.groupName = formData.groupName;
-        updateData.groupLeader = formData.groupLeader;
       }
 
       // Add photo if uploaded
@@ -504,14 +501,13 @@ export default function EventContestants() {
     setEditingContestant(contestant);
     setFormData({
       contestantNumber: contestant.contestantNumber,
-      firstName: contestant.firstName,
-      lastName: contestant.lastName,
-      age: contestant.age,
+      firstName: contestant.firstName || '',
+      lastName: contestant.lastName || '',
+      age: contestant.age || '',
       address: contestant.address,
-      contactNumber: contestant.contactNumber,
+      contactNumber: contestant.contactNumber || '',
       contestantType: contestant.contestantType || 'solo',
       groupName: contestant.groupName || '',
-      groupLeader: contestant.groupLeader || '',
       photo: contestant.photo || ''
     });
     setImagePreview(contestant.photo || '');
@@ -530,7 +526,6 @@ export default function EventContestants() {
       contactNumber: '',
       contestantType: 'solo',
       groupName: '',
-      groupLeader: '',
       photo: ''
     });
     setImagePreview('');
@@ -1162,21 +1157,6 @@ export default function EventContestants() {
                       placeholder="Enter group name"
                       required
                     />
-                    
-                    <div className="mt-4">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Group Leader Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="groupLeader"
-                        value={formData.groupLeader}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
-                        placeholder="Enter group leader name"
-                        required
-                      />
-                    </div>
                   </div>
                 )}
 
@@ -1196,23 +1176,26 @@ export default function EventContestants() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Contact Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    name="contactNumber"
-                    value={formData.contactNumber}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
-                    placeholder="09XX-XXX-XXXX"
-                    maxLength="11"
-                    pattern="[0-9]{11}"
-                    title="Contact number must be exactly 11 digits"
-                    required
-                  />
-                </div>
+                {/* Contact Number - only for solo contestants */}
+                {formData.contestantType === 'solo' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Contact Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      name="contactNumber"
+                      value={formData.contactNumber}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                      placeholder="09XX-XXX-XXXX"
+                      maxLength="11"
+                      pattern="[0-9]{11}"
+                      title="Contact number must be exactly 11 digits"
+                      required
+                    />
+                  </div>
+                )}
 
                 {/* Photo Upload Field */}
                 <div>
@@ -1385,19 +1368,6 @@ export default function EventContestants() {
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Group Leader Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="groupLeader"
-                        value={formData.groupLeader}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
-                        required
-                      />
-                    </div>
                   </div>
                 )}
 
@@ -1415,23 +1385,26 @@ export default function EventContestants() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Contact Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    name="contactNumber"
-                    value={formData.contactNumber}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
-                    placeholder="09XX-XXX-XXXX"
-                    maxLength="11"
-                    pattern="[0-9]{11}"
-                    title="Contact number must be exactly 11 digits"
-                    required
-                  />
-                </div>
+                {/* Contact Number - only for solo contestants */}
+                {formData.contestantType === 'solo' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Contact Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      name="contactNumber"
+                      value={formData.contactNumber}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                      placeholder="09XX-XXX-XXXX"
+                      maxLength="11"
+                      pattern="[0-9]{11}"
+                      title="Contact number must be exactly 11 digits"
+                      required
+                    />
+                  </div>
+                )}
 
                 {/* Photo Upload Field */}
                 <div>

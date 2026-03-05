@@ -70,9 +70,6 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000, ev
                 <div className="flex flex-col gap-2 sm:gap-3 mb-1 sm:mb-2">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 md:gap-3">
                     <h3 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold truncate">{currentContestant.displayName || currentContestant.name || 'Contestant #' + currentContestant.contestantNumber}</h3>
-                    {currentContestant.contestantType === 'group' && (
-                      <span className="bg-purple-500 text-white px-1 sm:px-2 md:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm">👥 Group</span>
-                    )}
                   </div>
                   
                   {/* Contestant Number and Score - Below Name */}

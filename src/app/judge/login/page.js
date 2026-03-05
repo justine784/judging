@@ -132,9 +132,9 @@ export default function JudgeLogin() {
       const judgeData = judgeDoc.data();
       
       // Check if judge is active
-      if (judgeData.status === 'inactive') {
+      if (judgeData.isActive === false) {
         await auth.signOut();
-        setError('Your judge account has been deactivated. Please contact the administrator.');
+        setError('🚫 Your judge account has been deactivated. Please contact the administrator for assistance.');
         return;
       }
       

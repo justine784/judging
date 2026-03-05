@@ -73,8 +73,9 @@ export default function JudgeDashboard() {
           const judgeData = judgeDoc.data();
           
           // Check if judge is inactive
-          if (judgeData.status === 'inactive') {
+          if (judgeData.isActive === false) {
             await auth.signOut();
+            alert('🚫 Your judge account has been deactivated. You cannot access the dashboard. Please contact the administrator for assistance.');
             router.push('/judge/login');
             return;
           }
@@ -343,77 +344,11 @@ export default function JudgeDashboard() {
       const judgeScores = await loadJudgeScores(judge.uid || judge.id);
 
       // Filter contestants to only include those from assigned events and not eliminated
-      // If no events are assigned, show all contestants (fallback for existing judges)
+      // If no events are assigned, show empty list
       let assignedContestants;
       if (assignedEventIds.length === 0) {
-        // Fallback: show all contestants if no events are assigned, but exclude eliminated ones
-        assignedContestants = allContestants.filter(contestant => {
-          console.log('Processing contestant (fallback):', {
-            id: contestant.id,
-            contestantType: contestant.contestantType,
-            displayName: contestant.displayName,
-            groupName: contestant.groupName,
-            firstName: contestant.firstName,
-            lastName: contestant.lastName,
-            contestantName: contestant.contestantName
-          });
-          return !contestant.eliminated;
-        }).map(contestant => ({
-          ...contestant,
-          // Add judge's own scores or default to 0
-          ...judgeScores[contestant.id],
-          // Add the fields expected by the judge dashboard
-          contestantNo: contestant.contestantNumber || contestant.contestantNo || '',
-          contestantName: (() => {
-            const finalName = contestant.displayName || 
-              (contestant.contestantType === 'group' 
-                ? contestant.groupName || 'Unknown Group'
-                : `${contestant.firstName || ''} ${contestant.lastName || ''}`.trim() || 'Unknown Solo');
-            console.log('Final contestant name constructed:', {
-              original: contestant,
-              finalName: finalName,
-              contestantType: contestant.contestantType
-            });
-            return finalName;
-          })(),
-          eventName: eventsMap[contestant.eventId]?.eventName || 'Unknown Event',
-          // Calculate totalWeightedScore for ranking
-          totalWeightedScore: (() => {
-            const criteria = getCurrentEventCriteria();
-            if (criteria.length === 0) return 0;
-            
-            let totalScore = 0;
-            const useFinalRoundPrefix = usingFinalRoundCriteria;
-            
-            criteria.forEach(criterion => {
-              const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-              
-              // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-              const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
-                                     criterion.name.toUpperCase().includes('1ST') && 
-                                     criterion.name.toUpperCase().includes('ROUND');
-              
-              let score;
-              if (isFirstRoundAverage) {
-                // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
-                const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
-              } else {
-                // For other criteria, use stored score with appropriate prefix
-                score = contestant[key] || judgeScores[contestant.id]?.[key] || 0;
-              }
-              
-              const weight = criterion.weight / 100;
-              totalScore += score * weight;
-            });
-            
-            return parseFloat(totalScore.toFixed(1));
-          })()
-        })).sort((a, b) => {
-          const numA = parseInt(a.contestantNo) || 0;
-          const numB = parseInt(b.contestantNo) || 0;
-          return numA - numB;
-        });
+        // No events assigned - show empty contestant list
+        assignedContestants = [];
       } else {
         // Normal case: filter by assigned events and exclude eliminated ones
         assignedContestants = allContestants.filter(contestant => {
@@ -1793,8 +1728,23 @@ export default function JudgeDashboard() {
       )}
 
       {/* Header */}
-      <header className="w-full bg-emerald-600 shadow-xl border-b border-emerald-500/20 sticky top-0 z-40">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
+      <header className="relative w-full shadow-xl border-b border-emerald-500/20 sticky top-0 z-40 overflow-hidden">
+        {/* Background Image with Gradient Overlay */}
+        <div className="absolute inset-0">
+          <Image
+            src="/header1.jpg"
+            alt="Header Background"
+            fill
+            className="object-cover"
+            priority
+          />
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/90 via-emerald-700/85 to-emerald-800/90"></div>
+          {/* Additional transparent overlay for better text readability */}
+          <div className="absolute inset-0 bg-black/20"></div>
+        </div>
+
+        <div className="relative w-full px-4 sm:px-6 lg:px-8">
           <div className="py-4 sm:py-6">
             {/* Main Header Row */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1802,7 +1752,7 @@ export default function JudgeDashboard() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-sm shadow-2xl p-1 border border-white/20">
+                    <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm shadow-2xl p-1 border border-white/30">
                       <Image
                         src="/logo.jpg"
                         alt="Bongabong Logo"
@@ -1822,19 +1772,19 @@ export default function JudgeDashboard() {
                     </div>
                   </div>
                   <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
                       Judge Dashboard
                     </h1>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                      <p className="text-sm text-white font-medium">
+                      <p className="text-sm text-white font-medium drop-shadow-md">
                         Welcome back,
                       </p>
-                      <p className="text-sm font-semibold text-white bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm border border-white/30">
+                      <p className="text-sm font-semibold text-white bg-white/25 px-2 py-1 rounded-md backdrop-blur-sm border border-white/40 drop-shadow-md">
                         {user?.displayName || user?.email?.split('@')[0] || 'Judge'}
                       </p>
                     </div>
                     {judgeData?.judgeId && (
-                      <p className="text-xs text-white/80 mt-1">
+                      <p className="text-xs text-white/90 mt-1 drop-shadow-md">
                         Judge ID: {judgeData.judgeId}
                       </p>
                     )}
@@ -1845,15 +1795,15 @@ export default function JudgeDashboard() {
               {/* Right Section - Status and Controls */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:justify-end">
                 {/* Connection Status - Hidden on mobile */}
-                <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-lg border border-white/30 drop-shadow-lg">
                   <div className="flex items-center gap-2 text-cyan-300">
                     <div className="relative w-3 h-3 rounded-full bg-cyan-400">
                       <div className="absolute inset-0 rounded-full bg-cyan-400 animate-ping"></div>
                     </div>
-                    <span className="font-medium text-sm">🟢 Live</span>
+                    <span className="font-medium text-sm drop-shadow-md">🟢 Live</span>
                   </div>
-                  <div className="h-4 w-px bg-white/20"></div>
-                  <div className="text-xs text-white">
+                  <div className="h-4 w-px bg-white/30"></div>
+                  <div className="text-xs text-white drop-shadow-md">
                     <div className="font-medium">Updated</div>
                     <div>{lastUpdated ? lastUpdated.toLocaleTimeString() : 'Just now'}</div>
                   </div>
@@ -1862,7 +1812,7 @@ export default function JudgeDashboard() {
                 {/* Logout Button */}
                 <button
                   onClick={handleLogout}
-                  className="self-end sm:self-auto px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-black rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center gap-2 shadow-lg border border-red-400/20"
+                  className="self-end sm:self-auto px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center gap-2 shadow-lg border border-red-400/30 drop-shadow-lg"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

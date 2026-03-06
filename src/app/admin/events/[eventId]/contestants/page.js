@@ -707,68 +707,90 @@ export default function EventContestants() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-4 md:p-6">
       {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-4 mb-4">
+      <div className="mb-4 sm:mb-6 md:mb-8">
+        {/* Back Button */}
+        <div className="mb-3 sm:mb-4">
           <button
             onClick={() => router.push('/admin/events')}
-            className="text-green-600 hover:text-green-700 font-medium flex items-center gap-2"
+            className="inline-flex items-center gap-1.5 sm:gap-2 text-emerald-600 hover:text-emerald-700 font-medium transition-colors text-sm sm:text-base"
           >
-            <span>←</span>
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
             Back to Events
           </button>
         </div>
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Contestants Management</h1>
-            <p className="text-gray-600">
-              Manage contestants for <span className="font-semibold text-green-600">{event?.eventName}</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setFormErrors({}); setShowAddModal(true); }}
-              className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors shadow-lg"
-            >
-              <span className="text-xl">➕</span>
-              Add Contestant
-            </button>
-            <button
-              onClick={openRoundModal}
-              className="flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors shadow-lg"
-            >
-              <span className="text-xl">🏆</span>
-              Manage Rounds
-            </button>
+        
+        {/* Gradient Header Card */}
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xl">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="p-2 sm:p-3 bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl flex-shrink-0">
+                <span className="text-2xl sm:text-4xl">👥</span>
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-white truncate">Contestants Management</h1>
+                <p className="text-emerald-100 text-xs sm:text-sm md:text-base mt-0.5 sm:mt-1 line-clamp-1">
+                  Manage contestants for <span className="font-semibold text-white">{event?.eventName}</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-row items-stretch gap-2 sm:gap-3">
+              <button
+                onClick={() => { setFormErrors({}); setShowAddModal(true); }}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-white text-emerald-600 px-3 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl hover:bg-emerald-50 transition-all duration-200 shadow-lg font-semibold text-xs sm:text-sm md:text-base"
+              >
+                <span className="text-base sm:text-xl">➕</span>
+                <span className="hidden xs:inline">Add Contestant</span><span className="xs:hidden">Add</span>
+              </button>
+              <button
+                onClick={openRoundModal}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-orange-500 text-white px-3 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl hover:bg-orange-600 transition-all duration-200 shadow-lg font-semibold text-xs sm:text-sm md:text-base"
+              >
+                <span className="text-base sm:text-xl">🏆</span>
+                <span className="hidden xs:inline">Manage Rounds</span><span className="xs:hidden">Rounds</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Event Info Card */}
       {event && (
-        <div className="bg-green-600 rounded-xl p-6 mb-8 text-white">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div>
-              <p className="text-green-100 text-sm">Date</p>
-              <p className="text-lg font-semibold">{event.date}</p>
+        <div className="bg-gradient-to-r from-teal-600 via-emerald-600 to-green-600 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 md:mb-8 shadow-xl">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4">
+              <p className="text-teal-100 text-[10px] sm:text-xs md:text-sm flex items-center gap-1 sm:gap-2">
+                <span>📅</span> <span className="hidden sm:inline">Date</span>
+              </p>
+              <p className="text-xs sm:text-sm md:text-lg font-bold text-white mt-0.5 sm:mt-1">{event.date}</p>
             </div>
-            <div>
-              <p className="text-green-100 text-sm">Time</p>
-              <p className="text-lg font-semibold">{event.time}</p>
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4">
+              <p className="text-teal-100 text-[10px] sm:text-xs md:text-sm flex items-center gap-1 sm:gap-2">
+                <span>🕐</span> <span className="hidden sm:inline">Time</span>
+              </p>
+              <p className="text-xs sm:text-sm md:text-lg font-bold text-white mt-0.5 sm:mt-1">{event.time}</p>
             </div>
-            <div>
-              <p className="text-green-100 text-sm">Venue</p>
-              <p className="text-lg font-semibold">{event.venue}</p>
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4">
+              <p className="text-teal-100 text-[10px] sm:text-xs md:text-sm flex items-center gap-1 sm:gap-2">
+                <span>📍</span> <span className="hidden sm:inline">Venue</span>
+              </p>
+              <p className="text-xs sm:text-sm md:text-lg font-bold text-white mt-0.5 sm:mt-1 truncate">{event.venue}</p>
             </div>
-            <div>
-              <p className="text-green-100 text-sm">Status</p>
-              <p className="text-lg font-semibold">{event.status}</p>
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4">
+              <p className="text-teal-100 text-[10px] sm:text-xs md:text-sm flex items-center gap-1 sm:gap-2">
+                <span>📊</span> <span className="hidden sm:inline">Status</span>
+              </p>
+              <p className="text-xs sm:text-sm md:text-lg font-bold text-white mt-0.5 sm:mt-1 capitalize">{event.status}</p>
             </div>
-            <div>
-              <p className="text-green-100 text-sm">Current Round</p>
-              <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-bold rounded-full ${getRoundColor(currentRound)}`}>
-                🏆 {currentRound.charAt(0).toUpperCase() + currentRound.slice(1)}
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4 col-span-2 sm:col-span-1">
+              <p className="text-teal-100 text-[10px] sm:text-xs md:text-sm flex items-center gap-1 sm:gap-2">
+                <span>🏆</span> <span className="hidden sm:inline">Round</span>
+              </p>
+              <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs md:text-sm font-bold rounded-full mt-0.5 sm:mt-1 ${getRoundColor(currentRound)}`}>
+                {currentRound.charAt(0).toUpperCase() + currentRound.slice(1)}
               </span>
             </div>
           </div>
@@ -776,68 +798,77 @@ export default function EventContestants() {
       )}
 
       {/* Contestants Table */}
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-        <div className="bg-green-600 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white">Registered Contestants</h3>
-          <p className="text-green-100 text-sm">List of all registered contestants for this event</p>
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur-sm rounded-lg flex-shrink-0">
+              <span className="text-lg sm:text-2xl">📋</span>
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base md:text-lg font-bold text-white">Registered Contestants</h3>
+              <p className="text-emerald-100 text-[10px] sm:text-xs md:text-sm">
+                {sortedContestants.length} contestant{sortedContestants.length !== 1 ? 's' : ''} registered
+              </p>
+            </div>
+          </div>
         </div>
         
         {/* Mobile Card View */}
         <div className="lg:hidden divide-y divide-gray-100">
           {sortedContestants.map((contestant) => (
-            <div key={contestant.id} className="p-4 space-y-3">
+            <div key={contestant.id} className="p-3 sm:p-4 space-y-2 sm:space-y-3 hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all duration-300">
               {/* Contestant Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 text-blue-600 rounded-lg p-2 text-lg font-bold">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white rounded-lg p-1.5 sm:p-2 text-sm sm:text-lg font-bold flex-shrink-0 shadow-md">
                     #{contestant.contestantNumber}
                   </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                       {contestant.displayName || `${contestant.firstName} ${contestant.lastName}`}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-xs sm:text-sm text-gray-500">
                       {contestant.contestantType === 'group' ? 'Group' : `Age: ${contestant.age}`}
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={(e) => toggleDropdown(contestant.id, e)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95"
+                  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200 touch-manipulation active:scale-95 flex-shrink-0"
                   title="More actions"
                 >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                   </svg>
                 </button>
               </div>
               
               {/* Contestant Details */}
-              <div className="grid grid-cols-1 gap-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400">📍</span>
-                  <span className="text-gray-700">{contestant.address}</span>
+              <div className="grid grid-cols-1 gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 flex-shrink-0">📍</span>
+                  <span className="text-gray-700 truncate">{contestant.address}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400">📞</span>
-                  <span className="text-gray-700">{contestant.contactNumber}</span>
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 flex-shrink-0">📞</span>
+                  <span className="text-gray-700">{contestant.contactNumber || 'N/A'}</span>
                 </div>
               </div>
               
               {/* Status Badge */}
               <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(contestant.status)} shadow-sm`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs font-bold rounded-full ${getStatusColor(contestant.status)} shadow-sm`}>
                   {contestant.status.charAt(0).toUpperCase() + contestant.status.slice(1)}
                 </span>
               </div>
               
               {/* Mobile Dropdown Menu */}
               {showActionsDropdown === contestant.id && (
-                <div className="pt-3 border-t border-gray-200">
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="pt-2 sm:pt-3 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     <button
                       onClick={() => { openEditModal(contestant); closeDropdown(); }}
-                      className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] sm:text-xs text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
                     >
                       <span className="text-blue-600">✏️</span>
                       Edit
@@ -845,7 +876,7 @@ export default function EventContestants() {
                     {contestant.status !== 'eliminated' && currentRound !== 'completed' && (
                       <button
                         onClick={() => { handleEliminateContestant(contestant.id); closeDropdown(); }}
-                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors touch-manipulation active:scale-95"
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] sm:text-xs text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors touch-manipulation active:scale-95"
                       >
                         <span>❌</span>
                         Eliminate
@@ -854,7 +885,7 @@ export default function EventContestants() {
                     {currentRound !== 'final' && currentRound !== 'completed' && contestant.status !== 'eliminated' && (
                       <button
                         onClick={() => { handleGoToFinalRounds(); closeDropdown(); }}
-                        className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-green-600 bg-white border border-green-200 rounded-lg hover:bg-green-50 transition-colors touch-manipulation active:scale-95"
+                        className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] sm:text-xs text-green-600 bg-white border border-green-200 rounded-lg hover:bg-green-50 transition-colors touch-manipulation active:scale-95"
                       >
                         <span>🏆</span>
                         Finals
@@ -862,17 +893,17 @@ export default function EventContestants() {
                     )}
                     <button
                       onClick={() => { handleDeleteContestant(contestant.id); closeDropdown(); }}
-                      className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+                      className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] sm:text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
                     >
                       <span>🗑️</span>
                       Remove
                     </button>
                     <button
                       onClick={() => { router.push(`/admin/scoreboard?eventId=${eventId}`); closeDropdown(); }}
-                      className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors touch-manipulation active:scale-95 col-span-2"
+                      className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] sm:text-xs text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors touch-manipulation active:scale-95 col-span-2"
                     >
                       <span>📊</span>
-                      View Scoreboard
+                      Scoreboard
                     </button>
                   </div>
                 </div>
@@ -886,44 +917,44 @@ export default function EventContestants() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">No.</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Age</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Address</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">No.</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Age</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Address</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Contact</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-4 xl:px-6 py-3 xl:py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {sortedContestants.map((contestant) => (
-                <tr key={contestant.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-bold text-blue-600">#{contestant.contestantNumber}</div>
+                <tr key={contestant.id} className="hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all duration-200">
+                  <td className="px-4 xl:px-6 py-3 xl:py-4">
+                    <div className="inline-flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-500 text-white text-xs xl:text-sm font-bold rounded-lg px-2 py-1 shadow-md">#{contestant.contestantNumber}</div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">
+                  <td className="px-4 xl:px-6 py-3 xl:py-4">
+                    <div className="text-xs xl:text-sm font-medium text-gray-900">
                       {contestant.contestantType === 'group' ? (
                         <div>
-                          <div className="font-bold text-blue-600">{contestant.groupName}</div>
-                          <div className="text-xs text-gray-500">Leader: {contestant.groupLeader}</div>
+                          <div className="font-bold text-emerald-600">{contestant.groupName}</div>
+                          <div className="text-[10px] xl:text-xs text-gray-500">Leader: {contestant.groupLeader}</div>
                         </div>
                       ) : (
                         `${contestant.firstName} ${contestant.lastName}`
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
+                  <td className="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-900">
                     {contestant.contestantType === 'group' ? 'Group' : contestant.age}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{contestant.address}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{contestant.contactNumber}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(contestant.status)}`}>
+                  <td className="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-900 max-w-[200px] truncate">{contestant.address}</td>
+                  <td className="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-900">{contestant.contactNumber}</td>
+                  <td className="px-4 xl:px-6 py-3 xl:py-4">
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] xl:text-xs font-medium rounded-full ${getStatusColor(contestant.status)}`}>
                       {contestant.status.charAt(0).toUpperCase() + contestant.status.slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 xl:px-6 py-3 xl:py-4">
                     <div className="relative dropdown-menu">
                       <button
                         onClick={(e) => toggleDropdown(contestant.id, e)}
@@ -1025,52 +1056,60 @@ export default function EventContestants() {
 
       {/* Add Contestant Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-green-600 px-6 py-5 rounded-t-2xl">
-              <h3 className="text-xl font-bold text-white">Add New Contestant</h3>
-              <p className="text-green-100 text-sm mt-1">Register a new contestant for {event?.eventName}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            {/* Gradient Header */}
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 rounded-t-xl sm:rounded-t-2xl">
+              <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur-sm rounded-lg flex-shrink-0">
+                  <span className="text-xl sm:text-2xl md:text-3xl">➕</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-white">Add New Contestant</h3>
+                  <p className="text-emerald-100 text-[10px] sm:text-xs md:text-sm mt-0.5 sm:mt-1 line-clamp-1">Register for {event?.eventName}</p>
+                </div>
+              </div>
               
               {/* Contestant Type Toggle */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 mt-4">
-                <div className="flex items-center justify-between">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4 mt-3 sm:mt-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                   <div>
-                    <label className="text-white font-medium text-sm">Contestant Type</label>
-                    <p className="text-green-100 text-xs mt-1">Choose between solo performer or group</p>
+                    <label className="text-white font-semibold text-xs sm:text-sm">Contestant Type</label>
+                    <p className="text-emerald-100 text-[10px] sm:text-xs mt-0.5 sm:mt-1 hidden sm:block">Choose between solo performer or group</p>
                   </div>
-                  <div className="flex items-center bg-white/20 rounded-lg p-1">
+                  <div className="flex items-center bg-white/20 rounded-lg sm:rounded-xl p-1">
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, contestantType: 'solo' }))}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                      className={`flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-md sm:rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                         formData.contestantType === 'solo'
-                          ? 'bg-white text-green-600 shadow-sm'
-                          : 'text-white hover:text-green-200'
+                          ? 'bg-white text-emerald-600 shadow-lg'
+                          : 'text-white hover:text-emerald-200'
                       }`}
                     >
-                      Solo
+                      👤 Solo
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, contestantType: 'group' }))}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                      className={`flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-md sm:rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                         formData.contestantType === 'group'
-                          ? 'bg-white text-green-600 shadow-sm'
-                          : 'text-white hover:text-green-200'
+                          ? 'bg-white text-emerald-600 shadow-lg'
+                          : 'text-white hover:text-emerald-200'
                       }`}
                     >
-                      Group
+                      👥 Group
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="p-6">
-              <form onSubmit={(e) => { e.preventDefault(); handleAddContestant(); }} className="space-y-4">
+            <div className="p-3 sm:p-4 md:p-6">
+              <form onSubmit={(e) => { e.preventDefault(); handleAddContestant(); }} className="space-y-3 sm:space-y-4">
                 {/* Contestant Number - Common for both types */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                       Contestant Number <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1078,19 +1117,19 @@ export default function EventContestants() {
                       name="contestantNumber"
                       value={formData.contestantNumber}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
                         formErrors.contestantNumber 
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
-                      placeholder="Enter contestant number"
+                      placeholder="Enter number"
                     />
-                    <p className="mt-1 text-xs text-gray-500">Enter a unique contestant number (e.g., 1, 2, 3, or custom like 101)</p>
+                    <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-500">Unique number (e.g., 1, 2, 101)</p>
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         Age <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1098,7 +1137,7 @@ export default function EventContestants() {
                         name="age"
                         value={formData.age}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="Age"
                         min="1"
                         max="100"
@@ -1110,9 +1149,9 @@ export default function EventContestants() {
 
                 {/* Solo Fields */}
                 {formData.contestantType === 'solo' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         First Name <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1120,13 +1159,13 @@ export default function EventContestants() {
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="First name"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         Last Name <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1134,7 +1173,7 @@ export default function EventContestants() {
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         placeholder="Last name"
                         required
                       />
@@ -1145,7 +1184,7 @@ export default function EventContestants() {
                 {/* Group Fields */}
                 {formData.contestantType === 'group' && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                       Group Name <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1153,7 +1192,7 @@ export default function EventContestants() {
                       name="groupName"
                       value={formData.groupName}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       placeholder="Enter group name"
                       required
                     />
@@ -1162,7 +1201,7 @@ export default function EventContestants() {
 
                 {/* Common Fields */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Address <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1170,7 +1209,7 @@ export default function EventContestants() {
                     name="address"
                     value={formData.address}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     placeholder="Complete address"
                     required
                   />
@@ -1179,7 +1218,7 @@ export default function EventContestants() {
                 {/* Contact Number - only for solo contestants */}
                 {formData.contestantType === 'solo' && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                       Contact Number <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1187,7 +1226,7 @@ export default function EventContestants() {
                       name="contactNumber"
                       value={formData.contactNumber}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       placeholder="09XX-XXX-XXXX"
                       maxLength="11"
                       pattern="[0-9]{11}"
@@ -1199,12 +1238,12 @@ export default function EventContestants() {
 
                 {/* Photo Upload Field */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Contestant Photo
                   </label>
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     <div className="flex-1">
-                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-green-400 transition-colors">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-green-400 transition-colors">
                         <input
                           type="file"
                           accept="image/*"
@@ -1221,25 +1260,25 @@ export default function EventContestants() {
                               <img
                                 src={imagePreview}
                                 alt="Preview"
-                                className="w-32 h-32 object-cover rounded-lg shadow-md"
+                                className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg shadow-md"
                               />
                               <button
                                 type="button"
                                 onClick={clearImage}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                               </button>
                             </div>
                           ) : (
-                            <div className="py-8">
-                              <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="py-4 sm:py-8">
+                              <svg className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                               </svg>
-                              <p className="text-sm text-gray-600">Click to upload photo</p>
-                              <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                              <p className="text-xs sm:text-sm text-gray-600">Tap to upload photo</p>
+                              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">PNG, JPG up to 5MB</p>
                             </div>
                           )}
                         </label>
@@ -1248,22 +1287,22 @@ export default function EventContestants() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <span>➕</span>
-                      Add Contestant
-                    </span>
-                  </button>
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => { setShowAddModal(false); resetForm(); }}
-                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+                    className="flex-1 bg-gray-100 text-gray-700 py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-all duration-200 text-sm sm:text-base font-semibold border border-gray-200"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl hover:from-emerald-700 hover:via-teal-700 hover:to-cyan-700 transition-all duration-200 text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                  >
+                    <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+                      <span>➕</span>
+                      Add Contestant
+                    </span>
                   </button>
                 </div>
               </form>
@@ -1274,17 +1313,25 @@ export default function EventContestants() {
 
       {/* Edit Contestant Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-green-600 px-6 py-5 rounded-t-2xl">
-              <h3 className="text-xl font-bold text-white">Edit Contestant</h3>
-              <p className="text-purple-100 text-sm mt-1">Update contestant information</p>
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            {/* Gradient Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 rounded-t-xl sm:rounded-t-2xl">
+              <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur-sm rounded-lg flex-shrink-0">
+                  <span className="text-xl sm:text-2xl md:text-3xl">✏️</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-white">Edit Contestant</h3>
+                  <p className="text-blue-100 text-[10px] sm:text-xs md:text-sm mt-0.5 sm:mt-1">Update contestant information</p>
+                </div>
+              </div>
             </div>
-            <div className="p-6">
-              <form onSubmit={(e) => { e.preventDefault(); handleEditContestant(); }} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-3 sm:p-4 md:p-6">
+              <form onSubmit={(e) => { e.preventDefault(); handleEditContestant(); }} className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                       Contestant Number <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1292,18 +1339,18 @@ export default function EventContestants() {
                       name="contestantNumber"
                       value={formData.contestantNumber}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
                         formErrors.contestantNumber 
                           ? 'border-red-500 focus:border-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
                     />
-                    <p className="mt-1 text-xs text-gray-500">Enter a unique contestant number</p>
+                    <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-500">Unique number</p>
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         Age <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1311,7 +1358,7 @@ export default function EventContestants() {
                         name="age"
                         value={formData.age}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         min="1"
                         max="100"
                         required
@@ -1322,9 +1369,9 @@ export default function EventContestants() {
                 
                 {/* Solo Fields - First Name and Last Name */}
                 {formData.contestantType === 'solo' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         First Name <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1332,12 +1379,12 @@ export default function EventContestants() {
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         Last Name <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1345,7 +1392,7 @@ export default function EventContestants() {
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
@@ -1354,9 +1401,9 @@ export default function EventContestants() {
 
                 {/* Group Fields */}
                 {formData.contestantType === 'group' && (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                         Group Name <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1364,7 +1411,7 @@ export default function EventContestants() {
                         name="groupName"
                         value={formData.groupName}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                         required
                       />
                     </div>
@@ -1372,7 +1419,7 @@ export default function EventContestants() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Address <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1380,7 +1427,7 @@ export default function EventContestants() {
                     name="address"
                     value={formData.address}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                     required
                   />
                 </div>
@@ -1388,7 +1435,7 @@ export default function EventContestants() {
                 {/* Contact Number - only for solo contestants */}
                 {formData.contestantType === 'solo' && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                       Contact Number <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1396,7 +1443,7 @@ export default function EventContestants() {
                       name="contactNumber"
                       value={formData.contactNumber}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-green-600 focus:border-green-600 transition-all duration-200 bg-white"
                       placeholder="09XX-XXX-XXXX"
                       maxLength="11"
                       pattern="[0-9]{11}"
@@ -1408,12 +1455,12 @@ export default function EventContestants() {
 
                 {/* Photo Upload Field */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Contestant Photo
                   </label>
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     <div className="flex-1">
-                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-green-400 transition-colors">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-green-400 transition-colors">
                         <input
                           type="file"
                           accept="image/*"
@@ -1430,25 +1477,25 @@ export default function EventContestants() {
                               <img
                                 src={imagePreview}
                                 alt="Preview"
-                                className="w-32 h-32 object-cover rounded-lg shadow-md"
+                                className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg shadow-md"
                               />
                               <button
                                 type="button"
                                 onClick={clearImage}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                               </button>
                             </div>
                           ) : (
-                            <div className="py-8">
-                              <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="py-4 sm:py-8">
+                              <svg className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                               </svg>
-                              <p className="text-sm text-gray-600">Click to upload photo</p>
-                              <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                              <p className="text-xs sm:text-sm text-gray-600">Tap to upload photo</p>
+                              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">PNG, JPG up to 5MB</p>
                             </div>
                           )}
                         </label>
@@ -1457,22 +1504,22 @@ export default function EventContestants() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-green-600 text-white py-3 px-6 rounded-xl hover:bg-green-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <span>💾</span>
-                      Update Contestant
-                    </span>
-                  </button>
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => { setShowEditModal(false); setEditingContestant(null); resetForm(); }}
-                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+                    className="flex-1 bg-gray-100 text-gray-700 py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-all duration-200 text-sm sm:text-base font-semibold border border-gray-200"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all duration-200 text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                  >
+                    <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+                      <span>💾</span>
+                      Update Contestant
+                    </span>
                   </button>
                 </div>
               </form>
@@ -1483,20 +1530,22 @@ export default function EventContestants() {
 
       {/* Round Management Modal */}
       {showRoundModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-5 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-white">🏆 Round Management</h3>
-                  <p className="text-orange-100 text-sm mt-1">Manage competition rounds and contestant elimination</p>
+            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 rounded-t-xl sm:rounded-t-2xl">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-white flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">🏆</span> Round Management
+                  </h3>
+                  <p className="text-orange-100 text-[10px] sm:text-xs md:text-sm mt-0.5 sm:mt-1">Manage rounds and elimination</p>
                 </div>
                 <button
                   onClick={() => setShowRoundModal(false)}
-                  className="text-white hover:text-orange-200 transition-colors p-1"
+                  className="text-white hover:text-orange-200 transition-colors p-1.5 sm:p-2 hover:bg-white/20 rounded-lg flex-shrink-0"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1504,62 +1553,66 @@ export default function EventContestants() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6">
+            <div className="p-3 sm:p-4 md:p-6">
               {/* Current Round Display */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Round</label>
-                <div className={`inline-flex items-center gap-2 px-4 py-3 text-lg font-bold rounded-xl ${getRoundColor(currentRound)}`}>
-                  <span className="text-2xl">🏆</span>
+              <div className="mb-4 sm:mb-6">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Current Round</label>
+                <div className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg font-bold rounded-lg sm:rounded-xl ${getRoundColor(currentRound)}`}>
+                  <span className="text-lg sm:text-2xl">🏆</span>
                   {currentRound.charAt(0).toUpperCase() + currentRound.slice(1)}
                 </div>
               </div>
 
               {/* Round Progress Info */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 mb-1">Total Contestants</div>
-                  <div className="text-2xl font-bold text-gray-900">{contestants.length}</div>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
+                <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3 md:p-4">
+                  <div className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-0.5 sm:mb-1">Total</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">{contestants.length}</div>
                 </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 mb-1">Active Contestants</div>
-                  <div className="text-2xl font-bold text-green-600">
+                <div className="bg-green-50 rounded-lg p-2.5 sm:p-3 md:p-4">
+                  <div className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-0.5 sm:mb-1">Active</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-600">
                     {contestants.filter(c => c.status !== 'eliminated').length}
                   </div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 mb-1">Eliminated</div>
-                  <div className="text-2xl font-bold text-red-600">
+                <div className="bg-red-50 rounded-lg p-2.5 sm:p-3 md:p-4">
+                  <div className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-0.5 sm:mb-1">Out</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-red-600">
                     {contestants.filter(c => c.status === 'eliminated').length}
                   </div>
                 </div>
               </div>
 
               {/* Round Actions */}
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {currentRound === 'preliminary' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-blue-900 mb-2">🎯 Advance to Semi-Final</h4>
-                    <p className="text-sm text-blue-700 mb-4">
-                      Top 10 contestants will advance to semi-final round. Remaining contestants will be eliminated.
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                    <h4 className="font-semibold text-blue-900 text-sm sm:text-base mb-1.5 sm:mb-2 flex items-center gap-1.5">
+                      <span>🎯</span> Advance to Semi-Final
+                    </h4>
+                    <p className="text-[10px] sm:text-xs md:text-sm text-blue-700 mb-3 sm:mb-4">
+                      Top 10 will advance. Others eliminated.
                     </p>
                     <button
                       onClick={handleAdvanceRound}
-                      className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                      className="w-full bg-blue-600 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm md:text-base font-semibold"
                     >
-                      Advance to Semi-Final Round
+                      Advance to Semi-Final
                     </button>
                   </div>
                 )}
 
                 {currentRound === 'semi-final' && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-orange-900 mb-2">🏅 Advance to Final Round</h4>
-                    <p className="text-sm text-orange-700 mb-4">
-                      Top 5 contestants will advance to final round. Remaining semi-finalists will be eliminated.
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
+                    <h4 className="font-semibold text-orange-900 text-sm sm:text-base mb-1.5 sm:mb-2 flex items-center gap-1.5">
+                      <span>🏅</span> Advance to Final
+                    </h4>
+                    <p className="text-[10px] sm:text-xs md:text-sm text-orange-700 mb-3 sm:mb-4">
+                      Top 5 will advance. Others eliminated.
                     </p>
                     <button
                       onClick={handleAdvanceRound}
-                      className="w-full bg-orange-600 text-white py-3 px-6 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+                      className="w-full bg-orange-600 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg hover:bg-orange-700 transition-colors text-xs sm:text-sm md:text-base font-semibold"
                     >
                       Advance to Final Round
                     </button>
@@ -1567,28 +1620,32 @@ export default function EventContestants() {
                 )}
 
                 {currentRound === 'final' && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-green-900 mb-2">🏆 Complete Competition</h4>
-                    <p className="text-sm text-green-700 mb-4">
-                      Final rankings will be calculated. Winner and runners-up will be declared.
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                    <h4 className="font-semibold text-green-900 text-sm sm:text-base mb-1.5 sm:mb-2 flex items-center gap-1.5">
+                      <span>🏆</span> Complete Competition
+                    </h4>
+                    <p className="text-[10px] sm:text-xs md:text-sm text-green-700 mb-3 sm:mb-4">
+                      Declare winner and runners-up.
                     </p>
                     <button
                       onClick={handleAdvanceRound}
-                      className="w-full bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                      className="w-full bg-green-600 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm md:text-base font-semibold"
                     >
-                      Complete Competition & Declare Winner
+                      Complete & Declare Winner
                     </button>
                   </div>
                 )}
 
                 {currentRound === 'completed' && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-2">✅ Competition Completed</h4>
-                    <p className="text-sm text-gray-700 mb-4">
-                      This competition has been completed. Winners have been declared.
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+                    <h4 className="font-semibold text-gray-900 text-sm sm:text-base mb-1.5 sm:mb-2 flex items-center gap-1.5">
+                      <span>✅</span> Competition Completed
+                    </h4>
+                    <p className="text-[10px] sm:text-xs md:text-sm text-gray-700 mb-3 sm:mb-4">
+                      Winners have been declared.
                     </p>
-                    <div className="bg-green-100 text-green-800 p-3 rounded-lg">
-                      <div className="font-semibold">🏆 Winner and rankings have been finalized!</div>
+                    <div className="bg-green-100 text-green-800 p-2.5 sm:p-3 rounded-lg">
+                      <div className="font-semibold text-xs sm:text-sm">🏆 Rankings finalized!</div>
                     </div>
                   </div>
                 )}
@@ -1596,26 +1653,28 @@ export default function EventContestants() {
 
               {/* Manual Elimination Section */}
               {currentRound !== 'completed' && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-4">⚠️ Manual Elimination</h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    You can manually eliminate individual contestants if needed. Use this for disqualifications or special circumstances.
+                <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
+                  <h4 className="font-semibold text-gray-900 text-sm sm:text-base mb-2 sm:mb-4 flex items-center gap-1.5">
+                    <span>⚠️</span> Manual Elimination
+                  </h4>
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-2 sm:mb-4">
+                    Manually eliminate contestants for disqualifications.
                   </p>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-yellow-800">
-                      <span className="text-xl">⚠️</span>
-                      <span className="font-medium">Manual elimination cannot be undone!</span>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 sm:p-4">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-yellow-800 text-xs sm:text-sm">
+                      <span className="text-base sm:text-xl">⚠️</span>
+                      <span className="font-medium">Cannot be undone!</span>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Modal Actions */}
-              <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-gray-100">
+              <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowRoundModal(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+                  className="flex-1 bg-gray-100 text-gray-700 py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-all duration-200 text-sm sm:text-base font-semibold"
                 >
                   Close
                 </button>

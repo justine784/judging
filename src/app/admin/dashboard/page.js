@@ -536,31 +536,66 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="p-3 xs:p-4 sm:p-5 lg:p-6 min-h-screen bg-gray-50">
-      {/* Page Header */}
-      <div className="mb-4 sm:mb-6 lg:mb-8">
-        <div className="flex flex-col gap-3 sm:gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-green-600 mb-1 sm:mb-2">
-              Admin Dashboard
-            </h1>
-            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-black">Welcome back! Here's what's happening with your judging system today.</p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-            <button 
-              onClick={() => router.push('/admin/events')}
-              className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl hover:bg-green-700 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-medium touch-manipulation active:scale-95"
-            >
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
-              </svg>
-              <span className="hidden xs:inline">New Event</span>
-              <span className="xs:hidden">+ Event</span>
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-teal-50/50">
+      {/* Enhanced Header - Admin Dashboard */}
+      <header className="relative w-full shadow-2xl border-b border-emerald-500/30 sticky top-0 z-25 overflow-hidden mb-4 sm:mb-6 lg:mb-8">
+        {/* Animated Background Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5"></div>
+        
+        <div className="relative w-full px-3 sm:px-4 md:px-6 lg:px-8">
+          <div className="py-4 sm:py-5 md:py-6">
+            {/* Main Header Row */}
+            <div className="flex flex-col gap-3 sm:gap-4">
+              {/* Top Row - Logo, Title, and Actions */}
+              <div className="flex items-center justify-between">
+                {/* Left Section - Logo and Title */}
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
+                  {/* Logo Container with Glow Effect */}
+                  <div className="relative group flex-shrink-0">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-300"></div>
+                    <div className="relative h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 rounded-full bg-white/95 backdrop-blur-sm shadow-2xl p-1 sm:p-1.5 border-2 border-white/50 ring-2 ring-emerald-400/30 flex items-center justify-center">
+                      <span className="text-xl sm:text-2xl md:text-3xl">🛡️</span>
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-extrabold text-white drop-shadow-lg tracking-tight truncate">
+                      Admin Dashboard
+                    </h1>
+                    <p className="text-xs sm:text-sm text-emerald-100 font-medium drop-shadow-md mt-0.5 sm:mt-1">
+                      Welcome back! Here's what's happening with your judging system today.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right Section - Status Badge (Desktop) */}
+                <div className="hidden lg:flex items-center gap-3 md:gap-4 px-3 md:px-5 py-2 md:py-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <div className="w-2.5 md:w-3 h-2.5 md:h-3 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50"></div>
+                      <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75"></div>
+                    </div>
+                    <span className="font-semibold text-xs md:text-sm text-white">🟢 System Online</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Row */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                <button 
+                  onClick={() => router.push('/admin/events')}
+                  className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-white text-emerald-700 rounded-lg sm:rounded-xl hover:bg-emerald-50 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs sm:text-sm md:text-base font-semibold touch-manipulation active:scale-95 border border-white/50"
+                >
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                  <span className="hidden xs:inline">New Event</span>
+                  <span className="xs:hidden">+ Event</span>
+                </button>
             <div className="relative export-dropdown">
               <button 
                 onClick={() => setShowExportDropdown(!showExportDropdown)}
-                className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-white text-black border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base font-medium"
+                className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 bg-white/20 backdrop-blur-sm text-white border border-white/30 rounded-lg sm:rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base font-medium"
               >
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
@@ -573,16 +608,16 @@ export default function AdminDashboard() {
               </button>
               
               {showExportDropdown && (
-                <div className="absolute right-0 mt-2 w-56 sm:w-64 md:w-72 lg:w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 xs:z-[60] sm:z-50">
-                  <div className="px-3 sm:px-4 py-2 border-b border-gray-100">
-                    <label className="block text-xs font-medium text-black mb-1">Select Event</label>
+                <div className="absolute right-0 mt-2 w-56 sm:w-64 md:w-72 lg:w-80 bg-white rounded-xl shadow-2xl border border-gray-100 py-1 z-50 xs:z-[60] sm:z-50 overflow-hidden">
+                  <div className="px-3 sm:px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
+                    <label className="block text-xs font-semibold text-emerald-700 mb-1.5">Select Event</label>
                     <select
                       value={selectedEventForPrint?.id || ''}
                       onChange={(e) => {
                         const event = events.find(ev => ev.id === e.target.value);
                         setSelectedEventForPrint(event);
                       }}
-                      className="w-full text-xs sm:text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-600 touch-manipulation"
+                      className="w-full text-xs sm:text-sm px-3 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 touch-manipulation bg-white"
                     >
                       {events.map((event) => (
                         <option key={event.id} value={event.id}>
@@ -593,7 +628,7 @@ export default function AdminDashboard() {
                   </div>
                   <button
                     onClick={() => { handlePrint(); setShowExportDropdown(false); }}
-                    className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm text-black hover:bg-gray-100 flex items-center gap-2 touch-manipulation active:bg-gray-200 transition-colors"
+                    className="w-full text-left px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-700 hover:bg-emerald-50 flex items-center gap-2 touch-manipulation active:bg-emerald-100 transition-colors font-medium"
                   >
                     <span>🖨️</span>
                     <span className="hidden xs:inline">Print Event Scoreboard</span>
@@ -602,167 +637,183 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+              </div>
+            </div>
           </div>
         </div>
-        
+      </header>
+
+      {/* Main Content */}
+      <main className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-2 sm:py-4">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-black mt-3 sm:mt-4 lg:mt-6">
-          <span className="hover:text-black cursor-pointer transition-colors">Home</span>
+        <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">
+          <span className="hover:text-emerald-600 cursor-pointer transition-colors">🏠 Home</span>
           <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
           </svg>
-          <span className="text-black font-medium">Dashboard</span>
+          <span className="text-emerald-700 font-semibold">Dashboard</span>
         </nav>
-      </div>
 
-      {/* Dashboard Grid */}
+      {/* Dashboard Grid - Enhanced Cards */}
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 xs:gap-4 sm:gap-6 mb-4 sm:mb-6 lg:mb-8">
         {/* Contestants Card */}
         <div 
           onClick={() => router.push('/admin/events')}
-          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
+          className="group relative bg-white rounded-xl sm:rounded-2xl shadow-lg border border-emerald-100 p-3 xs:p-4 sm:p-5 lg:p-6 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 hover:-translate-y-1 overflow-hidden cursor-pointer touch-manipulation active:scale-95"
         >
-          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-green-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+          <div className="absolute top-0 right-0 w-20 sm:w-32 h-20 sm:h-32 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-full -translate-y-10 sm:-translate-y-16 translate-x-10 sm:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform duration-300">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">👥</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-12 sm:h-8 sm:w-16 bg-emerald-100 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-black">{stats.totalContestants}</span>
+                <span className="text-xl xs:text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">{stats.totalContestants}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Contestants</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Total registered</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 xs:gap-2">
-              <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs xs:text-sm sm:text-base text-black font-medium">
-                {loading ? 'Loading...' : `${stats.totalContestants} total`}
-              </span>
+          <div className="relative">
+            <h3 className="font-bold text-gray-800 text-sm xs:text-base sm:text-lg mb-0.5 sm:mb-1">Contestants</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mb-2 xs:mb-3 sm:mb-4">Total registered</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 xs:gap-2">
+                <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-xs sm:text-sm text-slate-600 font-medium">
+                  {loading ? 'Loading...' : `${stats.totalContestants} total`}
+                </span>
+              </div>
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-            </svg>
           </div>
         </div>
 
         {/* Judges Card */}
         <div 
           onClick={() => router.push('/admin/judges')}
-          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
+          className="group relative bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100 p-3 xs:p-4 sm:p-5 lg:p-6 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-500 hover:-translate-y-1 overflow-hidden cursor-pointer touch-manipulation active:scale-95"
         >
-          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-green-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+          <div className="absolute top-0 right-0 w-20 sm:w-32 h-20 sm:h-32 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full -translate-y-10 sm:-translate-y-16 translate-x-10 sm:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform duration-300">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">🧑‍⚖️</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-12 sm:h-8 sm:w-16 bg-blue-100 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-black">{stats.totalJudges}</span>
+                <span className="text-xl xs:text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{stats.totalJudges}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Judges</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Active judges</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 xs:gap-2">
-              <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs xs:text-sm sm:text-base text-black font-medium">
-                {loading ? 'Loading...' : `${stats.totalJudges} active`}
-              </span>
+          <div className="relative">
+            <h3 className="font-bold text-gray-800 text-sm xs:text-base sm:text-lg mb-0.5 sm:mb-1">Judges</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mb-2 xs:mb-3 sm:mb-4">Active judges</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 xs:gap-2">
+                <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-xs sm:text-sm text-slate-600 font-medium">
+                  {loading ? 'Loading...' : `${stats.totalJudges} active`}
+                </span>
+              </div>
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-            </svg>
           </div>
         </div>
 
         {/* Events Card */}
         <div 
           onClick={() => router.push('/admin/events')}
-          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
+          className="group relative bg-white rounded-xl sm:rounded-2xl shadow-lg border border-purple-100 p-3 xs:p-4 sm:p-5 lg:p-6 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-500 hover:-translate-y-1 overflow-hidden cursor-pointer touch-manipulation active:scale-95"
         >
-          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className="h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg">
+          <div className="absolute top-0 right-0 w-20 sm:w-32 h-20 sm:h-32 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full -translate-y-10 sm:-translate-y-16 translate-x-10 sm:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform duration-300">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">🎯</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-4 w-8 xs:h-5 xs:w-10 sm:h-6 sm:w-12 lg:h-8 lg:w-16 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-12 sm:h-8 sm:w-16 bg-purple-100 rounded-lg"></div>
                 </div>
               ) : (
-                <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-black">{stats.totalEvents}</span>
+                <span className="text-xl xs:text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{stats.totalEvents}</span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Events</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Total events</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 xs:gap-2">
-              <div className="h-1 w-1 xs:h-1.5 xs:w-1.5 sm:h-2 sm:w-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs xs:text-sm sm:text-base text-black font-medium">
-                {loading ? 'Loading...' : `${stats.ongoingEvents} ongoing`}
-              </span>
+          <div className="relative">
+            <h3 className="font-bold text-gray-800 text-sm xs:text-base sm:text-lg mb-0.5 sm:mb-1">Events</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mb-2 xs:mb-3 sm:mb-4">Total events</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 xs:gap-2">
+                <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-purple-500 rounded-full animate-pulse"></div>
+                <span className="text-xs sm:text-sm text-slate-600 font-medium">
+                  {loading ? 'Loading...' : `${stats.ongoingEvents} ongoing`}
+                </span>
+              </div>
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-            </svg>
           </div>
         </div>
 
         {/* Progress Card */}
         <div 
           onClick={() => router.push('/scoreboard')}
-          className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 p-3 xs:p-4 sm:p-6 cursor-pointer group border border-gray-100 touch-manipulation active:scale-95 hover:scale-105"
+          className="group relative bg-white rounded-xl sm:rounded-2xl shadow-lg border border-amber-100 p-3 xs:p-4 sm:p-5 lg:p-6 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-500 hover:-translate-y-1 overflow-hidden cursor-pointer touch-manipulation active:scale-95"
         >
-          <div className="flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
-            <div className={`h-8 w-8 xs:h-10 xs:w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 ${getProgressBg(stats.scoringProgress)} rounded-lg xs:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md xs:shadow-lg`}>
+          <div className="absolute top-0 right-0 w-20 sm:w-32 h-20 sm:h-32 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-full -translate-y-10 sm:-translate-y-16 translate-x-10 sm:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative flex items-center justify-between mb-3 xs:mb-4 sm:mb-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform duration-300">
               <span className="text-lg xs:text-xl sm:text-2xl lg:text-3xl">📊</span>
             </div>
             <div className="text-right">
               {loading ? (
                 <div className="animate-pulse">
-                  <div className="h-4 w-10 xs:h-5 xs:w-12 sm:h-6 sm:w-14 lg:h-8 lg:w-20 bg-gray-200 rounded-lg"></div>
+                  <div className="h-6 w-14 sm:h-8 sm:w-20 bg-amber-100 rounded-lg"></div>
                 </div>
               ) : (
-                <span className={`text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold ${getProgressColor(stats.scoringProgress)}`}>
+                <span className="text-xl xs:text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
                   {stats.scoringProgress}%
                 </span>
               )}
             </div>
           </div>
-          <h3 className="font-bold text-black text-sm xs:text-base sm:text-lg mb-1">Progress</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-black mb-2 xs:mb-3 sm:mb-4">Scoring completed</p>
-          <div className="flex items-center justify-between">
-            <div className="flex-1 mr-1.5 xs:mr-2 sm:mr-3">
-              {loading ? (
-                <div className="animate-pulse">
-                  <div className="h-1 xs:h-1.5 sm:h-2 bg-gray-200 rounded-full"></div>
-                </div>
-              ) : (
-                <div className="w-full bg-gray-200 rounded-full h-1 xs:h-1.5 sm:h-2">
-                  <div 
-                    className={`h-1 xs:h-1.5 sm:h-2 rounded-full transition-all duration-700 ease-out ${
-                      stats.scoringProgress >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' : 
-                      stats.scoringProgress >= 50 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : 'bg-gradient-to-r from-red-400 to-red-600'
-                    }`}
-                    style={{ width: `${stats.scoringProgress}%` }}
-                  ></div>
-                </div>
-              )}
+          <div className="relative">
+            <h3 className="font-bold text-gray-800 text-sm xs:text-base sm:text-lg mb-0.5 sm:mb-1">Progress</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mb-2 xs:mb-3 sm:mb-4">Scoring completed</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1">
+                {loading ? (
+                  <div className="animate-pulse">
+                    <div className="h-2 sm:h-2.5 bg-amber-100 rounded-full"></div>
+                  </div>
+                ) : (
+                  <div className="w-full bg-gray-200 rounded-full h-2 sm:h-2.5 overflow-hidden">
+                    <div 
+                      className={`h-2 sm:h-2.5 rounded-full transition-all duration-700 ease-out ${
+                        stats.scoringProgress >= 80 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                        stats.scoringProgress >= 50 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-red-400 to-red-600'
+                      }`}
+                      style={{ width: `${stats.scoringProgress}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-amber-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
             </div>
-            <svg className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-4 sm:h-4 text-black group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-            </svg>
           </div>
         </div>
       </div>
@@ -770,40 +821,45 @@ export default function AdminDashboard() {
       {/* Password Reset Verification */}
       <PasswordResetVerification />
 
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg xs:rounded-xl sm:rounded-2xl shadow-md xs:shadow-lg sm:shadow-xl border border-gray-100 overflow-hidden">
-        <div className="bg-green-600 px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
-          <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white flex items-center gap-1.5 xs:gap-2">
-            <span className="text-lg xs:text-xl sm:text-2xl">📈</span>
-            Recent Activity
-          </h2>
-          <p className="text-white text-xs xs:text-sm sm:text-sm mt-0.5 xs:mt-1">Latest updates from your judging system</p>
+      {/* Recent Activity - Enhanced */}
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-4 sm:px-6 py-4 sm:py-5">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5"></div>
+          <div className="relative">
+            <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 sm:gap-3">
+              <span className="text-xl sm:text-2xl">📈</span>
+              Recent Activity
+            </h2>
+            <p className="text-emerald-100 text-xs sm:text-sm mt-1">Latest updates from your judging system</p>
+          </div>
         </div>
-        <div className="p-3 xs:p-4 sm:p-6">
+        <div className="p-4 sm:p-6">
           {recentActivities.length === 0 ? (
-            <div className="text-center py-4 xs:py-6 sm:py-8">
-              <div className="text-2xl xs:text-3xl sm:text-4xl mb-3 xs:mb-4">📋</div>
-              <h3 className="text-sm xs:text-base sm:text-lg font-medium text-black mb-1 xs:mb-2">No recent activity</h3>
-              <p className="text-xs xs:text-sm sm:text-sm text-black px-2 xs:px-4">Activities will appear here as contestants, judges, and events are added to the system.</p>
+            <div className="text-center py-8 sm:py-12">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                <span className="text-3xl sm:text-4xl">📋</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">No recent activity</h3>
+              <p className="text-sm text-gray-500 max-w-md mx-auto">Activities will appear here as contestants, judges, and events are added to the system.</p>
             </div>
           ) : (
-            <div className="space-y-2 xs:space-y-3 sm:space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {recentActivities.map((activity, index) => (
                 <div 
                   key={index}
-                  className={`flex flex-col xs:flex-row sm:flex-row xs:items-center sm:items-center xs:justify-between sm:justify-between p-2.5 xs:p-3 sm:p-4 rounded-lg xs:rounded-xl border transition-colors cursor-pointer ${getActivityColor(activity.color)}`}
+                  className={`group flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 ${getActivityColor(activity.color)}`}
                 >
-                  <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-0">
-                    <div className={`h-6 w-6 xs:h-8 xs:w-8 sm:h-10 sm:w-10 ${getActivityIconColor(activity.color)} rounded-full flex items-center justify-center flex-shrink-0`}>
-                      <span className="text-black text-xs xs:text-sm sm:text-base">{activity.icon}</span>
+                  <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-0">
+                    <div className={`h-10 w-10 sm:h-12 sm:w-12 ${getActivityIconColor(activity.color)} rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform`}>
+                      <span className="text-base sm:text-lg">{activity.icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-black text-xs xs:text-sm sm:text-base truncate pr-2">{activity.title}</p>
-                      <p className="text-xs xs:text-sm sm:text-sm text-black truncate pr-2">{activity.description}</p>
+                      <p className="font-semibold text-gray-800 text-sm sm:text-base truncate pr-2">{activity.title}</p>
+                      <p className="text-xs sm:text-sm text-gray-600 truncate pr-2">{activity.description}</p>
                     </div>
                   </div>
-                  <div className="flex-shrink-0">
-                    <span className={`inline-flex items-center px-1.5 xs:px-2 sm:px-3 py-0.5 xs:py-1 text-xs font-medium rounded-full ${getActivityBadgeColor(activity.color)}`}>
+                  <div className="flex-shrink-0 ml-auto sm:ml-0">
+                    <span className={`inline-flex items-center px-2.5 sm:px-3.5 py-1 sm:py-1.5 text-xs font-semibold rounded-full shadow-sm ${getActivityBadgeColor(activity.color)}`}>
                       {formatTimeAgo(activity.timestamp)}
                     </span>
                   </div>
@@ -813,17 +869,21 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+      </main>
       
-      {/* Mobile Floating Action Button */}
+      {/* Mobile Floating Action Button - Enhanced */}
       <div className="lg:hidden fixed bottom-6 right-6 z-40">
         <button
           onClick={() => router.push('/admin/events')}
-          className="w-14 h-14 bg-green-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95"
+          className="group relative w-14 h-14 sm:w-16 sm:h-16"
           aria-label="Add Event"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
-          </svg>
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-300"></div>
+          <div className="relative w-full h-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-xl hover:shadow-2xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center touch-manipulation active:scale-95 border-2 border-white/30">
+            <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path>
+            </svg>
+          </div>
         </button>
       </div>
     </div>

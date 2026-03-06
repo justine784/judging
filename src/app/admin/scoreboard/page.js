@@ -390,38 +390,46 @@ export default function AdminScoreboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-3 sm:py-4">
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 shadow-xl">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => window.location.href = '/admin/events'}
-                className="text-gray-600 hover:text-gray-900 transition-colors p-1"
+                className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
               >
-                ← Back
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
               </button>
-              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">🏆 Admin Scoreboard</h1>
+              <div className="p-2 bg-white/20 backdrop-blur-sm rounded-xl">
+                <span className="text-2xl sm:text-3xl">🏆</span>
+              </div>
+              <div>
+                <h1 className="text-lg sm:text-2xl font-bold text-white">Admin Scoreboard</h1>
+                <p className="text-emerald-100 text-xs sm:text-sm hidden sm:block">Real-time scoring dashboard</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className={`flex items-center gap-2 ${
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl backdrop-blur-sm ${
                 connectionStatus === 'connected' && isLive 
-                  ? 'text-green-600' 
+                  ? 'bg-green-500/20 text-white' 
                   : connectionStatus === 'connected' 
-                  ? 'text-yellow-600' 
-                  : 'text-red-600'
+                  ? 'bg-yellow-500/20 text-white' 
+                  : 'bg-red-500/20 text-white'
               }`}>
-                <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full ${
+                <div className={`relative w-2.5 h-2.5 rounded-full ${
                   connectionStatus === 'connected' && isLive 
-                    ? 'bg-green-500 animate-pulse' 
+                    ? 'bg-green-400 animate-pulse' 
                     : connectionStatus === 'connected' 
-                    ? 'bg-yellow-500' 
-                    : 'bg-red-500'
+                    ? 'bg-yellow-400' 
+                    : 'bg-red-400'
                 }`}>
                   {connectionStatus === 'connected' && isLive && (
-                    <div className="absolute inset-0 rounded-full bg-green-500 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full bg-green-400 animate-ping"></div>
                   )}
                 </div>
-                <span className="font-medium text-xs sm:text-sm">
+                <span className="font-semibold text-xs sm:text-sm">
                   {connectionStatus === 'connected' && isLive 
                     ? '🔴 Live' 
                     : connectionStatus === 'connected' 
@@ -430,18 +438,19 @@ export default function AdminScoreboard() {
                   }
                 </span>
               </div>
-              <div className="h-3 w-px bg-gray-300 hidden sm:block"></div>
-              <div className="text-xs text-gray-500">
-                <div className="font-medium hidden sm:block">Updated</div>
-                <div className="text-xs">{lastUpdate.toLocaleTimeString()}</div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
+                <div className="text-xs text-emerald-100 font-medium">Last Updated</div>
+                <div className="text-sm text-white font-semibold">{lastUpdate.toLocaleTimeString()}</div>
               </div>
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full whitespace-nowrap">Admin View</span>
+              <span className="px-3 py-2 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold rounded-xl">
+                Admin View
+              </span>
             </div>
             {/* Reconnect Button */}
             {connectionStatus === 'disconnected' && (
               <button 
                 onClick={() => window.location.reload()}
-                className="w-full sm:w-auto px-3 py-2 sm:px-4 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 flex items-center justify-center gap-2 shadow-lg text-sm"
+                className="w-full sm:w-auto px-4 py-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors duration-200 flex items-center justify-center gap-2 shadow-lg text-sm font-semibold"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -454,21 +463,21 @@ export default function AdminScoreboard() {
       </div>
 
       {/* Event Selector */}
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-3 sm:py-6">
-        <div className="bg-gradient-to-r from-white to-gray-50 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-4">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-6">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-4 sm:px-6 py-4 sm:py-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <span className="text-xl sm:text-2xl">🎭</span>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <span className="text-2xl sm:text-3xl">🎭</span>
                 </div>
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold text-white">Event Selection</h2>
-                  <p className="text-blue-100 text-xs sm:text-sm">Choose an event to view scores</p>
+                  <p className="text-emerald-100 text-xs sm:text-sm">Choose an event to view scores</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-blue-100 text-xs sm:text-sm font-medium">Total Events</p>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
+                <p className="text-emerald-100 text-xs font-medium">Total Events</p>
                 <p className="text-2xl sm:text-3xl font-bold text-white">{events.length}</p>
               </div>
             </div>
@@ -476,7 +485,9 @@ export default function AdminScoreboard() {
           <div className="p-4 sm:p-6">
             <div className="flex flex-col gap-4">
               <div className="w-full">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Event</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <span>📋</span> Select Event
+                </label>
                 <select
                   value={selectedEvent?.id || ''}
                   onChange={(e) => {
@@ -484,7 +495,7 @@ export default function AdminScoreboard() {
                     setSelectedEvent(event);
                     setSelectedRound('all'); // Reset round filter when event changes
                   }}
-                  className="block w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200 bg-white shadow-sm hover:border-gray-400"
+                  className="block w-full px-4 py-3 text-sm sm:text-base border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white shadow-sm hover:border-gray-300"
                 >
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>
@@ -497,7 +508,9 @@ export default function AdminScoreboard() {
               {/* Round Filter */}
               {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && (
                 <div className="w-full">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Round</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <span>🏆</span> Filter by Round
+                  </label>
                   <select
                     value={selectedRound}
                     onChange={(e) => setSelectedRound(e.target.value)}

@@ -480,33 +480,40 @@ export default function JudgeManagement() {
   };
 
   return (
-    <div className="p-6">
-      {/* Page Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Judge Management</h1>
-          <p className="text-gray-600">Add, manage, and assign judges to events</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors shadow-lg"
-          >
-            <span className="text-xl">+</span>
-            Add New Judge
-          </button>
+    <div className="p-4 sm:p-6">
+      {/* Enhanced Page Header */}
+      <div className="relative overflow-hidden rounded-2xl mb-6 sm:mb-8">
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5"></div>
+        <div className="relative p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg mb-2">🧑‍⚖️ Judge Management</h1>
+              <p className="text-emerald-100 text-sm sm:text-base">Add, manage, and assign judges to events</p>
+            </div>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center justify-center gap-2 bg-white text-emerald-700 px-5 sm:px-6 py-3 rounded-xl hover:bg-emerald-50 transition-all shadow-lg font-semibold border border-white/50"
+            >
+              <span className="text-xl">+</span>
+              <span className="hidden sm:inline">Add New Judge</span>
+              <span className="sm:hidden">Add Judge</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Success/Error Messages */}
+      {/* Enhanced Success/Error Messages */}
       {success && (
-        <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">✅</span>
-            <span>{success}</span>
+        <div className="mb-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-700 px-4 py-3.5 rounded-xl shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <span className="text-lg">✅</span>
+            </div>
+            <span className="font-medium flex-1">{success}</span>
             <button
               onClick={() => setSuccess('')}
-              className="ml-auto text-green-500 hover:text-green-700"
+              className="text-emerald-500 hover:text-emerald-700 p-1 hover:bg-emerald-100 rounded-lg transition-colors"
             >
               ✕
             </button>
@@ -515,13 +522,15 @@ export default function JudgeManagement() {
       )}
 
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">⚠️</span>
-            <span>{error}</span>
+        <div className="mb-6 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 text-red-700 px-4 py-3.5 rounded-xl shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center">
+              <span className="text-lg">⚠️</span>
+            </div>
+            <span className="font-medium flex-1">{error}</span>
             <button
               onClick={() => setError('')}
-              className="ml-auto text-red-500 hover:text-red-700"
+              className="text-red-500 hover:text-red-700 p-1 hover:bg-red-100 rounded-lg transition-colors"
             >
               ✕
             </button>
@@ -529,28 +538,32 @@ export default function JudgeManagement() {
         </div>
       )}
 
-      {/* Add Judge Form */}
+      {/* Enhanced Add Judge Form */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Add New Judge</h2>
-              <button
-                onClick={closeAddForm}
-                className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-100">
+            <div className="sticky top-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-5 rounded-t-2xl">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">Add New Judge</h2>
+                <button
+                  onClick={closeAddForm}
+                  className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/20 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            
-            <form onSubmit={handleAddJudge} className="space-y-6">
+            <div className="p-5 sm:p-6">
+            <form onSubmit={handleAddJudge} className="space-y-5">
               {/* Email Warning Banner */}
               {emailWarning.includes('⚠️') && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4">
                   <div className="flex items-start gap-3">
-                    <span className="text-red-500 text-xl flex-shrink-0">🚫</span>
+                    <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-red-500">🚫</span>
+                    </div>
                     <div>
                       <h4 className="text-sm font-semibold text-red-800 mb-1">Duplicate Email Address</h4>
                       <p className="text-sm text-red-700">{emailWarning.replace('⚠️ ', '')}</p>
@@ -560,10 +573,12 @@ export default function JudgeManagement() {
                 </div>
               )}
 
-              {/* Personal Information Section */}
-              <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="text-green-600">👤</span>
+              {/* Enhanced Personal Information Section */}
+              <div className="bg-gradient-to-br from-emerald-50/50 to-teal-50/50 rounded-xl p-5 border border-emerald-100">
+                <h3 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <div className="h-7 w-7 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">👤</span>
+                  </div>
                   Personal Information
                 </h3>
                 <div className="space-y-4">
@@ -575,7 +590,7 @@ export default function JudgeManagement() {
                       type="text"
                       value={newJudge.name}
                       onChange={(e) => setNewJudge({...newJudge, name: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all bg-white"
                       placeholder="Enter judge's full name"
                       required
                     />
@@ -592,14 +607,14 @@ export default function JudgeManagement() {
                           setNewJudge({...newJudge, email: e.target.value});
                           checkEmailDuplicate(e.target.value);
                         }}
-                        className={`w-full px-4 py-3 pr-10 border rounded-lg focus:ring-2 focus:border-transparent transition-all ${
+                        className={`w-full px-4 py-3 pr-10 border rounded-xl focus:ring-2 focus:border-transparent transition-all ${
                           emailWarning.includes('⚠️')
                             ? 'border-red-400 focus:ring-red-500 bg-red-50'
                             : emailWarning.includes('✅')
-                            ? 'border-green-400 focus:ring-green-500 bg-green-50'
+                            ? 'border-emerald-400 focus:ring-emerald-500 bg-emerald-50'
                             : emailWarning.includes('🔍')
                             ? 'border-blue-400 focus:ring-blue-500 bg-blue-50'
-                            : 'border-gray-300 focus:ring-blue-500'
+                            : 'border-gray-200 focus:ring-emerald-500 bg-white'
                         }`}
                         placeholder="judge@example.com"
                         required
@@ -613,7 +628,7 @@ export default function JudgeManagement() {
                           </svg>
                         )}
                         {emailWarning.includes('✅') && (
-                          <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-5 w-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         )}
@@ -627,7 +642,7 @@ export default function JudgeManagement() {
                     {emailWarning && (
                       <p className={`text-sm mt-2 flex items-center gap-2 ${
                         emailWarning.includes('⚠️') ? 'text-red-600' :
-                        emailWarning.includes('✅') ? 'text-green-600' :
+                        emailWarning.includes('✅') ? 'text-emerald-600' :
                         emailWarning.includes('🔍') ? 'text-blue-600' : 'text-gray-600'
                       }`}>
                         {emailWarning}
@@ -691,36 +706,150 @@ export default function JudgeManagement() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Judges Table */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="bg-green-600 px-4 sm:px-6 py-3 sm:py-4">
-          <h3 className="text-base sm:text-lg font-semibold text-white">All Judges</h3>
-          <p className="text-green-100 text-xs sm:text-sm">Manage judge accounts and assignments</p>
+      {/* Judges List */}
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        {/* Enhanced Header */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5"></div>
+          <div className="relative px-4 sm:px-6 py-4 sm:py-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">⚖️</span>
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">All Judges</h3>
+                  <p className="text-emerald-100 text-xs sm:text-sm">Manage judge accounts and assignments</p>
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm rounded-lg border border-white/20">
+                <span className="text-white text-sm font-medium">{judges.length}</span>
+                <span className="text-emerald-100 text-xs">Total</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Mobile Card View */}
+        <div className="lg:hidden divide-y divide-gray-100">
+          {judges.map((judge) => (
+            <div key={judge.id} className="p-4 hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all duration-300">
+              {/* Judge Header */}
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <span className="text-white text-lg font-bold">{judge.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{judge.name}</h4>
+                    <p className="text-sm text-gray-500">{judge.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => toggleDropdown(judge.id, e)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Judge Details */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-gray-50 rounded-lg p-2.5">
+                  <p className="text-xs text-gray-500 mb-1">📞 Phone</p>
+                  <p className="text-sm font-medium text-gray-900">{judge.phone || 'Not set'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2.5">
+                  <p className="text-xs text-gray-500 mb-1">📊 Status</p>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(judge.isActive)}`}>
+                    <span>{judge.isActive ? '✅' : '❌'}</span>
+                    {judge.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Assigned Events */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-3 border border-emerald-100">
+                <p className="text-xs text-emerald-700 font-semibold mb-2">🎯 Assigned Events</p>
+                {(judge.assignedEvents || []).length > 0 ? (
+                  <div className="space-y-1.5">
+                    {(judge.assignedEvents || []).map(eventId => {
+                      const event = events.find(e => e.id === eventId);
+                      return event ? (
+                        <div key={eventId} className="flex items-center gap-2">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                            🏆 {event.eventName}
+                          </span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No events assigned • Available for assignment</p>
+                )}
+              </div>
+              
+              {/* Mobile Action Buttons */}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => {
+                    setSelectedJudge(judge);
+                    setShowEventModal(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                  <span>✏️</span> Assign Events
+                </button>
+                <button
+                  onClick={() => handleToggleJudgeStatus(judge.id, judge.isActive)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                    judge.isActive 
+                      ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' 
+                      : 'bg-green-50 text-green-700 hover:bg-green-100'
+                  }`}
+                >
+                  <span>{judge.isActive ? '⏸️' : '▶️'}</span>
+                  {judge.isActive ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* Desktop Table View */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Judge Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Events</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Judge Name</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned Events</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {judges.map((judge) => (
-                <tr key={judge.id} className="hover:bg-gray-50">
+                <tr key={judge.id} className="hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all duration-200">
                   <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">{judge.name}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-md">
+                        <span className="text-white font-bold">{judge.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-900">{judge.name}</div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{judge.email}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{judge.phone || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{judge.email}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{judge.phone || '-'}</td>
                   <td className="px-6 py-4">
                     <div className="max-w-xs">
                       {(judge.assignedEvents || []).length > 0 ? (
@@ -729,14 +858,13 @@ export default function JudgeManagement() {
                             const event = events.find(e => e.id === eventId);
                             return event ? (
                               <div key={eventId} className="flex items-center gap-2">
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
                                   🏆 {event.eventName}
                                 </span>
-                                <span className="text-xs text-gray-500">(Assigned)</span>
                               </div>
                             ) : null;
                           })}
-                          <div className="text-xs text-green-600 italic">
+                          <div className="text-xs text-emerald-600 italic">
                             ✓ Single event assignment
                           </div>
                         </div>
@@ -751,7 +879,7 @@ export default function JudgeManagement() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(judge.isActive)}`}>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusColor(judge.isActive)}`}>
                       <span>{judge.isActive ? '✅' : '❌'}</span>
                       {judge.isActive ? 'Active' : 'Inactive'}
                     </span>
@@ -771,7 +899,7 @@ export default function JudgeManagement() {
                       {/* Dropdown Menu */}
                       {activeDropdown === judge.id && (
                         <div 
-                          className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999]"
+                          className="fixed w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-[9999]"
                           style={{
                             top: `${dropdownPosition.top}px`,
                             right: `${dropdownPosition.right}px`
@@ -783,9 +911,9 @@ export default function JudgeManagement() {
                               closeDropdown();
                               setShowEventModal(true);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors"
                           >
-                            <span className="text-green-600">✏️</span>
+                            <span className="text-emerald-600">✏️</span>
                             Assign Events
                           </button>
                           <button
@@ -793,7 +921,7 @@ export default function JudgeManagement() {
                               handleToggleJudgeStatus(judge.id, judge.isActive);
                               closeDropdown();
                             }}
-                            className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors ${
                               judge.isActive 
                                 ? 'text-orange-600 hover:bg-orange-50' 
                                 : 'text-green-600 hover:bg-green-50'
@@ -802,7 +930,7 @@ export default function JudgeManagement() {
                             <span>{judge.isActive ? '⏸️' : '▶️'}</span>
                             {judge.isActive ? 'Deactivate' : 'Activate'}
                           </button>
-                          <hr className="my-1 border-gray-200" />
+                          <hr className="my-1 border-gray-100" />
                           <button
                             onClick={() => {
                               if (confirm('Are you sure you want to delete this judge? This action cannot be undone.')) {
@@ -810,7 +938,7 @@ export default function JudgeManagement() {
                                 closeDropdown();
                               }
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                           >
                             <span>🗑️</span>
                             Delete Judge

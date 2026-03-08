@@ -37,11 +37,12 @@ export default function JudgeDashboard() {
   const [touchEnd, setTouchEnd] = useState(null);
   const [slideDirection, setSlideDirection] = useState('right'); // 'left' or 'right' for slide animation
   const [isAnimating, setIsAnimating] = useState(false);
-  const [lockedContestants, setLockedContestants] = useState(new Set()); // Track which contestants have locked scoring forms
-  const [lockedScores, setLockedScores] = useState({}); // Track locked scores per contestant
+  const [lockedContestants, setLockedContestants] = useState(new Set()); // Track which contestants have locked scoring forms (format: contestantId_main or contestantId_final)
+  const [lockedScores, setLockedScores] = useState({}); // Track locked scores per contestant (key format: contestantId_main or contestantId_final)
   const [scoredContestants, setScoredContestants] = useState(new Set()); // Track which contestants have been scored in main criteria
   const [scoredContestantsFinal, setScoredContestantsFinal] = useState(new Set()); // Track which contestants have been scored in final rounds
   const [showFinalistsOnly, setShowFinalistsOnly] = useState(false); // Track if showing finalists only
+  const [eventCurrentRound, setEventCurrentRound] = useState('preliminary'); // Track admin-set current round from event
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
@@ -99,6 +100,9 @@ export default function JudgeDashboard() {
           // Set up real-time listener for scores collection updates
           setupScoresListener(judgeData);
           
+          // Set up real-time listener for event updates (admin round changes)
+          setupEventsListener(judgeData);
+          
           // Load judge's assigned events and contestants
           loadAssignedEvents(judgeData);
           loadContestants(judgeData);
@@ -154,14 +158,15 @@ export default function JudgeDashboard() {
     if (currentEvent && contestants.length > 0 && currentContestantIndex >= 0) {
       const currentContestant = contestants[currentContestantIndex];
       if (currentContestant) {
-        // Check if contestant is locked
-        const isContestantLocked = currentContestant.id && lockedContestants.has(currentContestant.id);
+        // Check if contestant is locked for current round (main or final)
+        const lockKey = `${currentContestant.id}_${usingFinalRoundCriteria ? 'final' : 'main'}`;
+        const isContestantLocked = currentContestant.id && lockedContestants.has(lockKey);
         
-        if (isContestantLocked && lockedScores[currentContestant.id]) {
+        if (isContestantLocked && lockedScores[lockKey]) {
           // If contestant is locked and we have saved locked scores, restore them
-          const savedLockedScores = lockedScores[currentContestant.id];
+          const savedLockedScores = lockedScores[lockKey];
           setQuickScores(savedLockedScores);
-          console.log('Restored locked scores for contestant:', currentContestant.contestantName, savedLockedScores);
+          console.log('Restored locked scores for contestant:', currentContestant.contestantName, 'round:', usingFinalRoundCriteria ? 'final' : 'main', savedLockedScores);
         } else if (Object.keys(quickScores).length > 0) {
           // If we already have quickScores (from unlock or previous navigation), preserve them
           console.log('Preserving existing quickScores for contestant:', currentContestant.contestantName, quickScores);
@@ -173,7 +178,7 @@ export default function JudgeDashboard() {
         }
       }
     }
-  }, [currentContestantIndex, currentEvent?.id, contestants.length, lockedContestants, lockedScores]);
+  }, [currentContestantIndex, currentEvent?.id, contestants.length, lockedContestants, lockedScores, usingFinalRoundCriteria]);
 
   // Load judge's assigned events from Firestore
   const loadAssignedEvents = async (judge) => {
@@ -209,6 +214,8 @@ export default function JudgeDashboard() {
       // Set current event to the first assigned event for criteria display
       if (assignedEvents.length > 0) {
         setCurrentEvent(assignedEvents[0]);
+        // Also set the current round from the event (admin-controlled)
+        setEventCurrentRound(assignedEvents[0].currentRound || 'preliminary');
       }
     } catch (error) {
       console.error('Error loading assigned events:', error);
@@ -310,6 +317,64 @@ export default function JudgeDashboard() {
     return unsubscribe;
   };
 
+  // Set up real-time listener for event updates (to track currentRound changes by admin)
+  const setupEventsListener = (judge) => {
+    const assignedEventIds = judge.assignedEvents || [];
+    
+    if (assignedEventIds.length === 0) return;
+
+    const eventsCollection = collection(db, 'events');
+    const unsubscribe = onSnapshot(eventsCollection, (snapshot) => {
+      console.log('Events updated in real-time');
+      
+      // Update event current round if the current event is updated
+      snapshot.docs.forEach(doc => {
+        const eventData = doc.data();
+        if (assignedEventIds.includes(doc.id)) {
+          // Update the currentRound state when admin changes it
+          if (currentEvent && currentEvent.id === doc.id) {
+            setEventCurrentRound(eventData.currentRound || 'preliminary');
+            
+            // Also update currentEvent with any changes
+            setCurrentEvent(prev => {
+              if (prev && prev.id === doc.id) {
+                return {
+                  ...prev,
+                  ...eventData,
+                  id: doc.id,
+                  currentRound: eventData.currentRound || 'preliminary'
+                };
+              }
+              return prev;
+            });
+          }
+          
+          // Update assignedEvents array with latest data
+          setAssignedEvents(prev => {
+            return prev.map(event => {
+              if (event.id === doc.id) {
+                return {
+                  ...event,
+                  ...eventData,
+                  id: doc.id,
+                  currentRound: eventData.currentRound || 'preliminary'
+                };
+              }
+              return event;
+            });
+          });
+        }
+      });
+    }, (error) => {
+      console.error('Error listening to events updates:', error);
+    });
+    
+    // Store unsubscribe function for cleanup
+    unsubscribeFunctionsRef.current.push(unsubscribe);
+    
+    return unsubscribe;
+  };
+
   // Load judge-specific scores from the scores collection
   const loadJudgeScores = async (judgeId) => {
     try {
@@ -321,9 +386,21 @@ export default function JudgeDashboard() {
       scoresSnapshot.docs.forEach(doc => {
         const scoreData = doc.data();
         const contestantId = scoreData.contestantId;
-        judgeScores[contestantId] = scoreData.scores;
+        
+        // Merge scores from all documents for the same contestant
+        // This ensures both main round and final round scores are preserved
+        if (judgeScores[contestantId]) {
+          // Merge with existing scores - newer scores overwrite older ones for the same key
+          judgeScores[contestantId] = {
+            ...judgeScores[contestantId],
+            ...scoreData.scores
+          };
+        } else {
+          judgeScores[contestantId] = scoreData.scores;
+        }
       });
       
+      console.log('📊 Loaded judge scores (merged):', judgeScores);
       return judgeScores;
     } catch (error) {
       console.error('Error loading judge scores:', error);
@@ -406,17 +483,19 @@ export default function JudgeDashboard() {
             let totalScore = 0;
             const useFinalRoundPrefix = usingFinalRoundCriteria;
             
-            criteria.forEach(criterion => {
+            criteria.forEach((criterion, index) => {
               const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
               
-              // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-              const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+              // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+              const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                                      criterion.name.toUpperCase().includes('1ST') && 
                                      criterion.name.toUpperCase().includes('ROUND');
+              const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+              const isFirstRoundAverage = isNameBased || isPositionBased;
               
               let score;
               if (isFirstRoundAverage) {
-                // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                // For first round average criterion, use saved value if it exists, otherwise calculate
                 const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
                 score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
               } else {
@@ -438,28 +517,60 @@ export default function JudgeDashboard() {
       }
 
       const rankedContestants = updateRankings(assignedContestants);
-      setContestants(rankedContestants);
       
-      // Set initial current contestant and initialize quick scores
-      if (assignedContestants.length > 0) {
-        const firstContestant = assignedContestants[0];
-        setCurrentContestant({
-          number: firstContestant.contestantNo || '1',
-          name: firstContestant.contestantName || 'Unknown',
-          category: firstContestant.category || 'Vocal Performance',
-          performanceOrder: firstContestant.performanceOrder || 1,
-          photo: null,
-          contestantType: firstContestant.contestantType || 'solo'
-        });
+      // Preserve current contestant position when reloading
+      // Check if we have a current contestant and if they're still in the list
+      setContestants(prevContestants => {
+        // Get the current contestant ID we're viewing
+        const currentViewingId = prevContestants[currentContestantIndex]?.id;
         
-        // Initialize quick scores for the first contestant after a small delay to ensure currentEvent is set
-        setTimeout(() => {
-          if (currentEvent) {
-            const initialScores = initializeQuickScores(currentEvent, firstContestant);
-            setQuickScores(initialScores);
+        // Find if the current contestant is still in the new list
+        const newIndex = rankedContestants.findIndex(c => c.id === currentViewingId);
+        
+        if (rankedContestants.length > 0) {
+          let targetContestant;
+          let targetIndex;
+          
+          if (newIndex !== -1) {
+            // Current contestant is still in the list, keep viewing them
+            targetContestant = rankedContestants[newIndex];
+            targetIndex = newIndex;
+          } else if (currentViewingId && prevContestants.length > 0) {
+            // Current contestant was eliminated, navigate to next available or first
+            // Try to keep same position if possible
+            targetIndex = Math.min(currentContestantIndex, rankedContestants.length - 1);
+            targetContestant = rankedContestants[targetIndex];
+            console.log('Contestant was eliminated, navigating to index:', targetIndex);
+          } else {
+            // First load or no previous state
+            targetContestant = rankedContestants[0];
+            targetIndex = 0;
           }
-        }, 100);
-      }
+          
+          // Update current contestant index
+          setCurrentContestantIndex(targetIndex);
+          
+          // Update current contestant display
+          setCurrentContestant({
+            number: targetContestant.contestantNo || '1',
+            name: targetContestant.contestantName || 'Unknown',
+            category: targetContestant.category || 'Vocal Performance',
+            performanceOrder: targetContestant.performanceOrder || 1,
+            photo: null,
+            contestantType: targetContestant.contestantType || 'solo'
+          });
+          
+          // Initialize quick scores for the target contestant
+          setTimeout(() => {
+            if (currentEvent) {
+              const initialScores = initializeQuickScores(currentEvent, targetContestant);
+              setQuickScores(initialScores);
+            }
+          }, 100);
+        }
+        
+        return rankedContestants;
+      });
     } catch (error) {
       console.error('Error loading contestants:', error);
       setContestants([]);
@@ -481,30 +592,46 @@ export default function JudgeDashboard() {
   };
 
   // Initialize quick scores based on event criteria
-  const initializeQuickScores = (event, contestant = null) => {
+  // Optional forceFinalRound parameter to override state check (for use before state is updated)
+  const initializeQuickScores = (event, contestant = null, forceFinalRound = null) => {
     if (!event) return {};
     
     const scores = {};
-    const useFinalRoundPrefix = usingFinalRoundCriteria;
+    // Use forceFinalRound if provided, otherwise use state
+    const useFinalRoundPrefix = forceFinalRound !== null ? forceFinalRound : usingFinalRoundCriteria;
     
     // Get criteria using the updated getCurrentEventCriteria function
-    const criteria = getCurrentEventCriteria();
+    const criteria = getCurrentEventCriteria(forceFinalRound);
     
-    // Check if this contestant is locked
-    const isContestantLocked = contestant && contestant.id && lockedContestants.has(contestant.id);
+    // Check if this contestant is locked for current round
+    const lockKey = contestant ? `${contestant.id}_${useFinalRoundPrefix ? 'final' : 'main'}` : null;
+    const isContestantLocked = lockKey && lockedContestants.has(lockKey);
     
     // Initialize scores for current criteria only
-    criteria.forEach(criterion => {
+    criteria.forEach((criterion, index) => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
-      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion or similar (first criterion in final round with 30% or less weight)
       const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
       
-      if (isFirstRoundAverage && contestant) {
-        // For "AVERAGE OF THE 1ST ROUND", use the saved value if it exists, otherwise calculate
+      // Also check if this is the first criterion in final round mode with weight <= 35% (likely main criteria average)
+      const isFirstCriterionInFinalRound = useFinalRoundPrefix && index === 0 && criterion.weight <= 35;
+      
+      if ((isFirstRoundAverage || isFirstCriterionInFinalRound) && contestant) {
+        // For "AVERAGE OF THE 1ST ROUND" or first criterion in final round, calculate from main criteria total
         const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-        scores[key] = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
-      } else if (usingFinalRoundCriteria) {
+        const finalKey = useFinalRoundPrefix ? `final_${originalKey}` : originalKey;
+        
+        // Check if we already have a saved value for this criterion
+        const savedValue = contestant[finalKey] || contestant[originalKey];
+        if (savedValue !== undefined && savedValue > 0) {
+          scores[key] = savedValue;
+        } else {
+          // Calculate from main criteria total
+          scores[key] = calculateFirstRoundAverage(contestant);
+        }
+        console.log(`📊 Auto-populated first round average criterion: ${criterion.name}, value: ${scores[key]}`);
+      } else if (useFinalRoundPrefix) {
         // When using final round criteria, check for existing final round scores first
         const finalRoundKey = getCriteriaKey(criterion.name, true);
         scores[key] = contestant ? (contestant[finalRoundKey] || 0) : 0;
@@ -531,15 +658,37 @@ export default function JudgeDashboard() {
   };
 
   // Get current event criteria
-  const getCurrentEventCriteria = () => {
+  // Optional parameter to override the final round state check (for use before state is updated)
+  const getCurrentEventCriteria = (forceFinalRound = null) => {
     if (!currentEvent) {
       console.log('🔍 No current event found');
       return [];
     }
     
+    // Determine if we should use final round criteria
+    // If forceFinalRound is not null, use it; otherwise use the state
+    const shouldUseFinalRound = forceFinalRound !== null ? forceFinalRound : usingFinalRoundCriteria;
+    
     console.log('🔍 Current event:', currentEvent);
     console.log('🔍 Event criteriaCategories:', currentEvent.criteriaCategories);
     console.log('🔍 Event legacy criteria:', currentEvent.criteria);
+    console.log('🔍 Using final round criteria:', shouldUseFinalRound);
+    
+    // IMPORTANT: When using final round criteria, use currentEvent.criteria directly
+    // because it was set to finalRound.criteria when the Final button was clicked
+    if (shouldUseFinalRound && currentEvent.criteria && currentEvent.criteria.length > 0) {
+      console.log('🔍 Using final round criteria from currentEvent.criteria');
+      // Ensure final round criteria have proper structure
+      const finalCriteria = currentEvent.criteria.filter(c => c.enabled !== false && c.name && c.name.trim() !== '').map(c => ({
+        name: c.name,
+        weight: c.weight || 0,
+        enabled: c.enabled !== false,
+        category: c.category || null,
+        scoringType: c.scoringType || 'percentage'
+      }));
+      console.log('🔍 Final round criteria:', finalCriteria);
+      return finalCriteria;
+    }
     
     // Use criteriaCategories if it exists (new structure)
     // If criteriaCategories field exists (even if empty), do NOT fall back to legacy criteria
@@ -623,6 +772,20 @@ export default function JudgeDashboard() {
     return criteria;
   };
 
+  // Helper function to check if a criterion should be locked (auto-calculated from first round)
+  // This includes "AVERAGE OF THE 1ST ROUND" or first criterion in final round with weight <= 35%
+  const isFirstRoundAverageCriterion = (criterion, globalIndex) => {
+    // Check by name (explicit "AVERAGE OF THE 1ST ROUND")
+    const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
+                        criterion.name.toUpperCase().includes('1ST') && 
+                        criterion.name.toUpperCase().includes('ROUND');
+    
+    // Check by position (first criterion in final round with weight <= 35%)
+    const isPositionBased = usingFinalRoundCriteria && globalIndex === 0 && criterion.weight <= 35;
+    
+    return isNameBased || isPositionBased;
+  };
+
   // Group criteria by category for display
   const getGroupedCriteria = () => {
     const criteria = getCurrentEventCriteria();
@@ -693,40 +856,44 @@ export default function JudgeDashboard() {
     return currentEvent && currentEvent.status === 'finished';
   };
 
-  // Check if current contestant form is locked
+  // Check if current contestant form is locked for current round
   const isCurrentContestantLocked = () => {
     const currentContestant = contestants[currentContestantIndex];
     if (!currentContestant || !currentContestant.id) return false;
-    return lockedContestants.has(currentContestant.id);
+    const lockKey = `${currentContestant.id}_${usingFinalRoundCriteria ? 'final' : 'main'}`;
+    return lockedContestants.has(lockKey);
   };
 
   // Toggle lock status for current contestant (persisted to Firestore)
+  // Locking is now round-specific (main vs final)
   const toggleCurrentContestantLock = async () => {
     const currentContestant = contestants[currentContestantIndex];
     if (!currentContestant || !currentContestant.id) return;
     if (!user) return;
     
-    const isCurrentlyLocked = lockedContestants.has(currentContestant.id);
+    const roundType = usingFinalRoundCriteria ? 'final' : 'main';
+    const lockKey = `${currentContestant.id}_${roundType}`;
+    const isCurrentlyLocked = lockedContestants.has(lockKey);
     
     if (isCurrentlyLocked) {
       // Unlocking contestant - ask for confirmation
-      const confirmUnlock = confirm(`⚠️ Are you sure you want to UNLOCK scores for ${currentContestant.contestantName}?\n\nThis will allow you to modify their scores again.`);
+      const confirmUnlock = confirm(`⚠️ Are you sure you want to UNLOCK ${roundType.toUpperCase()} ROUND scores for ${currentContestant.contestantName}?\n\nThis will allow you to modify their ${roundType} round scores again.`);
       
       if (!confirmUnlock) return;
       
       // Unlocking contestant - remove from locked set
       const newSet = new Set(lockedContestants);
-      newSet.delete(currentContestant.id);
+      newSet.delete(lockKey);
       
       // Before removing locked scores, ensure quickScores has the current values
-      const currentLockedScores = lockedScores[currentContestant.id];
+      const currentLockedScores = lockedScores[lockKey];
       if (currentLockedScores) {
         setQuickScores(prev => ({ ...prev, ...currentLockedScores }));
       }
       
       // Remove saved locked scores
       const newLockedScores = { ...lockedScores };
-      delete newLockedScores[currentContestant.id];
+      delete newLockedScores[lockKey];
       
       setLockedContestants(newSet);
       setLockedScores(newLockedScores);
@@ -738,7 +905,7 @@ export default function JudgeDashboard() {
           lockedContestants: Array.from(newSet),
           lockedScores: newLockedScores
         });
-        console.log('🔓 Unlocked contestant (persisted):', currentContestant.contestantName);
+        console.log('🔓 Unlocked contestant (persisted):', currentContestant.contestantName, 'round:', roundType);
       } catch (error) {
         console.error('Error persisting unlock status:', error);
         alert('Failed to save unlock status. Please try again.');
@@ -746,11 +913,11 @@ export default function JudgeDashboard() {
     } else {
       // Locking contestant - add to locked set and save current scores
       const newSet = new Set(lockedContestants);
-      newSet.add(currentContestant.id);
+      newSet.add(lockKey);
       
       const newLockedScores = {
         ...lockedScores,
-        [currentContestant.id]: { ...quickScores }
+        [lockKey]: { ...quickScores }
       };
       
       setLockedContestants(newSet);
@@ -799,8 +966,12 @@ export default function JudgeDashboard() {
 
   // Helper function to get contestant's round status
   const getContestantRoundStatus = (contestant) => {
+    // First check if contestant has finalist status from admin
+    const isFinalistByStatus = contestant.status === 'finalist' || contestant.status === 'winner';
+    
     if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
-      return null;
+      // If no rounds defined, use status field
+      return isFinalistByStatus ? { roundName: 'Final', isFinal: true, roundIndex: 0 } : null;
     }
     
     // Check each round to see if contestant has scores
@@ -809,7 +980,9 @@ export default function JudgeDashboard() {
       if (round.enabled && round.criteria) {
         const hasScores = round.criteria.some(criterion => {
           const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-          return contestant[key] !== undefined && contestant[key] > 0;
+          const finalKey = `final_${key}`;
+          return (contestant[key] !== undefined && contestant[key] > 0) || 
+                 (contestant[finalKey] !== undefined && contestant[finalKey] > 0);
         });
         if (hasScores) {
           const finalRound = getFinalRound();
@@ -819,7 +992,24 @@ export default function JudgeDashboard() {
       }
     }
     
+    // If no scores found but contestant has finalist status, they're still a finalist
+    if (isFinalistByStatus) {
+      return { roundName: 'Final', isFinal: true, roundIndex: -1 };
+    }
+    
     return null;
+  };
+  
+  // Helper function to check if contestant is a finalist (by status or by having final round scores)
+  const isContestantFinalist = (contestant) => {
+    // Check status field first (set by admin)
+    if (contestant.status === 'finalist' || contestant.status === 'winner') {
+      return true;
+    }
+    
+    // Check if contestant has scores in final round
+    const roundStatus = getContestantRoundStatus(contestant);
+    return roundStatus?.isFinal === true;
   };
 
   // Helper function to get first round criteria scores for a contestant
@@ -843,56 +1033,81 @@ export default function JudgeDashboard() {
     return scores;
   };
 
-  // Helper function to calculate total weighted score of first round scores for final round criteria
+  // Helper function to calculate total weighted score of main/first round scores for final round criteria
+  // This is used to populate the "AVERAGE OF THE 1ST ROUND" criterion in final round
   const calculateFirstRoundAverage = (contestant) => {
-    // When using final round criteria, return the main criteria total score
-    if (usingFinalRoundCriteria && contestant.totalWeightedScore) {
+    // First check if contestant already has a saved main criteria total score
+    if (contestant.totalWeightedScore && contestant.totalWeightedScore > 0) {
+      console.log('📊 Using contestant totalWeightedScore:', contestant.totalWeightedScore);
       return contestant.totalWeightedScore;
     }
     
-    // For main criteria mode, check if we have a saved average value first
+    // Check for saved average key
     const averageKey = 'average_of_the_1st_round';
-    if (contestant[averageKey] !== undefined) {
+    if (contestant[averageKey] !== undefined && contestant[averageKey] > 0) {
+      console.log('📊 Using saved average_of_the_1st_round:', contestant[averageKey]);
       return contestant[averageKey];
     }
     
-    // If no saved value and we have final round scores, calculate from final round
-    if (!usingFinalRoundCriteria && currentEvent && currentEvent.rounds && currentEvent.rounds.length > 0) {
-      // Get the FIRST round (index 0) for calculating average, not the final round
-      const firstRound = currentEvent.rounds[0];
-      if (firstRound && firstRound.criteria) {
-        let totalWeightedScore = 0;
-        firstRound.criteria.forEach(criterion => {
-          const key = getCriteriaKey(criterion.name, false); // Use main criteria keys for first round
-          const score = contestant[key] || 0;
-          const weight = criterion.weight / 100;
-          totalWeightedScore += score * weight;
+    // Calculate from main criteria scores (stored without 'final_' prefix)
+    // Get the original main criteria from the event
+    let mainCriteria = [];
+    
+    // First try to use originalEventCriteria if we saved it when switching to final round
+    if (originalEventCriteria && originalEventCriteria.length > 0) {
+      mainCriteria = originalEventCriteria.filter(c => c.enabled !== false && c.name && c.name.trim() !== '');
+      console.log('📊 Using originalEventCriteria for main criteria:', mainCriteria);
+    } else if (currentEvent) {
+      // Try to get from criteriaCategories (new structure)
+      if (currentEvent.criteriaCategories && currentEvent.criteriaCategories.length > 0) {
+        currentEvent.criteriaCategories.forEach(category => {
+          if (!category.name || category.name.trim() === '') return;
+          if (category.subCriteria && category.subCriteria.length > 0) {
+            category.subCriteria.forEach(sub => {
+              if (sub.enabled !== false && sub.name && sub.name.trim() !== '') {
+                mainCriteria.push({
+                  name: sub.name,
+                  weight: sub.weight || 0,
+                  enabled: true
+                });
+              }
+            });
+          } else if (category.enabled !== false && category.totalWeight > 0) {
+            mainCriteria.push({
+              name: category.name,
+              weight: category.totalWeight || 0,
+              enabled: true
+            });
+          }
         });
-        return totalWeightedScore;
+        console.log('📊 Extracted main criteria from criteriaCategories:', mainCriteria);
+      } else if (currentEvent.rounds && currentEvent.rounds.length > 0) {
+        // Get from first round criteria
+        const firstRound = currentEvent.rounds[0];
+        if (firstRound && firstRound.criteria) {
+          mainCriteria = firstRound.criteria.filter(c => c.enabled !== false && c.name && c.name.trim() !== '');
+          console.log('📊 Using first round criteria:', mainCriteria);
+        }
       }
     }
     
-    // Fallback: try to calculate from first round if available
-    if (!currentEvent || !currentEvent.rounds || currentEvent.rounds.length === 0) {
+    if (mainCriteria.length === 0) {
+      console.log('📊 No main criteria found, returning 0');
       return 0;
     }
     
-    // Get the FIRST round (index 0) specifically, not just any enabled round
-    const firstRound = currentEvent.rounds[0];
-    if (!firstRound || !firstRound.criteria || !firstRound.enabled) {
-      return 0;
-    }
-    
+    // Calculate total weighted score from main criteria scores
     let totalWeightedScore = 0;
-    
-    firstRound.criteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+    mainCriteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_'); // Main criteria keys don't have 'final_' prefix
       const score = contestant[key] || 0;
       const weight = criterion.weight / 100;
       totalWeightedScore += score * weight;
+      console.log(`📊 Main criteria: ${criterion.name}, key: ${key}, score: ${score}, weight: ${criterion.weight}%, weighted: ${score * weight}`);
     });
     
-    return totalWeightedScore;
+    console.log('📊 Total calculated main/first round average:', totalWeightedScore);
+    return parseFloat(totalWeightedScore.toFixed(1));
   };
 
 
@@ -903,10 +1118,11 @@ export default function JudgeDashboard() {
                           contestant.contestantNo?.toLowerCase().includes(searchTerm.toLowerCase());
     
     // Apply elimination filter - exclude eliminated contestants
-    const isNotEliminated = !contestant.eliminated;
+    const isNotEliminated = !contestant.eliminated && contestant.status !== 'eliminated';
     
-    // Apply finalists only filter
-    const passesFinalistFilter = !showFinalistsOnly || getContestantRoundStatus(contestant)?.isFinal;
+    // In final round mode, show ALL non-eliminated contestants so judge can score them
+    // Only apply finalist filter when showFinalistsOnly toggle is explicitly enabled (not when just switching to final criteria)
+    const passesFinalistFilter = !showFinalistsOnly || isContestantFinalist(contestant);
     
     return matchesSearch && isNotEliminated && passesFinalistFilter;
   });
@@ -923,17 +1139,19 @@ export default function JudgeDashboard() {
     // Use the same logic as calculateQuickTotal for consistency
     let totalScore = 0;
     
-    enabledCriteria.forEach(criterion => {
+    enabledCriteria.forEach((criterion, index) => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
-      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+      const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                              criterion.name.toUpperCase().includes('1ST') && 
                              criterion.name.toUpperCase().includes('ROUND');
+      const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+      const isFirstRoundAverage = isNameBased || isPositionBased;
       
       let score;
       if (isFirstRoundAverage) {
-        // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+        // For first round average criterion, use saved value if it exists, otherwise calculate
         const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
         score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
       } else {
@@ -1267,17 +1485,19 @@ export default function JudgeDashboard() {
     let totalScore = 0;
     const isPointsGrading = currentEvent?.gradingType === 'points';
     
-    criteria.forEach(criterion => {
+    criteria.forEach((criterion, index) => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
-      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+      const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                              criterion.name.toUpperCase().includes('1ST') && 
                              criterion.name.toUpperCase().includes('ROUND');
+      const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+      const isFirstRoundAverage = isNameBased || isPositionBased;
       
       let score;
       if (isFirstRoundAverage && contestants[currentContestantIndex]) {
-        // For "AVERAGE OF THE 1ST ROUND", use the saved value if it exists, otherwise calculate
+        // For first round average criterion, use the saved value if it exists, otherwise calculate
         const contestant = contestants[currentContestantIndex];
         const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
         score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
@@ -1334,13 +1554,15 @@ export default function JudgeDashboard() {
   const getFormattedTotalScore = (contestant, criteria, isPointsGrading, useFinalRoundPrefix = usingFinalRoundCriteria, scoresOverride = null) => {
     let totalScore = 0;
     
-    criteria.forEach(criterion => {
+    criteria.forEach((criterion, index) => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
       
-      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+      const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                              criterion.name.toUpperCase().includes('1ST') && 
                              criterion.name.toUpperCase().includes('ROUND');
+      const isPositionBased = useFinalRoundPrefix && index === 0 && criterion.weight <= 35;
+      const isFirstRoundAverage = isNameBased || isPositionBased;
       
       let score;
       if (isFirstRoundAverage) {
@@ -1387,18 +1609,20 @@ export default function JudgeDashboard() {
         const criteria = getCurrentEventCriteria();
         const isPointsGrading = currentEvent?.gradingType === 'points';
         let totalScore = 0;
-        criteria.forEach(criterion => {
+        criteria.forEach((criterion, index) => {
           const useFinalRoundPrefix = usingFinalRoundCriteria;
           const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
           
-          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-          const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+          const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                                  criterion.name.toUpperCase().includes('1ST') && 
                                  criterion.name.toUpperCase().includes('ROUND');
+          const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+          const isFirstRoundAverage = isNameBased || isPositionBased;
           
           let score;
           if (isFirstRoundAverage) {
-            // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+            // For first round average criterion, use saved value if it exists, otherwise calculate
             const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
             score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
           } else {
@@ -1431,18 +1655,20 @@ export default function JudgeDashboard() {
           const criteria = getCurrentEventCriteria();
           const isPointsGrading = currentEvent?.gradingType === 'points';
           let totalScore = 0;
-          criteria.forEach(criterion => {
+          criteria.forEach((criterion, index) => {
             const useFinalRoundPrefix = usingFinalRoundCriteria;
             const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
             
-            // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-            const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+            // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+            const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                                    criterion.name.toUpperCase().includes('1ST') && 
                                    criterion.name.toUpperCase().includes('ROUND');
+            const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+            const isFirstRoundAverage = isNameBased || isPositionBased;
             
             let score;
             if (isFirstRoundAverage) {
-              // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+              // For first round average criterion, use saved value if it exists, otherwise calculate
               const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
               score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
             } else {
@@ -1473,22 +1699,25 @@ export default function JudgeDashboard() {
             scores: {},
             criteria: getCurrentEventCriteria(),
             totalScore: parseFloat(totalScore.toFixed(1)),
+            isFinalRound: usingFinalRoundCriteria, // Flag to identify which round this score belongs to
             timestamp: new Date().toISOString()
           };
           
           // Add individual criteria scores to the score data
-          criteria.forEach(criterion => {
+          criteria.forEach((criterion, index) => {
             const useFinalRoundPrefix = usingFinalRoundCriteria;
             const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
             
-            // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-            const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+            // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+            const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                                    criterion.name.toUpperCase().includes('1ST') && 
                                    criterion.name.toUpperCase().includes('ROUND');
+            const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+            const isFirstRoundAverage = isNameBased || isPositionBased;
             
             let score;
             if (isFirstRoundAverage) {
-              // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+              // For first round average criterion, use saved value if it exists, otherwise calculate
               const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
               score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
             } else {
@@ -1566,21 +1795,59 @@ export default function JudgeDashboard() {
         console.log('📊 Quick Scores:', quickScores);
         
         // Save score to Firestore scores collection
-        // Create scores object with correct first round total
-        const scoresToSave = { ...quickScores };
-        
-        // Check if we have "AVERAGE OF THE 1ST ROUND" criterion
+        // Create scores object - ONLY include relevant criteria for current round
         const currentCriteria = getCurrentEventCriteria();
-        const averageCriterion = currentCriteria.find(criterion => 
-          criterion.name.toUpperCase().includes('AVERAGE') && 
-          criterion.name.toUpperCase().includes('1ST') && 
-          criterion.name.toUpperCase().includes('ROUND')
-        );
+        let scoresToSave = {};
         
-        if (averageCriterion) {
-          const averageKey = averageCriterion.name.toLowerCase().replace(/\s+/g, '_');
-          // Preserve the original average of the 1st round value - never change it
-          scoresToSave[averageKey] = contestant[averageKey] || 0;
+        // When in final round mode, ONLY save final_ prefixed keys to protect main criteria scores
+        if (usingFinalRoundCriteria) {
+          // Filter quickScores to only include final_ prefixed keys
+          Object.entries(quickScores).forEach(([key, value]) => {
+            if (key.startsWith('final_')) {
+              scoresToSave[key] = value;
+            }
+          });
+          
+          // Ensure all final round criteria are included with proper keys
+          currentCriteria.forEach((criterion, index) => {
+            const finalKey = getCriteriaKey(criterion.name, true);
+            if (scoresToSave[finalKey] === undefined) {
+              // Check if this is the first round average criterion
+              const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
+                criterion.name.toUpperCase().includes('1ST') && 
+                criterion.name.toUpperCase().includes('ROUND');
+              const isPositionBased = index === 0 && criterion.weight <= 35;
+              
+              if (isNameBased || isPositionBased) {
+                scoresToSave[finalKey] = calculateFirstRoundAverage(contestant);
+              } else {
+                scoresToSave[finalKey] = 0;
+              }
+            }
+          });
+          
+          console.log('📊 Final round - only saving final_ prefixed scores:', scoresToSave);
+        } else {
+          // For main criteria, save all quickScores (no prefix filtering needed)
+          scoresToSave = { ...quickScores };
+        }
+        
+        // Check if we have "AVERAGE OF THE 1ST ROUND" criterion or first criterion in final round with <=35% weight
+        const averageCriterion = currentCriteria.find((criterion, index) => {
+          const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+            criterion.name.toUpperCase().includes('1ST') && 
+            criterion.name.toUpperCase().includes('ROUND');
+          const isFirstCriterionInFinalRound = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+          return isFirstRoundAverage || isFirstCriterionInFinalRound;
+        });
+        
+        if (averageCriterion && usingFinalRoundCriteria) {
+          // In final round, ensure the first criterion has the calculated main criteria average
+          const averageKey = getCriteriaKey(averageCriterion.name, usingFinalRoundCriteria);
+          const calculatedAverage = calculateFirstRoundAverage(contestant);
+          // Use the calculated value or the current quickScores value (whichever is valid)
+          scoresToSave[averageKey] = scoresToSave[averageKey] || calculatedAverage;
+          console.log(`📊 Saving first round average: ${averageKey} = ${scoresToSave[averageKey]}`);
         }
         
         const scoreData = {
@@ -1595,6 +1862,7 @@ export default function JudgeDashboard() {
           scores: scoresToSave,
           criteria: getCurrentEventCriteria(),
           totalScore: totalScore,
+          isFinalRound: usingFinalRoundCriteria, // Flag to identify which round this score belongs to
           timestamp: new Date().toISOString()
         };
         
@@ -1620,45 +1888,54 @@ export default function JudgeDashboard() {
             // Create updated scores object
             const updatedScores = { ...quickScores };
             
-            // Check if we have "AVERAGE OF THE 1ST ROUND" criterion
+            // Check if we have "AVERAGE OF THE 1ST ROUND" criterion or first criterion in final round
             const currentCriteria = getCurrentEventCriteria();
-            const averageCriterion = currentCriteria.find(criterion => 
-              criterion.name.toUpperCase().includes('AVERAGE') && 
-              criterion.name.toUpperCase().includes('1ST') && 
-              criterion.name.toUpperCase().includes('ROUND')
-            );
+            const averageCriterion = currentCriteria.find((criterion, idx) => {
+              const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                criterion.name.toUpperCase().includes('1ST') && 
+                criterion.name.toUpperCase().includes('ROUND');
+              const isFirstCriterionInFinalRound = usingFinalRoundCriteria && idx === 0 && criterion.weight <= 35;
+              return isFirstRoundAverage || isFirstCriterionInFinalRound;
+            });
             
-            if (averageCriterion) {
-              const averageKey = averageCriterion.name.toLowerCase().replace(/\s+/g, '_');
-              // Preserve the original average of the 1st round value - never change it
-              updatedScores[averageKey] = contestant[averageKey] || 0;
+            if (averageCriterion && usingFinalRoundCriteria) {
+              const averageKey = getCriteriaKey(averageCriterion.name, usingFinalRoundCriteria);
+              // Use the value from quickScores or calculate it
+              updatedScores[averageKey] = quickScores[averageKey] || calculateFirstRoundAverage(contestant);
             }
             
             // When using final round criteria, only update final round criteria scores
             // Preserve main criteria scores by not overwriting them
             if (usingFinalRoundCriteria) {
-              // Only update final round criteria fields, keep main criteria intact
+              // IMPORTANT: Only update final_ prefixed keys to protect main criteria scores
+              const finalRoundScoresOnly = {};
+              Object.entries(updatedScores).forEach(([key, value]) => {
+                if (key.startsWith('final_')) {
+                  finalRoundScoresOnly[key] = value;
+                }
+              });
+              
+              // Also ensure all final round criteria have the final_ prefix
+              currentCriteria.forEach((criterion, idx) => {
+                const finalKey = getCriteriaKey(criterion.name, true);
+                if (finalRoundScoresOnly[finalKey] === undefined) {
+                  // Check for non-prefixed version and convert
+                  const nonPrefixedKey = getCriteriaKey(criterion.name, false);
+                  if (updatedScores[nonPrefixedKey] !== undefined) {
+                    finalRoundScoresOnly[finalKey] = updatedScores[nonPrefixedKey];
+                  }
+                }
+              });
+              
               updatedContestant = { 
                 ...c, 
-                // Only update final round criteria scores with prefixed keys
-                ...Object.fromEntries(
-                  Object.entries(updatedScores).map(([key, value]) => {
-                    // For final round mode, ensure we use prefixed keys for storage
-                    if (usingFinalRoundCriteria && !key.startsWith('final_')) {
-                      const criterion = currentCriteria.find(c => 
-                        getCriteriaKey(c.name, false) === key
-                      );
-                      if (criterion) {
-                        const finalKey = getCriteriaKey(criterion.name, true);
-                        return [finalKey, value];
-                      }
-                    }
-                    return [key, value];
-                  })
-                ),
+                // Spread only final_ prefixed scores - main criteria scores remain untouched
+                ...finalRoundScoresOnly,
                 // Always update totalWeightedScore with the calculated total
                 totalWeightedScore: parseFloat(totalScore.toFixed(1))
               };
+              
+              console.log('📊 Local state update - preserving main criteria, only updating final scores:', finalRoundScoresOnly);
             } else {
               // For main criteria, update all scores as before
               updatedContestant = { 
@@ -1698,17 +1975,19 @@ export default function JudgeDashboard() {
               const criteria = getCurrentEventCriteria();
               const useFinalRoundPrefix = usingFinalRoundCriteria;
               let totalScore = 0;
-              criteria.forEach(criterion => {
+              criteria.forEach((criterion, index) => {
                 const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                 
-                // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
+                // Check if this is "AVERAGE OF THE 1ST ROUND" criterion (by name or by position)
+                const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
                                        criterion.name.toUpperCase().includes('1ST') && 
                                        criterion.name.toUpperCase().includes('ROUND');
+                const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+                const isFirstRoundAverage = isNameBased || isPositionBased;
                 
                 let score;
                 if (isFirstRoundAverage) {
-                  // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                  // For first round average criterion, use saved value if it exists, otherwise calculate
                   const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
                   score = c[originalKey] !== undefined ? c[originalKey] : calculateFirstRoundAverage(c);
                 } else {
@@ -2034,6 +2313,13 @@ export default function JudgeDashboard() {
                     const selectedEvent = assignedEvents.find(event => event.id === e.target.value);
                     if (selectedEvent) {
                       setCurrentEvent(selectedEvent);
+                      // Also update the current round from the selected event
+                      setEventCurrentRound(selectedEvent.currentRound || 'preliminary');
+                      // Reset final round mode when switching events
+                      if (usingFinalRoundCriteria) {
+                        setUsingFinalRoundCriteria(false);
+                        setOriginalEventCriteria(null);
+                      }
                     }
                   }}
                   className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-white/50 font-medium cursor-pointer hover:bg-white/25 transition-colors"
@@ -2188,7 +2474,9 @@ export default function JudgeDashboard() {
               {/* Scoring Criteria - Grouped by Category - Mobile Optimized */}
               <div className="space-y-3 sm:space-y-4 mb-3 sm:mb-4">
                 {getCurrentEventCriteria().length > 0 ? (
-                  getGroupedCriteria().map((group, groupIndex) => (
+                  (() => {
+                    let globalCriterionIndex = 0; // Track global index across all groups
+                    return getGroupedCriteria().map((group, groupIndex) => (
                     <div key={groupIndex} className={group.isFlat ? '' : 'bg-gray-100 rounded-lg sm:rounded-xl p-2 sm:p-3 border border-gray-200'}>
                       {/* Category Header - only show if has sub-criteria */}
                       {!group.isFlat && group.categoryName && (
@@ -2206,13 +2494,14 @@ export default function JudgeDashboard() {
                       {/* Sub-criteria Items */}
                       <div className="space-y-2 sm:space-y-3">
                         {group.criteria.map((criterion, index) => {
+                          const currentGlobalIndex = globalCriterionIndex++;
                           const useFinalRoundPrefix = usingFinalRoundCriteria;
                           const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                           
-                          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                          const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                          // Check if this criterion should be locked (auto-calculated from first round)
+                          const isFirstRoundAverage = isFirstRoundAverageCriterion(criterion, currentGlobalIndex);
                           
-                          // For "AVERAGE OF THE 1ST ROUND", show saved value if it exists, otherwise use quickScores
+                          // For first round average criterion, show saved value if it exists, otherwise calculate
                           let score;
                           if (isFirstRoundAverage && contestants[currentContestantIndex]) {
                             const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -2238,8 +2527,8 @@ export default function JudgeDashboard() {
                                     {criterion.name}
                                   </label>
                                   {isFirstRoundAverage && (
-                                    <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-red-100 text-black rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
-                                      🔒
+                                    <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
+                                      🔒 Auto
                                     </span>
                                   )}
                                 </div>
@@ -2295,7 +2584,8 @@ export default function JudgeDashboard() {
                         })}
                       </div>
                     </div>
-                  ))
+                  ));
+                  })()
                 ) : (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 text-center">
                     <div className="text-amber-800">
@@ -2531,7 +2821,9 @@ export default function JudgeDashboard() {
 
                         {/* Compact Scoring Grid - Grouped by Category */}
                         <div className="space-y-4 mb-4">
-                          {getGroupedCriteria().map((group, groupIndex) => (
+                          {(() => {
+                            let globalCriterionIndex = 0; // Track global index across all groups
+                            return getGroupedCriteria().map((group, groupIndex) => (
                             <div key={groupIndex} className={group.isFlat ? '' : 'bg-gray-50 rounded-xl p-3 border border-gray-200'}>
                               {/* Category Header - only show if has sub-criteria */}
                               {!group.isFlat && group.categoryName && (
@@ -2549,8 +2841,9 @@ export default function JudgeDashboard() {
                               {/* Sub-criteria / Criteria Items */}
                               <div className="grid grid-cols-1 gap-2">
                                 {group.criteria.map((criterion, index) => {
+                                  const currentGlobalIndex = globalCriterionIndex++;
                                   const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-                                  const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                                  const isFirstRoundAverage = isFirstRoundAverageCriterion(criterion, currentGlobalIndex);
                                   let score;
                                   if (isFirstRoundAverage && contestant) {
                                     const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -2577,8 +2870,8 @@ export default function JudgeDashboard() {
                                             {criterion.name}
                                           </label>
                                           {isFirstRoundAverage && (
-                                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-red-100 text-black rounded-full flex-shrink-0" title="This score is locked and cannot be changed">
-                                              🔒
+                                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
+                                              🔒 Auto
                                             </span>
                                           )}
                                         </div>
@@ -2644,7 +2937,8 @@ export default function JudgeDashboard() {
                                 })}
                               </div>
                             </div>
-                          ))}
+                          ));
+                          })()}
                         </div>
 
                         {/* Total Score Display */}
@@ -2721,7 +3015,9 @@ export default function JudgeDashboard() {
                       <div>
                         <h4 className="text-lg font-bold text-black mb-3">Current Scores</h4>
                         <div className="space-y-3">
-                          {getGroupedCriteria().map((group, groupIndex) => (
+                          {(() => {
+                            let globalCriterionIndex = 0; // Track global index across all groups
+                            return getGroupedCriteria().map((group, groupIndex) => (
                             <div key={groupIndex} className={group.isFlat ? '' : 'bg-gray-100 rounded-lg p-2'}>
                               {/* Category Header - only show if has sub-criteria */}
                               {!group.isFlat && group.categoryName && (
@@ -2734,8 +3030,9 @@ export default function JudgeDashboard() {
                               )}
                               <div className="space-y-1">
                                 {group.criteria.map((criterion, index) => {
+                                  const currentGlobalIndex = globalCriterionIndex++;
                                   const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-                                  const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                                  const isFirstRoundAverage = isFirstRoundAverageCriterion(criterion, currentGlobalIndex);
                                   let score;
                                   if (isFirstRoundAverage && contestant) {
                                     const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -2767,7 +3064,8 @@ export default function JudgeDashboard() {
                                 })}
                               </div>
                             </div>
-                          ))}
+                          ));
+                          })()}
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <div className="flex items-center justify-between">
@@ -2840,31 +3138,64 @@ export default function JudgeDashboard() {
                 </div>
                 
                 {/* Final Rounds Button - Mobile Optimized */}
+                {/* Show button only if event has final round criteria */}
                 {getFinalRound() && !usingFinalRoundCriteria && (
-                  <button
-                    onClick={() => {
-                      const finalRound = getFinalRound();
-                      if (finalRound && finalRound.criteria) {
-                        setOriginalEventCriteria(currentEvent.criteria);
-                        const updatedEvent = {
-                          ...currentEvent,
-                          criteria: finalRound.criteria
-                        };
-                        setCurrentEvent(updatedEvent);
-                        setUsingFinalRoundCriteria(true);
-                        setSelectorKey(prev => prev + 1);
-                        if (contestants[currentContestantIndex]) {
-                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
-                          setQuickScores(newQuickScores);
+                  eventCurrentRound === 'final' ? (
+                    // Final round is enabled by admin - show active button
+                    <button
+                      onClick={() => {
+                        const finalRound = getFinalRound();
+                        if (finalRound && finalRound.criteria) {
+                          setOriginalEventCriteria(currentEvent.criteria);
+                          const updatedEvent = {
+                            ...currentEvent,
+                            criteria: finalRound.criteria
+                          };
+                          setCurrentEvent(updatedEvent);
+                          setUsingFinalRoundCriteria(true);
+                          setSelectorKey(prev => prev + 1);
+                          
+                          // Reset to first finalist in the filtered list
+                          const finalists = contestants.filter(c => 
+                            !c.eliminated && c.status !== 'eliminated' && 
+                            (c.status === 'finalist' || c.status === 'winner')
+                          );
+                          
+                          if (finalists.length > 0) {
+                            // Find index of first finalist in original contestants array
+                            const firstFinalistIndex = contestants.findIndex(c => c.id === finalists[0].id);
+                            if (firstFinalistIndex >= 0) {
+                              setCurrentContestantIndex(firstFinalistIndex);
+                              // Initialize quick scores for the first finalist
+                              const newQuickScores = initializeQuickScores(updatedEvent, finalists[0], true);
+                              setQuickScores(newQuickScores);
+                            }
+                          } else if (contestants[currentContestantIndex]) {
+                            // No finalists yet, keep current contestant
+                            const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex], true);
+                            setQuickScores(newQuickScores);
+                          }
+                          
+                          alert(`🏆 Final Rounds Mode Activated\n\nShowing only finalists. ${finalists.length} finalist(s) found.`);
                         }
-                        alert(`🏆 Final Rounds Mode Activated\n\nSwitched to final round criteria.`);
-                      }
-                    }}
-                    className="px-2.5 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 text-amber-900 rounded-lg sm:rounded-xl hover:from-amber-500 hover:to-orange-500 transition-all duration-300 text-[10px] sm:text-sm font-bold shadow-lg border border-amber-300/50 whitespace-nowrap active:scale-95"
-                    title="Switch to Final Rounds scoring criteria"
-                  >
-                    🏆 <span className="hidden sm:inline">Final</span>
-                  </button>
+                      }}
+                      className="px-2.5 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 text-amber-900 rounded-lg sm:rounded-xl hover:from-amber-500 hover:to-orange-500 transition-all duration-300 text-[10px] sm:text-sm font-bold shadow-lg border border-amber-300/50 whitespace-nowrap active:scale-95"
+                      title="Switch to Final Rounds scoring criteria"
+                    >
+                      🏆 <span className="hidden sm:inline">Final</span>
+                    </button>
+                  ) : (
+                    // Final round NOT enabled by admin - show disabled/locked button
+                    <button
+                      onClick={() => {
+                        alert('🔒 Final Rounds Not Yet Available\n\nThe administrator has not yet enabled the final round for this event.\n\nPlease wait for the admin to advance the event to the final round before scoring.');
+                      }}
+                      className="px-2.5 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-gray-300 via-gray-400 to-gray-300 text-gray-600 rounded-lg sm:rounded-xl cursor-not-allowed transition-all duration-300 text-[10px] sm:text-sm font-bold shadow-sm border border-gray-300/50 whitespace-nowrap opacity-70"
+                      title="Final round not yet enabled by admin"
+                    >
+                      🔒 <span className="hidden sm:inline">Final</span>
+                    </button>
+                  )
                 )}
                 
                 {/* Back to Main Criteria Button - Mobile Optimized */}
@@ -2880,7 +3211,8 @@ export default function JudgeDashboard() {
                         setUsingFinalRoundCriteria(false);
                         setSelectorKey(prev => prev + 1);
                         if (contestants[currentContestantIndex]) {
-                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex]);
+                          // Pass false for forceFinalRound since we're switching back to main
+                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex], false);
                           setQuickScores(newQuickScores);
                         }
                       }
@@ -2948,9 +3280,9 @@ export default function JudgeDashboard() {
                     <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider w-10 sm:w-12 md:w-16">No.</th>
                     <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider min-w-[80px] sm:min-w-[100px] md:min-w-[120px]">Name</th>
                     {(() => {
-                    // When showing finalists only, show final round criteria in header
-                    const shouldShowFinalRoundCriteria = showFinalistsOnly && getFinalRound();
-                    const criteriaToShow = shouldShowFinalRoundCriteria ? getFinalRound().criteria : getCurrentEventCriteria();
+                    // Get criteria to show - getCurrentEventCriteria() now properly handles final round criteria
+                    // when usingFinalRoundCriteria is true
+                    const criteriaToShow = getCurrentEventCriteria();
                     
                     return criteriaToShow.map((criterion, index) => (
                       <th key={index} className="px-1.5 sm:px-2 md:px-4 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider min-w-[60px] sm:min-w-[80px] md:min-w-[100px]">
@@ -2979,17 +3311,18 @@ export default function JudgeDashboard() {
                 <tbody className="bg-white divide-y divide-slate-100">
                   {filteredContestants.map((contestant) => {
                     // Check if contestant has any scores (more reliable than just checking scored sets)
-                    const hasScores = getCurrentEventCriteria().some(criterion => {
+                    const hasScores = getCurrentEventCriteria().some((criterion, index) => {
                       const key = getCriteriaKey(criterion.name, usingFinalRoundCriteria);
                       
-                      // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                      const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && 
-                                             criterion.name.toUpperCase().includes('1ST') && 
-                                             criterion.name.toUpperCase().includes('ROUND');
+                      // Check if this is a first round average criterion
+                      const isFirstRoundAverage = isFirstRoundAverageCriterion(criterion, index);
                       
                       if (isFirstRoundAverage) {
                         const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                        return contestant[originalKey] !== undefined && contestant[originalKey] > 0;
+                        const finalKey = `final_${originalKey}`;
+                        // Check both keys
+                        return (contestant[finalKey] !== undefined && contestant[finalKey] > 0) ||
+                               (contestant[originalKey] !== undefined && contestant[originalKey] > 0);
                       } else {
                         return contestant[key] !== undefined && contestant[key] > 0;
                       }
@@ -3041,15 +3374,21 @@ export default function JudgeDashboard() {
                           const useFinalRoundPrefix = usingFinalRoundCriteria || shouldForceFinalRound;
                           const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
                           
-                          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
-                          const isFirstRoundAverage = criterion.name.toUpperCase().includes('AVERAGE') && criterion.name.toUpperCase().includes('1ST') && criterion.name.toUpperCase().includes('ROUND');
+                          // Check if this is a first round average criterion (by name or by position)
+                          const isFirstRoundAverage = isFirstRoundAverageCriterion(criterion, index);
                           
-                          // For "AVERAGE OF THE 1ST ROUND", use saved value if it exists, otherwise calculate
+                          // Get the score for this criterion
                           let score;
                           if (isFirstRoundAverage) {
+                            // For first round average, try to find saved value with various key formats
                             const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
-                            score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
+                            const finalKey = `final_${originalKey}`;
+                            // Check both keys - final key takes precedence in final round mode
+                            score = (useFinalRoundPrefix && contestant[finalKey] !== undefined) 
+                              ? contestant[finalKey] 
+                              : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
                           } else {
+                            // For regular criteria, use the prefixed key
                             score = contestant[key] || 0;
                           }
                           

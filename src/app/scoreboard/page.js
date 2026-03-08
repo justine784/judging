@@ -322,6 +322,17 @@ export default function LiveScoreboard() {
 
   // Function to filter final round contestants only
   const filterFinalRoundContestants = (contestantsList) => {
+    // First, filter by status field (set by admin when advancing contestants)
+    const finalistsByStatus = contestantsList.filter(contestant => 
+      contestant.status === 'finalist' || contestant.status === 'winner'
+    );
+    
+    // If we have finalists by status, return them
+    if (finalistsByStatus.length > 0) {
+      return finalistsByStatus;
+    }
+    
+    // If no status-based finalists, fall back to score-based detection
     if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) {
       return contestantsList;
     }
@@ -347,7 +358,9 @@ export default function LiveScoreboard() {
       if (finalRoundScores.length === 0 && finalRound.criteria) {
         return finalRound.criteria.some(criterion => {
           const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-          return contestant[key] !== undefined && contestant[key] > 0;
+          const finalKey = `final_${key}`;
+          return (contestant[key] !== undefined && contestant[key] > 0) ||
+                 (contestant[finalKey] !== undefined && contestant[finalKey] > 0);
         });
       }
       
@@ -368,6 +381,11 @@ export default function LiveScoreboard() {
 
   // Helper function to check if contestant is in final round
   const isContestantInFinalRound = (contestant) => {
+    // First check status field (set by admin)
+    if (contestant.status === 'finalist' || contestant.status === 'winner') {
+      return true;
+    }
+    
     if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) {
       return false;
     }
@@ -390,11 +408,32 @@ export default function LiveScoreboard() {
     if (finalRound.criteria) {
       return finalRound.criteria.some(criterion => {
         const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-        return contestant[key] !== undefined && contestant[key] > 0;
+        const finalKey = `final_${key}`;
+        return (contestant[key] !== undefined && contestant[key] > 0) ||
+               (contestant[finalKey] !== undefined && contestant[finalKey] > 0);
       });
     }
     
     return false;
+  };
+
+  // Helper function to get final round criteria (same as judge dashboard)
+  const getFinalRoundCriteria = () => {
+    if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) {
+      return null;
+    }
+    
+    // Find the final round (last enabled round)
+    const finalRound = selectedEvent.rounds
+      .filter(round => round.enabled)
+      .slice(-1)[0];
+    
+    if (!finalRound || !finalRound.criteria || finalRound.criteria.length === 0) {
+      return null;
+    }
+    
+    // Return enabled criteria from final round
+    return finalRound.criteria.filter(c => c.enabled && c.name && c.name.trim() !== '');
   };
 
   // Helper function to get criteria from event (same as judge dashboard)
@@ -402,6 +441,16 @@ export default function LiveScoreboard() {
     if (!selectedEvent) {
       console.log('🔍 Live Scoreboard: No current event found');
       return [];
+    }
+    
+    // If showing final rounds only, use final round criteria
+    if (showFinalRoundsOnly) {
+      const finalCriteria = getFinalRoundCriteria();
+      if (finalCriteria && finalCriteria.length > 0) {
+        console.log('🔍 Live Scoreboard: Using FINAL ROUND criteria:', finalCriteria);
+        return finalCriteria;
+      }
+      console.log('🔍 Live Scoreboard: No final round criteria found, falling back to main criteria');
     }
     
     console.log('🔍 Live Scoreboard: Current event:', selectedEvent);
@@ -492,9 +541,33 @@ export default function LiveScoreboard() {
 
   // Calculate aggregated scores from all judges for a contestant
   const calculateAggregatedScore = (contestantId, eventId) => {
-    const contestantScores = scores.filter(score => 
+    // Filter scores based on whether we're showing final round or main round
+    let contestantScores = scores.filter(score => 
       score.contestantId === contestantId && score.eventId === eventId
     );
+    
+    // When showing final rounds only, filter to only include final round scores
+    if (showFinalRoundsOnly) {
+      // Filter for scores marked as final round
+      const finalRoundScores = contestantScores.filter(score => score.isFinalRound === true);
+      // If we have final round scores, use those; otherwise check for final_ prefixed keys in scores
+      if (finalRoundScores.length > 0) {
+        contestantScores = finalRoundScores;
+      } else {
+        // Fallback: check if any scores have final_ prefixed keys (for backward compatibility)
+        contestantScores = contestantScores.filter(score => {
+          if (!score.scores) return false;
+          return Object.keys(score.scores).some(key => key.startsWith('final_'));
+        });
+      }
+    } else {
+      // When not showing final rounds, exclude final round scores (only show main round)
+      const mainRoundScores = contestantScores.filter(score => score.isFinalRound !== true);
+      // If we have main round scores, use those
+      if (mainRoundScores.length > 0) {
+        contestantScores = mainRoundScores;
+      }
+    }
     
     if (contestantScores.length === 0) {
       return { totalScore: 0, judgeCount: 0, criteriaScores: {} };
@@ -502,80 +575,65 @@ export default function LiveScoreboard() {
     
     // Get the event to check grading type
     const event = events.find(e => e.id === eventId);
-    const isPointsGrading = event?.gradingType === 'points';
     
     // Count unique judges (not total score entries)
     const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
     const judgeCount = uniqueJudges.length;
     
-    // Get criteria from the event - handle both legacy and new structure
+    // Get the latest score from each judge
+    const latestScoresByJudge = {};
+    contestantScores.forEach(score => {
+      if (!latestScoresByJudge[score.judgeId] || 
+          new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
+        latestScoresByJudge[score.judgeId] = score;
+      }
+    });
+    
+    // Calculate average of all judges' pre-calculated totalScores
+    const judgeScoresList = Object.values(latestScoresByJudge);
+    const totalScoreSum = judgeScoresList.reduce((sum, score) => sum + (score.totalScore || 0), 0);
+    let totalScore = judgeScoresList.length > 0 ? totalScoreSum / judgeScoresList.length : 0;
+    
+    // Get criteria for breakdown display
     const criteria = getCurrentEventCriteria();
     
     console.log('Live Scoreboard - Aggregating scores:', {
       contestantId,
       judgeCount,
-      isPointsGrading,
-      criteriaCount: criteria.length
+      criteriaCount: criteria.length,
+      totalScore,
+      showFinalRoundsOnly
     });
     
-    // Calculate average for each criteria using only the latest score from each judge
+    // Calculate average for each criteria for breakdown display
     const criteriaScores = {};
     criteria.forEach(criterion => {
       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      const finalKey = `final_${key}`; // Also check for final round prefix
+      const finalKey = `final_${key}`;
       
-      // Get the latest score from each judge for this criteria
-      const latestScoresByJudge = {};
-      contestantScores.forEach(score => {
-        // Check both regular key and final-prefixed key
-        const regularScore = score.scores?.[key];
-        const finalScore = score.scores?.[finalKey];
-        const scoreValue = regularScore !== undefined && regularScore > 0 ? regularScore : 
-                          (finalScore !== undefined && finalScore > 0 ? finalScore : null);
-        
-        if (scoreValue !== null && scoreValue > 0) {
-          if (!latestScoresByJudge[score.judgeId] || 
-              new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
-            latestScoresByJudge[score.judgeId] = { ...score, resolvedScore: scoreValue };
+      const criteriaValues = judgeScoresList
+        .map(score => {
+          // When showing final rounds, prioritize final_ prefixed key
+          // When showing main rounds, prioritize regular key
+          if (showFinalRoundsOnly) {
+            const finalScore = score.scores?.[finalKey];
+            const regularScore = score.scores?.[key];
+            // For final round, check final_ key first
+            return finalScore > 0 ? finalScore : (regularScore > 0 ? regularScore : 0);
+          } else {
+            const regularScore = score.scores?.[key];
+            // For main round, use regular key
+            return regularScore > 0 ? regularScore : 0;
           }
-        }
-      });
-      
-      const criteriaValues = Object.values(latestScoresByJudge).map(s => s.resolvedScore);
+        })
+        .filter(val => val > 0);
       
       if (criteriaValues.length > 0) {
-        // Calculate the average across all judges
         criteriaScores[key] = criteriaValues.reduce((sum, val) => sum + val, 0) / criteriaValues.length;
       } else {
         criteriaScores[key] = 0;
       }
     });
-    
-    // Calculate total score based on grading type
-    let totalScore = 0;
-    
-    if (isPointsGrading) {
-      // For points-based grading, sum all the averaged criterion scores
-      criteria.forEach(criterion => {
-        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-        const score = criteriaScores[key] || 0;
-        totalScore += score;
-      });
-      
-      // Convert points to 100-point scale
-      const maxPoints = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);
-      if (maxPoints > 0) {
-        totalScore = (totalScore / maxPoints) * 100;
-      }
-    } else {
-      // For percentage-based grading, apply weights
-      criteria.forEach(criterion => {
-        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-        const score = criteriaScores[key] || 0;
-        const weight = criterion.weight / 100;
-        totalScore += score * weight;
-      });
-    }
     
     // Cap total at 100 for display
     totalScore = Math.min(totalScore, 100);
@@ -775,7 +833,7 @@ export default function LiveScoreboard() {
     return () => {
       unsubscribeContestants();
     };
-  }, [selectedEvent, scores]); // Add scores as dependency to recalculate when scores change
+  }, [selectedEvent, scores, showFinalRoundsOnly]); // Add showFinalRoundsOnly to recalculate scores when switching to final round mode
 
   // Update selected contestant when contestants data changes (to keep modal data in sync)
   useEffect(() => {
@@ -1120,7 +1178,9 @@ export default function LiveScoreboard() {
               {/* Final Rounds Only Filter */}
               {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && getFinalRoundName() && (
                 <div className="w-full lg:max-w-xs">
-                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5 sm:mb-2">Finalists Only</label>
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5 sm:mb-2">
+                    {showFinalRoundsOnly ? '🏆 Final Round Scores' : 'View Final Round'}
+                  </label>
                   <div className="flex items-center gap-2 sm:gap-3 bg-white border-2 border-slate-200 rounded-lg sm:rounded-xl px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 shadow-sm hover:border-amber-300 transition-all duration-200">
                     <button
                       onClick={() => setShowFinalRoundsOnly(!showFinalRoundsOnly)}
@@ -1137,9 +1197,14 @@ export default function LiveScoreboard() {
                     <span className={`text-xs sm:text-sm font-bold ${
                       showFinalRoundsOnly ? 'text-amber-600' : 'text-slate-600'
                     }`}>
-                      {showFinalRoundsOnly ? `${filterFinalRoundContestants(contestants).length} 🏆` : 'All'}
+                      {showFinalRoundsOnly ? `${filterFinalRoundContestants(contestants).length} Finalists` : 'All Contestants'}
                     </span>
                   </div>
+                  {showFinalRoundsOnly && (
+                    <p className="text-[10px] sm:text-xs text-amber-600 mt-1 font-medium">
+                      Showing final round criteria & scores
+                    </p>
+                  )}
                 </div>
               )}
             </div>

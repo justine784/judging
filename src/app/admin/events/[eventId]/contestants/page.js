@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, setDoc, getDocs, collection, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection, deleteDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function EventContestants() {
@@ -17,6 +17,7 @@ export default function EventContestants() {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [dropdownButtonRef, setDropdownButtonRef] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [scores, setScores] = useState([]); // Store scores for all contestants
   const router = useRouter();
   const params = useParams();
   const eventId = params.eventId;
@@ -75,11 +76,105 @@ export default function EventContestants() {
     return rect.bottom + dropdownHeight + 4 > window.innerHeight;
   };
 
-  // Load event and contestants data
+  // Load event and contestants data with real-time listeners
   useEffect(() => {
-    loadEvent();
-    loadContestants();
+    if (!eventId) return;
+
+    // Real-time listener for event
+    const eventUnsubscribe = onSnapshot(doc(db, 'events', eventId), (eventDoc) => {
+      if (eventDoc.exists()) {
+        const eventData = {
+          id: eventId,
+          ...eventDoc.data()
+        };
+        setEvent(eventData);
+        setCurrentRound(eventData.currentRound || 'preliminary');
+        console.log('📅 Event loaded/updated:', eventData.eventName);
+      }
+    });
+
+    // Real-time listener for contestants
+    const contestantsCollection = collection(db, 'contestants');
+    const contestantsUnsubscribe = onSnapshot(contestantsCollection, (snapshot) => {
+      const contestantsList = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(contestant => 
+          contestant.eventId && (contestant.eventId.toString() === eventId.toString() || contestant.eventId === eventId)
+        );
+      
+      console.log(`👥 Loaded ${contestantsList.length} contestants (real-time)`);
+      setContestants(contestantsList);
+    });
+
+    return () => {
+      eventUnsubscribe();
+      contestantsUnsubscribe();
+    };
   }, [eventId]);
+
+  // Listen for scores in real-time
+  useEffect(() => {
+    if (!eventId) return;
+    
+    const scoresCollection = collection(db, 'scores');
+    const unsubscribe = onSnapshot(scoresCollection, (snapshot) => {
+      const scoresData = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(score => score.eventId === eventId);
+      setScores(scoresData);
+      
+      // Show update notification when scores change
+      if (snapshot.docChanges().length > 0 && scoresData.length > 0) {
+        console.log(`📊 Scores updated: ${scoresData.length} score entries (real-time)`);
+      }
+      console.log(`📊 Loaded ${scoresData.length} scores for event ${eventId}`);
+    });
+
+    return () => unsubscribe();
+  }, [eventId]);
+
+  // Calculate aggregated score for a contestant
+  const calculateAggregatedScore = (contestantId) => {
+    const contestantScores = scores.filter(score => 
+      score.contestantId === contestantId && score.eventId === eventId
+    );
+    
+    if (contestantScores.length === 0) {
+      return { totalScore: 0, judgeCount: 0 };
+    }
+    
+    // Count unique judges
+    const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
+    
+    // Get the latest score from each judge and use their pre-calculated totalScore
+    const latestScoresByJudge = {};
+    contestantScores.forEach(score => {
+      if (!latestScoresByJudge[score.judgeId] || 
+          new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
+        latestScoresByJudge[score.judgeId] = score;
+      }
+    });
+    
+    // Calculate average of all judges' totalScores
+    const judgeScores = Object.values(latestScoresByJudge);
+    const totalScoreSum = judgeScores.reduce((sum, score) => {
+      // Use the pre-calculated totalScore from judge dashboard
+      return sum + (score.totalScore || 0);
+    }, 0);
+    
+    const averageTotalScore = judgeScores.length > 0 ? totalScoreSum / judgeScores.length : 0;
+    
+    return {
+      totalScore: parseFloat(averageTotalScore.toFixed(2)),
+      judgeCount: uniqueJudges.length
+    };
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -359,6 +454,28 @@ export default function EventContestants() {
     // Clear any existing errors
     setFormErrors({});
     
+    // Validate contestant number is not empty
+    if (!formData.contestantNumber || formData.contestantNumber.trim() === '') {
+      setFormErrors({ contestantNumber: 'Contestant number is required' });
+      alert('⚠️ Please enter a contestant number');
+      return;
+    }
+    
+    // Check for duplicate contestant number
+    const existingContestant = contestants.find(
+      c => c.contestantNumber === formData.contestantNumber.trim()
+    );
+    
+    if (existingContestant) {
+      setFormErrors({ contestantNumber: 'This contestant number already exists' });
+      const existingName = existingContestant.displayName || 
+        (existingContestant.contestantType === 'group' 
+          ? existingContestant.groupName 
+          : `${existingContestant.firstName} ${existingContestant.lastName}`);
+      alert(`⚠️ Contestant Number Already Exists!\n\nContestant #${formData.contestantNumber} is already assigned to "${existingName}".\n\nPlease use a different contestant number.`);
+      return;
+    }
+    
     // Get event details to include eventName
     const eventDetails = await getDoc(doc(db, 'events', eventId));
     const eventName = eventDetails.exists() ? eventDetails.data().eventName : 'Unknown Event';
@@ -429,6 +546,28 @@ export default function EventContestants() {
 
     // Clear any existing errors
     setFormErrors({});
+    
+    // Validate contestant number is not empty
+    if (!formData.contestantNumber || formData.contestantNumber.trim() === '') {
+      setFormErrors({ contestantNumber: 'Contestant number is required' });
+      alert('⚠️ Please enter a contestant number');
+      return;
+    }
+    
+    // Check for duplicate contestant number (exclude the current contestant being edited)
+    const existingContestant = contestants.find(
+      c => c.contestantNumber === formData.contestantNumber.trim() && c.id !== editingContestant.id
+    );
+    
+    if (existingContestant) {
+      setFormErrors({ contestantNumber: 'This contestant number already exists' });
+      const existingName = existingContestant.displayName || 
+        (existingContestant.contestantType === 'group' 
+          ? existingContestant.groupName 
+          : `${existingContestant.firstName} ${existingContestant.lastName}`);
+      alert(`⚠️ Contestant Number Already Exists!\n\nContestant #${formData.contestantNumber} is already assigned to "${existingName}".\n\nPlease use a different contestant number.`);
+      return;
+    }
 
     try {
       // Prepare update data based on contestant type
@@ -532,12 +671,50 @@ export default function EventContestants() {
     setFormErrors({});
   };
 
-  // Sort contestants alphabetically by contestant number for display
-  const sortedContestants = [...contestants].sort((a, b) => {
-    const numA = a.contestantNumber.toString().toLowerCase();
-    const numB = b.contestantNumber.toString().toLowerCase();
-    return numA.localeCompare(numB);
-  });
+  // Sort contestants by score (highest first) and assign ranks
+  // Eliminated contestants go to the bottom
+  const sortedContestants = [...contestants]
+    .map(contestant => {
+      const scoreData = calculateAggregatedScore(contestant.id);
+      return {
+        ...contestant,
+        calculatedScore: scoreData.totalScore,
+        judgeCount: scoreData.judgeCount
+      };
+    })
+    .sort((a, b) => {
+      // Eliminated contestants go to the bottom
+      const aEliminated = a.status === 'eliminated' || a.eliminated;
+      const bEliminated = b.status === 'eliminated' || b.eliminated;
+      
+      if (aEliminated && !bEliminated) return 1;
+      if (!aEliminated && bEliminated) return -1;
+      
+      // Sort by score (highest first)
+      if (b.calculatedScore !== a.calculatedScore) {
+        return b.calculatedScore - a.calculatedScore;
+      }
+      
+      // If same score, sort by contestant number
+      const numA = a.contestantNumber.toString();
+      const numB = b.contestantNumber.toString();
+      return numA.localeCompare(numB);
+    })
+    .map((contestant, index, arr) => {
+      // Assign rank only to non-eliminated contestants with scores
+      const isEliminated = contestant.status === 'eliminated' || contestant.eliminated;
+      let rank = null;
+      
+      if (!isEliminated && contestant.calculatedScore > 0) {
+        // Count how many non-eliminated contestants before this one have higher or equal scores
+        const nonEliminatedWithScores = arr.filter(c => 
+          !(c.status === 'eliminated' || c.eliminated) && c.calculatedScore > 0
+        );
+        rank = nonEliminatedWithScores.findIndex(c => c.id === contestant.id) + 1;
+      }
+      
+      return { ...contestant, rank };
+    });
 
   const getStatusColor = (status) => {
     return status === 'registered' ? 'bg-green-100 text-green-800' : 
@@ -570,6 +747,7 @@ export default function EventContestants() {
         for (const contestant of contestantsToEliminate) {
           await updateDoc(doc(db, 'contestants', contestant.id), {
             status: 'eliminated',
+            eliminated: true,
             eliminatedRound: 'preliminary'
           });
         }
@@ -577,7 +755,8 @@ export default function EventContestants() {
         // Update remaining contestants to semi-finalists
         for (const contestant of contestantsToKeep) {
           await updateDoc(doc(db, 'contestants', contestant.id), {
-            status: 'finalist'
+            status: 'finalist',
+            eliminated: false
           });
         }
       } else if (currentRound === 'semi-final') {
@@ -593,6 +772,7 @@ export default function EventContestants() {
         for (const contestant of contestantsToEliminate) {
           await updateDoc(doc(db, 'contestants', contestant.id), {
             status: 'eliminated',
+            eliminated: true,
             eliminatedRound: 'semi-final'
           });
         }
@@ -600,7 +780,8 @@ export default function EventContestants() {
         // Update remaining contestants to finalists
         for (const contestant of contestantsToKeep) {
           await updateDoc(doc(db, 'contestants', contestant.id), {
-            status: 'finalist'
+            status: 'finalist',
+            eliminated: false
           });
         }
       } else {
@@ -651,6 +832,7 @@ export default function EventContestants() {
     try {
       await updateDoc(doc(db, 'contestants', contestantId), {
         status: 'eliminated',
+        eliminated: true,
         eliminatedRound: currentRound
       });
       
@@ -669,11 +851,12 @@ export default function EventContestants() {
   const handleGoToFinalRounds = async () => {
     try {
       // Update all non-eliminated contestants to finalists
-      const contestantsToUpdate = contestants.filter(c => c.status !== 'eliminated');
+      const contestantsToUpdate = contestants.filter(c => c.status !== 'eliminated' && !c.eliminated);
       
       for (const contestant of contestantsToUpdate) {
         await updateDoc(doc(db, 'contestants', contestant.id), {
-          status: 'finalist'
+          status: 'finalist',
+          eliminated: false
         });
       }
       
@@ -800,31 +983,55 @@ export default function EventContestants() {
       {/* Contestants Table */}
       <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl overflow-hidden border border-gray-100">
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur-sm rounded-lg flex-shrink-0">
-              <span className="text-lg sm:text-2xl">📋</span>
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur-sm rounded-lg flex-shrink-0">
+                <span className="text-lg sm:text-2xl">📋</span>
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-white">Registered Contestants</h3>
+                <p className="text-emerald-100 text-[10px] sm:text-xs md:text-sm">
+                  {sortedContestants.length} contestant{sortedContestants.length !== 1 ? 's' : ''} registered
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h3 className="text-sm sm:text-base md:text-lg font-bold text-white">Registered Contestants</h3>
-              <p className="text-emerald-100 text-[10px] sm:text-xs md:text-sm">
-                {sortedContestants.length} contestant{sortedContestants.length !== 1 ? 's' : ''} registered
-              </p>
+            {/* Real-time Score Indicator */}
+            <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+              <span className="relative flex h-2 w-2 sm:h-3 sm:w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 sm:h-3 sm:w-3 bg-green-500"></span>
+              </span>
+              <span className="text-white text-[10px] sm:text-xs font-medium">
+                <span className="hidden sm:inline">Live Scores</span>
+                <span className="sm:hidden">Live</span>
+              </span>
             </div>
           </div>
         </div>
         
         {/* Mobile Card View */}
         <div className="lg:hidden divide-y divide-gray-100">
-          {sortedContestants.map((contestant) => (
-            <div key={contestant.id} className="p-3 sm:p-4 space-y-2 sm:space-y-3 hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all duration-300">
-              {/* Contestant Header */}
+          {sortedContestants.map((contestant) => {
+            const isEliminated = contestant.status === 'eliminated' || contestant.eliminated;
+            return (
+            <div key={contestant.id} className={`p-3 sm:p-4 space-y-2 sm:space-y-3 transition-all duration-300 ${isEliminated ? 'bg-red-50/50 opacity-75' : 'hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50'}`}>
+              {/* Contestant Header with Rank */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white rounded-lg p-1.5 sm:p-2 text-sm sm:text-lg font-bold flex-shrink-0 shadow-md">
+                  {/* Rank Badge */}
+                  <div className={`flex-shrink-0 w-8 sm:w-10 h-8 sm:h-10 rounded-full flex items-center justify-center text-sm sm:text-lg font-bold ${
+                    !contestant.rank ? 'bg-gray-100 text-gray-400' :
+                    contestant.rank === 1 ? 'bg-yellow-100 text-yellow-600' : 
+                    contestant.rank === 2 ? 'bg-gray-200 text-gray-500' : 
+                    contestant.rank === 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {contestant.rank ? (contestant.rank <= 3 ? ['🥇', '🥈', '🥉'][contestant.rank - 1] : contestant.rank) : '-'}
+                  </div>
+                  <div className={`rounded-lg p-1.5 sm:p-2 text-sm sm:text-lg font-bold flex-shrink-0 shadow-md text-white ${isEliminated ? 'bg-gray-400' : 'bg-gradient-to-br from-emerald-500 to-teal-500'}`}>
                     #{contestant.contestantNumber}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                    <div className={`font-semibold text-sm sm:text-base truncate ${isEliminated ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
                       {contestant.displayName || `${contestant.firstName} ${contestant.lastName}`}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-500">
@@ -841,6 +1048,26 @@ export default function EventContestants() {
                     <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                   </svg>
                 </button>
+              </div>
+              
+              {/* Score Display */}
+              <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-2 sm:p-3">
+                <span className="text-blue-500 text-sm sm:text-lg">📊</span>
+                {contestant.calculatedScore > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <span className={`font-bold text-base sm:text-lg ${
+                      isEliminated ? 'text-gray-400' :
+                      contestant.calculatedScore >= 90 ? 'text-green-600' : 
+                      contestant.calculatedScore >= 80 ? 'text-blue-600' : 
+                      contestant.calculatedScore >= 70 ? 'text-yellow-600' : 'text-gray-600'
+                    }`}>
+                      {contestant.calculatedScore.toFixed(2)}
+                    </span>
+                    <span className="text-xs text-gray-500">({contestant.judgeCount} judge{contestant.judgeCount !== 1 ? 's' : ''})</span>
+                  </div>
+                ) : (
+                  <span className="text-gray-400 text-sm">No score yet</span>
+                )}
               </div>
               
               {/* Contestant Details */}
@@ -909,7 +1136,8 @@ export default function EventContestants() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
         
         {/* Desktop Table View */}
@@ -917,26 +1145,43 @@ export default function EventContestants() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">No.</th>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Age</th>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Address</th>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Contact</th>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                <th className="px-4 xl:px-6 py-3 xl:py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Rank</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">No.</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Score</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Age</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Address</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Contact</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-3 xl:px-4 py-3 xl:py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {sortedContestants.map((contestant) => (
-                <tr key={contestant.id} className="hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all duration-200">
-                  <td className="px-4 xl:px-6 py-3 xl:py-4">
-                    <div className="inline-flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-500 text-white text-xs xl:text-sm font-bold rounded-lg px-2 py-1 shadow-md">#{contestant.contestantNumber}</div>
+              {sortedContestants.map((contestant) => {
+                const isEliminated = contestant.status === 'eliminated' || contestant.eliminated;
+                return (
+                <tr key={contestant.id} className={`transition-all duration-200 ${isEliminated ? 'bg-red-50/50 opacity-75' : 'hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50'}`}>
+                  <td className="px-3 xl:px-4 py-3 xl:py-4 text-center">
+                    {contestant.rank ? (
+                      <div className={`inline-flex items-center justify-center text-sm xl:text-base font-bold ${
+                        contestant.rank === 1 ? 'text-yellow-500' : 
+                        contestant.rank === 2 ? 'text-gray-400' : 
+                        contestant.rank === 3 ? 'text-amber-600' : 'text-gray-600'
+                      }`}>
+                        {contestant.rank === 1 ? '🥇' : contestant.rank === 2 ? '🥈' : contestant.rank === 3 ? '🥉' : `#${contestant.rank}`}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">-</span>
+                    )}
                   </td>
-                  <td className="px-4 xl:px-6 py-3 xl:py-4">
-                    <div className="text-xs xl:text-sm font-medium text-gray-900">
+                  <td className="px-3 xl:px-4 py-3 xl:py-4">
+                    <div className={`inline-flex items-center justify-center text-white text-xs xl:text-sm font-bold rounded-lg px-2 py-1 shadow-md ${isEliminated ? 'bg-gray-400' : 'bg-gradient-to-br from-emerald-500 to-teal-500'}`}>#{contestant.contestantNumber}</div>
+                  </td>
+                  <td className="px-3 xl:px-4 py-3 xl:py-4">
+                    <div className={`text-xs xl:text-sm font-medium ${isEliminated ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
                       {contestant.contestantType === 'group' ? (
                         <div>
-                          <div className="font-bold text-emerald-600">{contestant.groupName}</div>
+                          <div className={`font-bold ${isEliminated ? 'text-gray-500' : 'text-emerald-600'}`}>{contestant.groupName}</div>
                           <div className="text-[10px] xl:text-xs text-gray-500">Leader: {contestant.groupLeader}</div>
                         </div>
                       ) : (
@@ -944,17 +1189,34 @@ export default function EventContestants() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-900">
+                  <td className="px-3 xl:px-4 py-3 xl:py-4 text-center">
+                    {contestant.calculatedScore > 0 ? (
+                      <div className="flex flex-col items-center">
+                        <span className={`font-bold text-sm xl:text-base ${
+                          isEliminated ? 'text-gray-400' :
+                          contestant.calculatedScore >= 90 ? 'text-green-600' : 
+                          contestant.calculatedScore >= 80 ? 'text-blue-600' : 
+                          contestant.calculatedScore >= 70 ? 'text-yellow-600' : 'text-gray-600'
+                        }`}>
+                          {contestant.calculatedScore.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-gray-400">{contestant.judgeCount} judge{contestant.judgeCount !== 1 ? 's' : ''}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">No score</span>
+                    )}
+                  </td>
+                  <td className="px-3 xl:px-4 py-3 xl:py-4 text-xs xl:text-sm text-gray-900">
                     {contestant.contestantType === 'group' ? 'Group' : contestant.age}
                   </td>
-                  <td className="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-900 max-w-[200px] truncate">{contestant.address}</td>
-                  <td className="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-900">{contestant.contactNumber}</td>
-                  <td className="px-4 xl:px-6 py-3 xl:py-4">
+                  <td className="px-3 xl:px-4 py-3 xl:py-4 text-xs xl:text-sm text-gray-900 max-w-[150px] truncate">{contestant.address}</td>
+                  <td className="px-3 xl:px-4 py-3 xl:py-4 text-xs xl:text-sm text-gray-900">{contestant.contactNumber}</td>
+                  <td className="px-3 xl:px-4 py-3 xl:py-4">
                     <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] xl:text-xs font-medium rounded-full ${getStatusColor(contestant.status)}`}>
                       {contestant.status.charAt(0).toUpperCase() + contestant.status.slice(1)}
                     </span>
                   </td>
-                  <td className="px-4 xl:px-6 py-3 xl:py-4">
+                  <td className="px-3 xl:px-4 py-3 xl:py-4">
                     <div className="relative dropdown-menu">
                       <button
                         onClick={(e) => toggleDropdown(contestant.id, e)}
@@ -1033,7 +1295,8 @@ export default function EventContestants() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1119,12 +1382,18 @@ export default function EventContestants() {
                       onChange={handleInputChange}
                       className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
                         formErrors.contestantNumber 
-                          ? 'border-red-500 focus:border-red-500' 
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
                       placeholder="Enter number"
                     />
-                    <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-500">Unique number (e.g., 1, 2, 101)</p>
+                    {formErrors.contestantNumber ? (
+                      <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-red-500 font-medium">
+                        ⚠️ {formErrors.contestantNumber}
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-500">Unique number (e.g., 1, 2, 101)</p>
+                    )}
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (
@@ -1341,11 +1610,17 @@ export default function EventContestants() {
                       onChange={handleInputChange}
                       className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-600 transition-all duration-200 bg-white ${
                         formErrors.contestantNumber 
-                          ? 'border-red-500 focus:border-red-500' 
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
                           : 'border-gray-200 focus:border-blue-600'
                       }`}
                     />
-                    <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-500">Unique number</p>
+                    {formErrors.contestantNumber ? (
+                      <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-red-500 font-medium">
+                        ⚠️ {formErrors.contestantNumber}
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-500">Unique number</p>
+                    )}
                   </div>
                   {/* Age field - only for solo contestants */}
                   {formData.contestantType === 'solo' && (

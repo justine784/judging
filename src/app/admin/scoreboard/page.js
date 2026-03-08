@@ -131,27 +131,30 @@ export default function AdminScoreboard() {
     // Count unique judges (not total score entries)
     const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
     
-    // Get criteria from the event
+    // Get the latest score from each judge
+    const latestScoresByJudge = {};
+    contestantScores.forEach(score => {
+      if (!latestScoresByJudge[score.judgeId] || 
+          new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
+        latestScoresByJudge[score.judgeId] = score;
+      }
+    });
+    
+    // Calculate average of all judges' pre-calculated totalScores
+    const judgeScoresList = Object.values(latestScoresByJudge);
+    const totalScoreSum = judgeScoresList.reduce((sum, score) => sum + (score.totalScore || 0), 0);
+    const averageTotalScore = judgeScoresList.length > 0 ? totalScoreSum / judgeScoresList.length : 0;
+    
+    // Also calculate criteriaScores for breakdown display
     const event = events.find(e => e.id === eventId);
     const criteria = event?.criteria?.filter(c => c.enabled) || [];
-    
-    // Calculate average for each criteria using only the latest score from each judge
     const criteriaScores = {};
+    
     criteria.forEach(criterion => {
       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      
-      // Get the latest score from each judge for this criteria
-      const latestScoresByJudge = {};
-      contestantScores.forEach(score => {
-        if (score.scores?.[key] > 0) {
-          if (!latestScoresByJudge[score.judgeId] || 
-              new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
-            latestScoresByJudge[score.judgeId] = score;
-          }
-        }
-      });
-      
-      const criteriaValues = Object.values(latestScoresByJudge).map(score => score.scores[key]);
+      const criteriaValues = judgeScoresList
+        .filter(score => score.scores?.[key] > 0)
+        .map(score => score.scores[key]);
       
       if (criteriaValues.length > 0) {
         criteriaScores[key] = criteriaValues.reduce((sum, val) => sum + val, 0) / criteriaValues.length;
@@ -160,17 +163,8 @@ export default function AdminScoreboard() {
       }
     });
     
-    // Calculate weighted total score
-    let totalScore = 0;
-    criteria.forEach(criterion => {
-      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-      const score = criteriaScores[key] || 0;
-      const weight = criterion.weight / 100;
-      totalScore += score * weight;
-    });
-    
     return {
-      totalScore: parseFloat(totalScore.toFixed(1)),
+      totalScore: parseFloat(averageTotalScore.toFixed(1)),
       judgeCount: uniqueJudges.length,
       criteriaScores
     };

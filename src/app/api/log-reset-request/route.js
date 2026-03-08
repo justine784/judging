@@ -24,31 +24,48 @@ export async function POST(request) {
     // Store the reset request in Firestore
     await adminDb.collection('passwordResetRequests').add(resetRecord);
 
-    // Store email content for admin reference
+    // Store email content for admin reference - formatted for Judging & Tabulation System
     const emailContent = `
-      Password Reset Request - ${userType.toUpperCase()} ACCOUNT
+      ═══════════════════════════════════════════════════════════
+      🏛️ JUDGING & TABULATION SYSTEM
+      Municipality of Bongabong, Oriental Mindoro
+      ═══════════════════════════════════════════════════════════
       
-      Email: ${email}
+      📧 PASSWORD RESET REQUEST - ${userType.toUpperCase()} ACCOUNT
+      
+      ───────────────────────────────────────────────────────────
+      📋 Request Details:
+      ───────────────────────────────────────────────────────────
+      Email:            ${email}
       Reference Number: ${referenceNumber}
-      User Type: ${userType}
-      Requested: ${new Date().toLocaleString()}
-      Expires: ${new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString()}
+      User Type:        ${userType.charAt(0).toUpperCase() + userType.slice(1)}
+      Requested:        ${new Date().toLocaleString()}
+      Expires:          ${new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString()}
       
-      Instructions:
+      ───────────────────────────────────────────────────────────
+      📝 Admin Instructions:
+      ───────────────────────────────────────────────────────────
       1. Verify this request in the admin dashboard
       2. Use the reference number to track the reset request
       3. Contact the user if additional verification is needed
+      
+      ═══════════════════════════════════════════════════════════
+      This is an automated log from Judging & Tabulation System
+      © 2026 Municipality of Bongabong
+      ═══════════════════════════════════════════════════════════
     `;
 
     await adminDb.collection('emailLogs').add({
       to: email,
-      subject: `Password Reset Request - ${userType.charAt(0).toUpperCase() + userType.slice(1)} Account`,
+      subject: `🔐 Password Reset Request - ${userType.charAt(0).toUpperCase() + userType.slice(1)} Account | Judging & Tabulation System`,
       referenceNumber: referenceNumber,
       userType: userType,
       content: emailContent.trim(),
       sentAt: new Date(),
       type: 'password_reset_request',
-      status: 'logged_for_admin'
+      status: 'logged_for_admin',
+      system: 'Judging & Tabulation System',
+      location: 'Bongabong, Oriental Mindoro'
     });
 
     return Response.json({

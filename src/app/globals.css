@@ -190,3 +190,57 @@ body {
 .animate-shape-pulse {
   animation: shape-pulse 8s ease-in-out infinite;
 }
+
+/* Login page animations */
+@keyframes blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(20px, -30px) scale(1.1); }
+  50% { transform: translate(-20px, 20px) scale(0.9); }
+  75% { transform: translate(30px, 10px) scale(1.05); }
+}
+
+@keyframes login-float {
+  0%, 100% { transform: translateY(0px); opacity: 0.4; }
+  50% { transform: translateY(-20px); opacity: 0.8; }
+}
+
+@keyframes scale-in {
+  0% { transform: scale(0) translateY(-50%); opacity: 0; }
+  100% { transform: scale(1) translateY(-50%); opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.animate-blob { animation: blob 8s infinite ease-in-out; }
+.animate-login-float { animation: login-float 6s infinite ease-in-out; }
+.animate-scale-in { animation: scale-in 0.2s ease-out forwards; }
+.animate-shake { animation: shake 0.3s ease-in-out; }
+
+.animation-delay-1000 { animation-delay: 1s; }
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-3000 { animation-delay: 3s; }
+.animation-delay-4000 { animation-delay: 4s; }
+
+/* Modal animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+.animate-slideUp { animation: slideUp 0.3s ease-out forwards; }

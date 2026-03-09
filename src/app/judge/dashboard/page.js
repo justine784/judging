@@ -2637,7 +2637,7 @@ export default function JudgeDashboard() {
                                     handleQuickScoreChange(key, newValue);
                                   }}
                                   disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
-                                  className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-[10px] sm:text-xs font-medium ${
+                                  className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-[10px] sm:text-xs font-medium text-black ${
                                     !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored ? 'bg-gray-100 cursor-not-allowed' : ''
                                   }`}
                                 />

@@ -72,8 +72,8 @@ const ContestantSlideshow = ({ contestants, autoPlay = true, interval = 5000, ev
                   
                   {/* Contestant Number and Score - Below Name */}
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <span className="font-bold text-sm sm:text-base md:text-lg bg-white/20 backdrop-blur-sm px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border border-white/20">#{currentContestant.contestantNumber}</span>
-                    <span className="font-bold text-yellow-400 text-sm sm:text-base md:text-lg bg-white/10 backdrop-blur-sm px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border border-yellow-400/30">
+                    <span className="font-bold text-xs sm:text-sm md:text-4xl lg:text-5xl xl:text-6xl bg-white/20 backdrop-blur-sm px-2 sm:px-3 md:px-7 py-0.5 sm:py-1 md:py-3 rounded-lg border border-white/20">#{currentContestant.contestantNumber}</span>
+                    <span className="font-bold text-yellow-400 text-xs sm:text-sm md:text-4xl lg:text-5xl xl:text-6xl bg-white/10 backdrop-blur-sm px-2 sm:px-3 md:px-7 py-0.5 sm:py-1 md:py-3 rounded-lg border border-yellow-400/30">
                       {(currentContestant.totalScore || 0).toFixed(1)}%
                     </span>
                     {(currentContestant.judgeCount || 0) > 0 && (

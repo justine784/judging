@@ -2586,7 +2586,7 @@ export default function JudgeDashboard() {
                           const criterionMaxScore = isPointsGrading ? criterion.weight : 100;
                           
                           return (
-                            <div key={index} className="bg-white rounded-md sm:rounded-lg p-2 sm:p-3 border border-gray-200">
+                            <div key={index} className="bg-black rounded-md sm:rounded-lg p-2 sm:p-3 border border-gray-200">
                               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                                 <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
                                   <label className="text-xs sm:text-sm font-semibold text-black truncate max-w-[120px] sm:max-w-none">

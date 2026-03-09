@@ -22,6 +22,8 @@ export default function ManageScoreDashboard() {
   const [selectedContestant, setSelectedContestant] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'rank', direction: 'asc' });
+  const [viewMode, setViewMode] = useState('main'); // 'main', 'final', or 'combined'
+  const [cleanupListeners, setCleanupListeners] = useState(null);
   const printRef = useRef(null);
   const router = useRouter();
 
@@ -54,8 +56,9 @@ export default function ManageScoreDashboard() {
           setUser(user);
           setJudgeData(judgeData);
           
-          // Set up real-time listeners
-          setupRealtimeListeners();
+          // Set up real-time listeners and store cleanup
+          const cleanup = setupRealtimeListeners();
+          setCleanupListeners(() => cleanup);
           
         } catch (error) {
           console.error('Error verifying judge status:', error);
@@ -69,8 +72,20 @@ export default function ManageScoreDashboard() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      // Cleanup listeners will be handled by the other useEffect
+    };
   }, [router]);
+
+  // Cleanup real-time listeners when component unmounts or user changes
+  useEffect(() => {
+    return () => {
+      if (cleanupListeners) {
+        cleanupListeners();
+      }
+    };
+  }, [cleanupListeners]);
 
   const setupRealtimeListeners = () => {
     // Real-time listener for events
@@ -101,12 +116,13 @@ export default function ManageScoreDashboard() {
       setLastUpdated(new Date());
     });
 
-    // Real-time listener for scores
+    // Real-time listener for scores - this updates the score view and judges detailed scores tables
     const unsubscribeScores = onSnapshot(collection(db, 'scores'), (snapshot) => {
       const scoresList = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      console.log('📊 Scores updated in real-time:', scoresList.length, 'scores');
       setScores(scoresList);
       setLastUpdated(new Date());
     });
@@ -118,9 +134,12 @@ export default function ManageScoreDashboard() {
         ...doc.data()
       }));
       setJudges(judgesList);
+      setLastUpdated(new Date());
     });
 
+    // Return cleanup function
     return () => {
+      console.log('🧹 Cleaning up real-time listeners');
       unsubscribeEvents();
       unsubscribeContestants();
       unsubscribeScores();
@@ -131,19 +150,55 @@ export default function ManageScoreDashboard() {
   // Get judges assigned to selected event
   const getEventJudges = () => {
     if (!selectedEvent) return [];
-    return judges.filter(j => 
-      j.assignedEvents?.includes(selectedEvent.id) && 
-      j.role === 'judge' && 
-      j.status === 'active' &&
-      j.email !== 'managescore@gmail.com'
-    );
+    
+    // Filter judges assigned to this event - relax conditions to match admin page
+    return judges.filter(j => {
+      // Must be assigned to this event
+      const isAssigned = j.assignedEvents?.includes(selectedEvent.id);
+      // Exclude the managescore user
+      const isNotManagescore = j.email !== 'managescore@gmail.com';
+      // Check if active (support both 'status' and 'isActive' fields)
+      const isActive = j.status === 'active' || j.isActive === true || j.status !== 'inactive';
+      
+      return isAssigned && isNotManagescore && isActive;
+    });
   };
 
   // Helper function to get criteria from event (same as live scoreboard)
-  const getCurrentEventCriteria = () => {
+  const getCurrentEventCriteria = (roundType = null) => {
     if (!selectedEvent) return [];
     
+    // Use the roundType parameter if provided, otherwise use viewMode state
+    const effectiveRoundType = roundType || viewMode;
+    
     let criteria = [];
+    
+    // Helper to get final round - same logic as judge dashboard getFinalRound()
+    const getFinalRound = () => {
+      if (!selectedEvent.rounds || selectedEvent.rounds.length === 0) return null;
+      const enabledRounds = selectedEvent.rounds.filter(round => round.enabled);
+      return enabledRounds.length > 0 ? enabledRounds[enabledRounds.length - 1] : null;
+    };
+    
+    // For final round, check rounds array first - match judge dashboard logic
+    if (effectiveRoundType === 'final') {
+      const finalRound = getFinalRound();
+      if (finalRound && finalRound.criteria && finalRound.criteria.length > 0) {
+        criteria = finalRound.criteria.filter(c => c.enabled !== false && c.name && c.name.trim() !== '').map(c => ({
+          name: c.name,
+          weight: c.weight || 0,
+          enabled: c.enabled !== false,
+          category: c.category || null,
+          scoringType: c.scoringType || 'percentage',
+          isFinal: true
+        }));
+        return criteria;
+      }
+    }
+    
+    // For main criteria - use criteriaCategories or legacy criteria (same as judge dashboard)
+    // Judge dashboard does NOT use rounds[0] for main criteria
+    
     const hasCriteriaCategoriesField = selectedEvent.hasOwnProperty('criteriaCategories') || selectedEvent.criteriaCategories !== undefined;
     
     if (hasCriteriaCategoriesField) {
@@ -160,7 +215,8 @@ export default function ManageScoreDashboard() {
                   weight: subCriterion.weight,
                   enabled: subCriterion.enabled !== false,
                   category: category.name,
-                  scoringType: category.scoringType || 'percentage'
+                  scoringType: category.scoringType || 'percentage',
+                  isFinal: false
                 });
               }
             });
@@ -171,24 +227,70 @@ export default function ManageScoreDashboard() {
                 weight: category.totalWeight || 0,
                 enabled: category.enabled !== false,
                 category: null,
-                scoringType: category.scoringType || 'percentage'
+                scoringType: category.scoringType || 'percentage',
+                isFinal: false
               });
             }
           }
         });
       }
     } else if (selectedEvent.criteria && selectedEvent.criteria.length > 0) {
-      criteria = selectedEvent.criteria.filter(c => c.enabled && c.name && c.name.trim() !== '');
+      criteria = selectedEvent.criteria.filter(c => c.enabled && c.name && c.name.trim() !== '').map(c => ({
+        ...c,
+        isFinal: false
+      }));
     }
     
     return criteria;
   };
 
+  // Get main criteria (without final_ prefix)
+  const getMainCriteria = () => {
+    return getCurrentEventCriteria('main');
+  };
+
+  // Get final criteria (with final_ prefix)
+  const getFinalCriteria = () => {
+    return getCurrentEventCriteria('final');
+  };
+
+  // Check if event has final round criteria - match judge dashboard logic
+  const hasEventFinalRound = () => {
+    if (!selectedEvent || !selectedEvent.rounds || selectedEvent.rounds.length === 0) return false;
+    const enabledRounds = selectedEvent.rounds.filter(round => round.enabled);
+    if (enabledRounds.length === 0) return false;
+    const finalRound = enabledRounds[enabledRounds.length - 1];
+    return finalRound && finalRound.criteria && finalRound.criteria.length > 0;
+  };
+
   // Calculate aggregated scores from all judges for a contestant (same as live scoreboard)
-  const calculateAggregatedScore = (contestantId, eventId) => {
-    const contestantScores = scores.filter(score => 
+  // Now supports calculating separately for main and final rounds
+  const calculateAggregatedScore = (contestantId, eventId, roundType = 'main') => {
+    // First, filter scores for this contestant and event
+    let contestantScores = scores.filter(score => 
       score.contestantId === contestantId && score.eventId === eventId
     );
+    
+    // Filter by round type based on isFinalRound flag (same as live scoreboard)
+    if (roundType === 'final') {
+      // For final round, get scores marked as final round
+      const finalRoundScores = contestantScores.filter(score => score.isFinalRound === true);
+      if (finalRoundScores.length > 0) {
+        contestantScores = finalRoundScores;
+      } else {
+        // Fallback: check if any scores have final_ prefixed keys
+        contestantScores = contestantScores.filter(score => {
+          if (!score.scores) return false;
+          return Object.keys(score.scores).some(key => key.startsWith('final_'));
+        });
+      }
+    } else {
+      // For main round, get scores NOT marked as final round
+      const mainRoundScores = contestantScores.filter(score => score.isFinalRound !== true);
+      if (mainRoundScores.length > 0) {
+        contestantScores = mainRoundScores;
+      }
+    }
     
     if (contestantScores.length === 0) {
       return { totalScore: 0, judgeCount: 0, criteriaScores: {} };
@@ -208,14 +310,15 @@ export default function ManageScoreDashboard() {
       }
     });
     
-    // Calculate average of all judges' pre-calculated totalScores
-    const judgeScoresList = Object.values(latestScoresByJudge);
-    const totalScoreSum = judgeScoresList.reduce((sum, score) => sum + (score.totalScore || 0), 0);
-    let totalScore = judgeScoresList.length > 0 ? totalScoreSum / judgeScoresList.length : 0;
-    
-    // Calculate criteriaScores for breakdown display
-    const criteria = getCurrentEventCriteria();
+    // Calculate using the appropriate criteria based on round type
+    const criteria = getCurrentEventCriteria(roundType);
     const criteriaScores = {};
+    const judgeScoresList = Object.values(latestScoresByJudge);
+    
+    // Debug: Log criteria and score keys  
+    console.log(`📊 [${roundType}] Criteria:`, criteria.map(c => c.name));
+    console.log(`📊 [${roundType}] Filtered scores count:`, contestantScores.length);
+    console.log(`📊 [${roundType}] Judge scores:`, judgeScoresList.map(s => ({ judgeId: s.judgeId, scores: s.scores, isFinalRound: s.isFinalRound })));
     
     criteria.forEach(criterion => {
       const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -223,9 +326,16 @@ export default function ManageScoreDashboard() {
       
       const criteriaValues = judgeScoresList
         .map(score => {
-          const regularScore = score.scores?.[key];
-          const finalScore = score.scores?.[finalKey];
-          return regularScore > 0 ? regularScore : (finalScore > 0 ? finalScore : 0);
+          if (roundType === 'final') {
+            // For final round, check final_ prefixed key first
+            const finalScore = score.scores?.[finalKey];
+            const regularScore = score.scores?.[key];
+            return finalScore > 0 ? finalScore : (regularScore > 0 ? regularScore : 0);
+          } else {
+            // For main round, use regular key (not final_ prefixed)
+            const val = score.scores?.[key];
+            return val > 0 ? val : 0;
+          }
         })
         .filter(val => val > 0);
       
@@ -234,6 +344,15 @@ export default function ManageScoreDashboard() {
       } else {
         criteriaScores[key] = 0;
       }
+    });
+    
+    // Calculate total score based on criteria weights
+    let totalScore = 0;
+    criteria.forEach(criterion => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      const score = criteriaScores[key] || 0;
+      const weight = criterion.weight / 100;
+      totalScore += score * weight;
     });
     
     totalScore = Math.min(totalScore, 100);
@@ -246,20 +365,29 @@ export default function ManageScoreDashboard() {
   };
 
   // Calculate individual judge's total score using weighted criteria (same as live scoreboard)
-  const calculateJudgeTotalScore = (judgeScores) => {
+  // Now supports calculating separately for main and final rounds
+  const calculateJudgeTotalScore = (judgeScores, roundType = 'main') => {
     if (!judgeScores || Object.keys(judgeScores).length === 0) return 0;
     
-    const criteria = getCurrentEventCriteria();
+    const criteria = getCurrentEventCriteria(roundType);
     const event = selectedEvent;
     const isPointsGrading = event?.gradingType === 'points';
+    const useFinalPrefix = roundType === 'final';
     
     let totalScore = 0;
     
     if (isPointsGrading) {
       criteria.forEach(criterion => {
-        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-        const finalKey = `final_${key}`;
-        const score = judgeScores[key] || judgeScores[finalKey] || 0;
+        const baseKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        const finalKey = `final_${baseKey}`;
+        // For final round, prioritize final_ prefixed scores
+        // For main round, use regular scores only
+        let score;
+        if (useFinalPrefix) {
+          score = judgeScores[finalKey] || 0;
+        } else {
+          score = judgeScores[baseKey] || 0;
+        }
         totalScore += score;
       });
       
@@ -269,9 +397,16 @@ export default function ManageScoreDashboard() {
       }
     } else {
       criteria.forEach(criterion => {
-        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
-        const finalKey = `final_${key}`;
-        const score = judgeScores[key] || judgeScores[finalKey] || 0;
+        const baseKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        const finalKey = `final_${baseKey}`;
+        // For final round, prioritize final_ prefixed scores
+        // For main round, use regular scores only
+        let score;
+        if (useFinalPrefix) {
+          score = judgeScores[finalKey] || 0;
+        } else {
+          score = judgeScores[baseKey] || 0;
+        }
         const weight = criterion.weight / 100;
         totalScore += score * weight;
       });
@@ -281,6 +416,7 @@ export default function ManageScoreDashboard() {
   };
 
   // Get all contestants for selected event with their scores (matching live scoreboard)
+  // Now calculates both main and final round scores
   const getEventContestantsWithScores = () => {
     if (!selectedEvent) return [];
     
@@ -307,16 +443,20 @@ export default function ManageScoreDashboard() {
         }
       });
       
-      // Build judge scores array (ordered by judge) with proper weighted calculation
+      // Build judge scores array with both main and final scores
       const judgeScoresArray = eventJudges.map(judge => {
         const scoreData = judgeScoresMap[judge.id];
         if (scoreData && scoreData.scores) {
-          // Calculate the judge's total score using weighted criteria (same as live scoreboard)
-          const calculatedTotal = calculateJudgeTotalScore(scoreData.scores);
+          // Calculate the judge's total score for main round
+          const mainTotal = calculateJudgeTotalScore(scoreData.scores, 'main');
+          // Calculate the judge's total score for final round
+          const finalTotal = calculateJudgeTotalScore(scoreData.scores, 'final');
           return {
             judgeId: judge.id,
             judgeName: judge.judgeName || judge.displayName || 'Judge',
-            totalScore: parseFloat(calculatedTotal.toFixed(1)),
+            totalScore: parseFloat(mainTotal.toFixed(1)),
+            mainScore: parseFloat(mainTotal.toFixed(1)),
+            finalScore: parseFloat(finalTotal.toFixed(1)),
             scores: scoreData.scores || {},
             timestamp: scoreData.timestamp
           };
@@ -325,21 +465,47 @@ export default function ManageScoreDashboard() {
           judgeId: judge.id,
           judgeName: judge.judgeName || judge.displayName || 'Judge',
           totalScore: 0,
+          mainScore: 0,
+          finalScore: 0,
           scores: {},
           timestamp: null
         };
       });
       
-      // Use the same aggregated calculation as live scoreboard for total and average
-      const aggregatedScore = calculateAggregatedScore(contestant.id, selectedEvent.id);
+      // Calculate aggregated scores for both main and final rounds
+      const mainAggregated = calculateAggregatedScore(contestant.id, selectedEvent.id, 'main');
+      const finalAggregated = calculateAggregatedScore(contestant.id, selectedEvent.id, 'final');
+      
+      // Use current viewMode to determine which score to use for ranking
+      let currentRoundScore;
+      let rankingScore;
+      if (viewMode === 'final') {
+        currentRoundScore = finalAggregated;
+        rankingScore = finalAggregated.totalScore;
+      } else if (viewMode === 'combined') {
+        // For combined view, rank by the combined total (main + final) or the higher one
+        currentRoundScore = mainAggregated;
+        // Use combined score for ranking - sum of both rounds for overall performance
+        rankingScore = mainAggregated.totalScore + finalAggregated.totalScore;
+      } else {
+        currentRoundScore = mainAggregated;
+        rankingScore = mainAggregated.totalScore;
+      }
       
       return {
         ...contestant,
         judgeScores: judgeScoresArray,
-        totalScore: aggregatedScore.totalScore,
-        averageScore: aggregatedScore.totalScore, // Same as live scoreboard
-        criteriaScores: aggregatedScore.criteriaScores,
-        scoredJudges: aggregatedScore.judgeCount
+        // Main round scores
+        mainScore: mainAggregated.totalScore,
+        mainCriteriaScores: mainAggregated.criteriaScores,
+        // Final round scores  
+        finalScore: finalAggregated.totalScore,
+        finalCriteriaScores: finalAggregated.criteriaScores,
+        // Current view scores (for ranking)
+        totalScore: rankingScore,
+        averageScore: currentRoundScore.totalScore,
+        criteriaScores: currentRoundScore.criteriaScores,
+        scoredJudges: currentRoundScore.judgeCount
       };
     });
   };
@@ -402,6 +568,9 @@ export default function ManageScoreDashboard() {
   const handlePrint = () => {
     const eventJudges = getEventJudges();
     const sortedContestants = getSortedContestants();
+    const mainCriteria = getCurrentEventCriteria('main');
+    const finalCriteria = getCurrentEventCriteria('final');
+    const hasFinalRound = hasEventFinalRound() && finalCriteria.length > 0;
     
     const printWindow = window.open('', '_blank');
     
@@ -411,102 +580,495 @@ export default function ManageScoreDashboard() {
       <head>
         <title>Score Sheet - ${selectedEvent?.eventName || 'Event'}</title>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+          
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #059669; padding-bottom: 20px; }
-          .logo { width: 80px; height: 80px; margin: 0 auto 15px; border-radius: 50%; }
-          .title { font-size: 24px; font-weight: bold; color: #059669; margin-bottom: 5px; }
-          .subtitle { font-size: 14px; color: #666; }
-          .event-info { background: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-          .event-name { font-size: 18px; font-weight: bold; color: #166534; margin-bottom: 10px; }
-          .event-details { display: flex; justify-content: space-between; font-size: 12px; color: #555; flex-wrap: wrap; gap: 10px; }
-          .stats { display: flex; gap: 30px; margin-bottom: 20px; }
-          .stat-item { text-align: center; padding: 10px 20px; background: #f8fafc; border-radius: 8px; }
-          .stat-value { font-size: 24px; font-weight: bold; color: #059669; }
-          .stat-label { font-size: 11px; color: #666; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-          th { background: #059669; color: white; padding: 10px 5px; text-align: center; font-weight: 600; }
-          th:first-child, td:first-child { text-align: center; }
-          td { padding: 8px 5px; border-bottom: 1px solid #e5e7eb; text-align: center; }
-          tr:nth-child(even) { background: #f9fafb; }
-          tr:hover { background: #f0fdf4; }
-          .rank-1 { background: linear-gradient(90deg, #fef3c7, #fef9c3) !important; }
-          .rank-2 { background: linear-gradient(90deg, #e5e7eb, #f3f4f6) !important; }
-          .rank-3 { background: linear-gradient(90deg, #fed7aa, #ffedd5) !important; }
-          .contestant-name { text-align: left !important; font-weight: 500; }
-          .score { font-weight: 600; }
-          .total { color: #059669; font-weight: bold; }
-          .average { color: #7c3aed; font-weight: bold; }
-          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; font-size: 10px; color: #888; }
-          .no-score { color: #9ca3af; }
+          body { 
+            font-family: 'Poppins', Arial, sans-serif; 
+            padding: 20px 25px; 
+            color: #1f2937; 
+            font-size: 11px;
+            background: #fff;
+            line-height: 1.4;
+          }
+          
+          /* Header Styles */
+          .header { 
+            text-align: center; 
+            margin-bottom: 25px; 
+            padding-bottom: 20px;
+            border-bottom: 4px solid #059669;
+            position: relative;
+          }
+          .header::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, #10b981, #059669);
+          }
+          .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 10px;
+          }
+          .logo { 
+            width: 70px; 
+            height: 70px; 
+            border-radius: 50%; 
+            border: 3px solid #059669;
+            object-fit: cover;
+          }
+          .header-text {
+            text-align: left;
+          }
+          .school-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #059669;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
+          .title { 
+            font-size: 22px; 
+            font-weight: 700; 
+            color: #064e3b; 
+            margin: 3px 0;
+            letter-spacing: 0.5px;
+          }
+          .subtitle { 
+            font-size: 12px; 
+            color: #6b7280; 
+            font-weight: 500;
+          }
+          
+          /* Event Info Box */
+          .event-info { 
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); 
+            padding: 15px 20px; 
+            border-radius: 12px; 
+            margin-bottom: 20px;
+            border: 1px solid #a7f3d0;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+          }
+          .event-name { 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #065f46; 
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px dashed #a7f3d0;
+          }
+          .event-details { 
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            font-size: 10px; 
+            color: #047857;
+          }
+          .event-details span {
+            background: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            text-align: center;
+          }
+          .event-details strong {
+            display: block;
+            font-size: 9px;
+            color: #6b7280;
+            margin-bottom: 2px;
+          }
+          
+          /* Section Titles */
+          .section-title { 
+            background: linear-gradient(90deg, #f3f4f6, #e5e7eb); 
+            padding: 10px 15px; 
+            margin: 20px 0 12px; 
+            border-radius: 8px; 
+            font-weight: 700; 
+            font-size: 13px;
+            border-left: 4px solid #059669;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          
+          /* Table Styles */
+          table { 
+            width: 100%; 
+            border-collapse: separate; 
+            border-spacing: 0;
+            margin-bottom: 20px; 
+            font-size: 10px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+          }
+          th { 
+            background: linear-gradient(180deg, #059669, #047857); 
+            color: white; 
+            padding: 10px 6px; 
+            text-align: center; 
+            font-weight: 600; 
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          th.main-header { 
+            background: linear-gradient(180deg, #2563eb, #1d4ed8); 
+          }
+          th.final-header { 
+            background: linear-gradient(180deg, #7c3aed, #6d28d9); 
+          }
+          th.main-criteria { 
+            background: linear-gradient(180deg, #3b82f6, #2563eb); 
+            font-size: 8px;
+          }
+          th.final-criteria { 
+            background: linear-gradient(180deg, #8b5cf6, #7c3aed);
+            font-size: 8px;
+          }
+          td { 
+            padding: 8px 6px; 
+            border-bottom: 1px solid #e5e7eb; 
+            text-align: center;
+            background: white;
+          }
+          tr:nth-child(even) td { 
+            background: #f9fafb; 
+          }
+          tr:hover td {
+            background: #ecfdf5;
+          }
+          
+          /* Rank Highlighting */
+          .rank-1 td { 
+            background: linear-gradient(90deg, #fef3c7, #fde68a) !important; 
+            font-weight: 600;
+          }
+          .rank-2 td { 
+            background: linear-gradient(90deg, #e5e7eb, #d1d5db) !important; 
+          }
+          .rank-3 td { 
+            background: linear-gradient(90deg, #fed7aa, #fdba74) !important; 
+          }
+          
+          .contestant-name { 
+            text-align: left !important; 
+            font-weight: 500; 
+            font-size: 10px;
+            padding-left: 10px !important;
+          }
+          .score { 
+            font-weight: 600;
+            color: #1f2937;
+          }
+          .total { 
+            color: #059669; 
+            font-weight: 700; 
+          }
+          .main-total { 
+            color: #1d4ed8; 
+            font-weight: 700;
+            background: #dbeafe !important;
+          }
+          .final-total { 
+            color: #6d28d9; 
+            font-weight: 700;
+            background: #ede9fe !important;
+          }
+          .no-score { 
+            color: #9ca3af; 
+          }
+          
+          /* Judge Section */
+          .judge-section { 
+            margin-bottom: 30px; 
+            page-break-inside: avoid;
+          }
+          .judge-title { 
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); 
+            padding: 12px 18px; 
+            border-radius: 10px; 
+            margin-bottom: 12px;
+            border: 1px solid #d8b4fe;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .judge-badge {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+          }
+          .judge-name { 
+            font-weight: 700; 
+            color: #5b21b6; 
+            font-size: 13px;
+          }
+          
+          /* Summary Table */
+          .summary-table { 
+            margin-top: 25px; 
+          }
+          .summary-table th { 
+            background: linear-gradient(180deg, #064e3b, #047857); 
+          }
+          
+          /* Signature Section */
+          .signature-section {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            page-break-inside: avoid;
+          }
+          .signature-box {
+            text-align: center;
+          }
+          .signature-line {
+            border-top: 2px solid #374151;
+            margin-top: 50px;
+            padding-top: 8px;
+          }
+          .signature-label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 11px;
+          }
+          .signature-title {
+            font-size: 9px;
+            color: #6b7280;
+          }
+          
+          /* Footer */
+          .footer { 
+            text-align: center; 
+            margin-top: 30px; 
+            padding-top: 20px; 
+            border-top: 3px double #d1d5db; 
+            font-size: 9px; 
+            color: #6b7280;
+          }
+          .footer p {
+            margin: 3px 0;
+          }
+          .footer-brand {
+            font-weight: 600;
+            color: #059669;
+          }
+          
+          /* Print Optimization */
           @media print {
-            body { padding: 10px; }
-            .header { margin-bottom: 15px; padding-bottom: 10px; }
-            table { font-size: 10px; }
-            th, td { padding: 5px 3px; }
+            body { 
+              padding: 15px; 
+              font-size: 10px; 
+            }
+            .header { 
+              margin-bottom: 15px; 
+              padding-bottom: 12px; 
+            }
+            table { 
+              font-size: 9px;
+              box-shadow: none;
+            }
+            th, td { 
+              padding: 6px 4px; 
+            }
+            .judge-section { 
+              page-break-inside: avoid; 
+            }
+            .signature-section {
+              page-break-inside: avoid;
+            }
           }
         </style>
       </head>
       <body>
         <div class="header">
-          <img src="/logo.jpg" alt="Logo" class="logo" onerror="this.style.display='none'" />
-          <div class="title">Judging & Tabulation System</div>
-          <div class="subtitle">Official Score Sheet</div>
+          <div class="logo-container">
+            <img src="/logo.jpg" alt="Logo" class="logo" onerror="this.style.display='none'" />
+            <div class="header-text">
+              <div class="school-name">Bongabong, Oriental Mindoro</div>
+              <div class="title">Judging & Tabulation System</div>
+              <div class="subtitle">Official Score Sheet Document</div>
+            </div>
+          </div>
         </div>
         
         <div class="event-info">
-          <div class="event-name">${selectedEvent?.eventName || 'Event'}</div>
+          <div class="event-name">📋 ${selectedEvent?.eventName || 'Event'}</div>
           <div class="event-details">
-            <span><strong>Date:</strong> ${selectedEvent?.date || 'N/A'}</span>
-            <span><strong>Venue:</strong> ${selectedEvent?.venue || 'N/A'}</span>
-            <span><strong>Status:</strong> ${selectedEvent?.status || 'N/A'}</span>
-            <span><strong>Printed:</strong> ${new Date().toLocaleString()}</span>
+            <span><strong>Date</strong>${selectedEvent?.date || 'N/A'}</span>
+            <span><strong>Venue</strong>${selectedEvent?.venue || 'N/A'}</span>
+            <span><strong>Contestants</strong>${sortedContestants.length}</span>
+            <span><strong>Judges</strong>${eventJudges.length}</span>
+            <span><strong>Generated</strong>${new Date().toLocaleDateString()}</span>
           </div>
         </div>
-        
-        <div class="stats">
-          <div class="stat-item">
-            <div class="stat-value">${sortedContestants.length}</div>
-            <div class="stat-label">Total Contestants</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">${eventJudges.length}</div>
-            <div class="stat-label">Total Judges</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">${sortedContestants.filter(c => c.scoredJudges > 0).length}</div>
-            <div class="stat-label">Scored Contestants</div>
-          </div>
-        </div>
-        
-        <table>
+
+        <!-- Individual Judge Scores Section -->
+        ${eventJudges.map((judge, judgeIndex) => {
+          const judgeScoreDocuments = scores.filter(s => 
+            s.judgeId === judge.id && 
+            s.eventId === selectedEvent?.id
+          );
+          
+          const latestMainScores = {};
+          const latestFinalScores = {};
+          judgeScoreDocuments.forEach(score => {
+            if (score.isFinalRound) {
+              if (!latestFinalScores[score.contestantId] || 
+                  new Date(score.timestamp) > new Date(latestFinalScores[score.contestantId].timestamp)) {
+                latestFinalScores[score.contestantId] = score;
+              }
+            } else {
+              if (!latestMainScores[score.contestantId] || 
+                  new Date(score.timestamp) > new Date(latestMainScores[score.contestantId].timestamp)) {
+                latestMainScores[score.contestantId] = score;
+              }
+            }
+          });
+          
+          return `
+            <div class="judge-section">
+              <div class="judge-title">
+                <div class="judge-badge">${judgeIndex + 1}</div>
+                <span class="judge-name">Judge ${judgeIndex + 1} Score Sheet</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th rowspan="2" style="width: 35px; border-radius: 10px 0 0 0;">No.</th>
+                    <th rowspan="2" style="min-width: 120px;">Contestant Name</th>
+                    ${mainCriteria.length > 0 ? `<th colspan="${mainCriteria.length + 1}" class="main-header">📋 Main Criteria</th>` : ''}
+                    ${hasFinalRound ? `<th colspan="${finalCriteria.length + 1}" class="final-header" style="border-radius: 0 10px 0 0;">🏆 Final Criteria</th>` : ''}
+                  </tr>
+                  <tr>
+                    ${mainCriteria.map(c => `<th class="main-criteria" title="${c.name} (${c.weight}%)">${c.name.substring(0, 15)}${c.name.length > 15 ? '...' : ''}<br/><small>(${c.weight}%)</small></th>`).join('')}
+                    ${mainCriteria.length > 0 ? `<th class="main-header" style="font-size: 10px;">Total</th>` : ''}
+                    ${hasFinalRound ? finalCriteria.map(c => `<th class="final-criteria" title="${c.name} (${c.weight}%)">${c.name.substring(0, 15)}${c.name.length > 15 ? '...' : ''}<br/><small>(${c.weight}%)</small></th>`).join('') : ''}
+                    ${hasFinalRound ? `<th class="final-header" style="font-size: 10px;">Total</th>` : ''}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sortedContestants.map(contestant => {
+                    const mainScoreData = latestMainScores[contestant.id];
+                    const finalScoreData = latestFinalScores[contestant.id];
+                    const mainScoresObj = mainScoreData?.scores || {};
+                    const finalScoresObj = finalScoreData?.scores || {};
+                    
+                    let mainTotal = 0;
+                    mainCriteria.forEach(criterion => {
+                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const score = mainScoresObj[key] || 0;
+                      mainTotal += score * (criterion.weight / 100);
+                    });
+                    
+                    let finalTotal = 0;
+                    finalCriteria.forEach(criterion => {
+                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const finalKey = 'final_' + key;
+                      const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
+                      finalTotal += score * (criterion.weight / 100);
+                    });
+                    
+                    // Build main criteria cells
+                    let mainCells = mainCriteria.map(criterion => {
+                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const score = mainScoresObj[key] || 0;
+                      return '<td class="' + (score > 0 ? 'score' : 'no-score') + '">' + (score > 0 ? score : '-') + '</td>';
+                    }).join('');
+                    
+                    // Build final criteria cells
+                    let finalCells = finalCriteria.map(criterion => {
+                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const finalKey = 'final_' + key;
+                      const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
+                      return '<td class="' + (score > 0 ? 'score' : 'no-score') + '">' + (score > 0 ? score : '-') + '</td>';
+                    }).join('');
+                    
+                    return '<tr>' +
+                      '<td style="font-weight: 600;">' + (contestant.contestantNumber || contestant.contestantNo || '-') + '</td>' +
+                      '<td class="contestant-name">' + (contestant.contestantName || ((contestant.firstName || '') + ' ' + (contestant.lastName || '')).trim() || 'Unknown') + '</td>' +
+                      mainCells +
+                      (mainCriteria.length > 0 ? '<td class="main-total">' + (mainTotal > 0 ? mainTotal.toFixed(1) : '-') + '</td>' : '') +
+                      (hasFinalRound ? finalCells : '') +
+                      (hasFinalRound ? '<td class="final-total">' + (finalTotal > 0 ? finalTotal.toFixed(1) : '-') + '</td>' : '') +
+                      '</tr>';
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }).join('')}
+
+        <!-- Overall Summary / Rankings -->
+        <div class="section-title">🏆 Final Rankings Summary (Average of All Judges)</div>
+        <table class="summary-table">
           <thead>
             <tr>
-              <th style="width: 40px;">Rank</th>
-              <th style="width: 40px;">No.</th>
-              <th style="min-width: 120px;">Contestant Name</th>
-              ${eventJudges.map((j, i) => `<th>Judge ${i + 1}</th>`).join('')}
-              <th>Final Score</th>
-              <th>Judges</th>
+              <th style="width: 50px; border-radius: 10px 0 0 0;">Rank</th>
+              <th style="width: 45px;">No.</th>
+              <th style="min-width: 150px;">Contestant Name</th>
+              ${mainCriteria.length > 0 ? `<th class="main-header">📋 Main Total</th>` : ''}
+              ${hasFinalRound ? `<th class="final-header">🏆 Final Total</th>` : ''}
+              <th style="border-radius: 0 10px 0 0;">Judges</th>
             </tr>
           </thead>
           <tbody>
-            ${sortedContestants.map((c, index) => `
-              <tr class="${c.rank <= 3 ? `rank-${c.rank}` : ''}">
-                <td><strong>${c.rank <= 3 ? ['🥇', '🥈', '🥉'][c.rank - 1] : c.rank}</strong></td>
-                <td>${c.contestantNumber || c.contestantNo || '-'}</td>
-                <td class="contestant-name">${c.contestantName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown'}</td>
-                ${c.judgeScores.map(js => `<td class="${js.totalScore > 0 ? 'score' : 'no-score'}">${js.totalScore > 0 ? js.totalScore.toFixed(1) : '-'}</td>`).join('')}
-                <td class="total">${c.totalScore.toFixed(1)}</td>
-                <td class="average">${c.scoredJudges}/${eventJudges.length}</td>
+            ${sortedContestants.map(c => `
+              <tr class="${c.rank <= 3 ? 'rank-' + c.rank : ''}">
+                <td style="font-size: 14px;"><strong>${c.rank <= 3 ? ['🥇', '🥈', '🥉'][c.rank - 1] : c.rank}</strong></td>
+                <td style="font-weight: 600;">${c.contestantNumber || c.contestantNo || '-'}</td>
+                <td class="contestant-name">${c.contestantName || (c.firstName + ' ' + c.lastName).trim() || 'Unknown'}</td>
+                ${mainCriteria.length > 0 ? `<td class="main-total">${c.mainScore ? c.mainScore.toFixed(2) : '-'}</td>` : ''}
+                ${hasFinalRound ? `<td class="final-total">${c.finalScore ? c.finalScore.toFixed(2) : '-'}</td>` : ''}
+                <td>${c.scoredJudges}/${eventJudges.length}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
         
+        <!-- Signature Section -->
+        <div class="signature-section">
+          <div class="signature-box">
+            <div class="signature-line">
+              <div class="signature-label">Tabulator</div>
+              <div class="signature-title">Score Manager</div>
+            </div>
+          </div>
+          <div class="signature-box">
+            <div class="signature-line">
+              <div class="signature-label">Event Coordinator</div>
+              <div class="signature-title">Event Management</div>
+            </div>
+          </div>
+          <div class="signature-box">
+            <div class="signature-line">
+              <div class="signature-label">Approved By</div>
+              <div class="signature-title">School Administration</div>
+            </div>
+          </div>
+        </div>
+        
         <div class="footer">
-          <p>This document is generated by the Judging & Tabulation System</p>
-          <p>© ${new Date().getFullYear()} Bongabong National High School - All Rights Reserved</p>
+          <p class="footer-brand">Judging & Tabulation System</p>
+          <p>This document is an official score sheet generated by the system</p>
+          <p>© ${new Date().getFullYear()} Bongabong, Oriental Mindoro - All Rights Reserved</p>
+          <p style="margin-top: 5px; font-size: 8px; color: #9ca3af;">Generated on ${new Date().toLocaleString()}</p>
         </div>
       </body>
       </html>
@@ -773,6 +1335,51 @@ export default function ManageScoreDashboard() {
                 </div>
               </div>
             </div>
+            
+            {/* View Mode Toggle - Main vs Final Criteria */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Score View Mode</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setViewMode('main')}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                    viewMode === 'main'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>📋</span>
+                  Main Criteria
+                </button>
+                <button
+                  onClick={() => setViewMode('final')}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                    viewMode === 'final'
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>🏆</span>
+                  Final Criteria
+                </button>
+                <button
+                  onClick={() => setViewMode('combined')}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                    viewMode === 'combined'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>📊</span>
+                  Combined View
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                {viewMode === 'main' && '📋 Showing scores from MAIN/Preliminary round criteria'}
+                {viewMode === 'final' && '🏆 Showing scores from FINAL round criteria (with final_ prefix)'}
+                {viewMode === 'combined' && '📊 Showing both Main and Final scores side by side'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -847,7 +1454,7 @@ export default function ManageScoreDashboard() {
           </div>
         </div>
 
-        {/* Judges Overview Section */}
+        {/* Judges Overview Section - Detailed Scores per Judge */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
           <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between gap-3">
@@ -856,8 +1463,8 @@ export default function ManageScoreDashboard() {
                   <span className="text-lg sm:text-2xl">👨‍⚖️</span>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base sm:text-lg font-bold text-white">Judges Overview</h2>
-                  <p className="text-xs sm:text-sm text-purple-100 hidden sm:block">All judges assigned to this event with their scoring status</p>
+                  <h2 className="text-base sm:text-lg font-bold text-white">Judges Detailed Scores</h2>
+                  <p className="text-xs sm:text-sm text-purple-100 hidden sm:block">View all scores given by each judge per contestant and criteria</p>
                 </div>
               </div>
               <div className="bg-white/20 backdrop-blur-sm rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 flex-shrink-0">
@@ -875,95 +1482,243 @@ export default function ManageScoreDashboard() {
                 <p className="text-sm text-gray-500">No judges are assigned to this event yet</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {eventJudges.map((judge, index) => {
+              <div className="space-y-6">
+                {eventJudges.map((judge, judgeIndex) => {
                   // Get all score documents for this judge in this event
                   const judgeScoreDocuments = scores.filter(s => 
                     s.judgeId === judge.id && 
                     s.eventId === selectedEvent?.id
                   );
                   
-                  // Get unique contestants scored by this judge (get latest score per contestant)
-                  const latestScoresByContestant = {};
+                  // Get latest score per contestant per round type for this judge
+                  // Keep main and final round scores separately since they're stored in different documents
+                  const latestMainScoresByContestant = {};
+                  const latestFinalScoresByContestant = {};
                   judgeScoreDocuments.forEach(score => {
-                    if (!latestScoresByContestant[score.contestantId] || 
-                        new Date(score.timestamp) > new Date(latestScoresByContestant[score.contestantId].timestamp)) {
-                      latestScoresByContestant[score.contestantId] = score;
+                    if (score.isFinalRound) {
+                      // Final round score document
+                      if (!latestFinalScoresByContestant[score.contestantId] || 
+                          new Date(score.timestamp) > new Date(latestFinalScoresByContestant[score.contestantId].timestamp)) {
+                        latestFinalScoresByContestant[score.contestantId] = score;
+                      }
+                    } else {
+                      // Main round score document
+                      if (!latestMainScoresByContestant[score.contestantId] || 
+                          new Date(score.timestamp) > new Date(latestMainScoresByContestant[score.contestantId].timestamp)) {
+                        latestMainScoresByContestant[score.contestantId] = score;
+                      }
                     }
                   });
                   
-                  const contestantsScored = Object.keys(latestScoresByContestant).length;
-                  
-                  // Calculate average score given by this judge using weighted criteria (same as live scoreboard)
-                  const validScores = Object.values(latestScoresByContestant).filter(s => s.scores && Object.keys(s.scores).length > 0);
-                  let avgScoreGiven = 0;
-                  if (validScores.length > 0) {
-                    const totalWeightedScore = validScores.reduce((sum, s) => {
-                      return sum + calculateJudgeTotalScore(s.scores);
-                    }, 0);
-                    avgScoreGiven = (totalWeightedScore / validScores.length).toFixed(1);
-                  }
-                  
-                  // Scoring progress percentage
+                  // Count contestants that have been scored (either main or final)
+                  const allScoredContestants = new Set([
+                    ...Object.keys(latestMainScoresByContestant),
+                    ...Object.keys(latestFinalScoresByContestant)
+                  ]);
+                  const contestantsScored = allScoredContestants.size;
                   const progressPercent = eventContestants.length > 0 
                     ? Math.round((contestantsScored / eventContestants.length) * 100) 
                     : 0;
                   
+                  // Get criteria for display
+                  const mainCriteria = getCurrentEventCriteria('main');
+                  const finalCriteria = getCurrentEventCriteria('final');
+                  
                   return (
-                    <div 
-                      key={judge.id} 
-                      className="bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all duration-200"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                            <span className="text-white text-lg font-bold">{index + 1}</span>
+                    <div key={judge.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                      {/* Judge Header */}
+                      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md">
+                              <span className="text-white text-sm font-bold">{judgeIndex + 1}</span>
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-gray-900">
+                                Judge {judgeIndex + 1}
+                              </h3>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900 text-sm">
-                              {judge.judgeName || judge.displayName || `Judge ${index + 1}`}
-                            </h3>
-                            <p className="text-xs text-gray-500 truncate max-w-[120px]">{judge.email}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Progress</p>
+                              <p className="text-sm font-bold text-gray-700">{contestantsScored}/{eventContestants.length}</p>
+                            </div>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              progressPercent === 100 ? 'bg-green-100 text-green-700' :
+                              progressPercent > 0 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>
+                              {progressPercent === 100 ? '✓ Complete' : progressPercent > 0 ? 'In Progress' : 'Not Started'}
+                            </span>
                           </div>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          progressPercent === 100 ? 'bg-green-100 text-green-700' :
-                          progressPercent > 0 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>
-                          {progressPercent === 100 ? '✓ Complete' : progressPercent > 0 ? 'In Progress' : 'Not Started'}
-                        </span>
-                      </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="mb-3">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Scoring Progress</span>
-                          <span>{contestantsScored}/{eventContestants.length} contestants</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              progressPercent === 100 ? 'bg-green-500' :
-                              progressPercent > 50 ? 'bg-blue-500' :
-                              progressPercent > 0 ? 'bg-yellow-500' :
-                              'bg-gray-300'
-                            }`}
-                            style={{ width: `${progressPercent}%` }}
-                          ></div>
                         </div>
                       </div>
                       
-                      {/* Judge Stats */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-purple-50 rounded-lg p-2 text-center">
-                          <p className="text-xs text-purple-600 font-medium">Avg Score Given</p>
-                          <p className="text-lg font-bold text-purple-700">{avgScoreGiven || '-'}</p>
-                        </div>
-                        <div className="bg-indigo-50 rounded-lg p-2 text-center">
-                          <p className="text-xs text-indigo-600 font-medium">Scored</p>
-                          <p className="text-lg font-bold text-indigo-700">{contestantsScored}</p>
-                        </div>
+                      {/* Scores Table for this Judge */}
+                      <div className="overflow-x-auto">
+                        {contestantsScored === 0 ? (
+                          <div className="p-6 text-center text-gray-500">
+                            <span className="text-2xl block mb-2">📝</span>
+                            <p className="text-sm">No scores submitted yet</p>
+                          </div>
+                        ) : (
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50">
+                                  Contestant
+                                </th>
+                                {/* Main Criteria Headers */}
+                                {mainCriteria.length > 0 && (
+                                  <>
+                                    {mainCriteria.map((criterion, idx) => (
+                                      <th key={`main-${idx}`} className="px-2 py-2 text-center text-[10px] font-semibold text-blue-600 uppercase tracking-wider bg-blue-50/50">
+                                        <div className="flex flex-col items-center">
+                                          <span className="truncate max-w-[60px]" title={criterion.name}>{criterion.name}</span>
+                                          <span className="text-[9px] text-blue-400 font-normal">({criterion.weight}%)</span>
+                                        </div>
+                                      </th>
+                                    ))}
+                                    <th className="px-2 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider bg-blue-100/50">
+                                      Main Total
+                                    </th>
+                                  </>
+                                )}
+                                {/* Final Criteria Headers */}
+                                {finalCriteria.length > 0 && hasEventFinalRound() && (
+                                  <>
+                                    {finalCriteria.map((criterion, idx) => (
+                                      <th key={`final-${idx}`} className="px-2 py-2 text-center text-[10px] font-semibold text-purple-600 uppercase tracking-wider bg-purple-50/50">
+                                        <div className="flex flex-col items-center">
+                                          <span className="truncate max-w-[60px]" title={criterion.name}>{criterion.name}</span>
+                                          <span className="text-[9px] text-purple-400 font-normal">({criterion.weight}%)</span>
+                                        </div>
+                                      </th>
+                                    ))}
+                                    <th className="px-2 py-2 text-center text-[10px] font-bold text-purple-700 uppercase tracking-wider bg-purple-100/50">
+                                      Final Total
+                                    </th>
+                                  </>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-100">
+                              {eventContestants.map((contestant) => {
+                                // Get separate score documents for main and final rounds
+                                const mainScoreData = latestMainScoresByContestant[contestant.id];
+                                const finalScoreData = latestFinalScoresByContestant[contestant.id];
+                                const mainScoresObj = mainScoreData?.scores || {};
+                                const finalScoresObj = finalScoreData?.scores || {};
+                                
+                                // Calculate main total directly from main round scores
+                                let mainTotal = 0;
+                                if (mainCriteria.length > 0) {
+                                  mainCriteria.forEach(criterion => {
+                                    const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                    const score = mainScoresObj[key] || 0;
+                                    const weight = criterion.weight / 100;
+                                    mainTotal += score * weight;
+                                  });
+                                }
+                                
+                                // Calculate final total directly from final round scores
+                                let finalTotal = 0;
+                                if (finalCriteria.length > 0) {
+                                  finalCriteria.forEach(criterion => {
+                                    const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                    const finalKey = `final_${key}`;
+                                    // Look in final scores document for final_key or key
+                                    const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
+                                    const weight = criterion.weight / 100;
+                                    finalTotal += score * weight;
+                                  });
+                                }
+                                
+                                return (
+                                  <tr key={contestant.id} className={`hover:bg-gray-50 ${!mainScoreData && !finalScoreData ? 'opacity-50' : ''}`}>
+                                    <td className="px-3 py-2 whitespace-nowrap sticky left-0 bg-white">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-semibold text-emerald-700">
+                                          {contestant.contestantNumber || contestant.contestantNo || '?'}
+                                        </span>
+                                        <span className="text-sm font-medium text-gray-900 truncate max-w-[100px]" title={getContestantName(contestant)}>
+                                          {getContestantName(contestant)}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    {/* Main Criteria Scores - from main round score document */}
+                                    {mainCriteria.length > 0 && (
+                                      <>
+                                        {mainCriteria.map((criterion, idx) => {
+                                          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                          const score = mainScoresObj[key] || 0;
+                                          return (
+                                            <td key={`main-${idx}`} className="px-2 py-2 text-center whitespace-nowrap bg-blue-50/30">
+                                              {score > 0 ? (
+                                                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${
+                                                  score >= 90 ? 'bg-green-100 text-green-700' :
+                                                  score >= 80 ? 'bg-blue-100 text-blue-700' :
+                                                  score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                  {score}
+                                                </span>
+                                              ) : (
+                                                <span className="text-gray-300">-</span>
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="px-2 py-2 text-center whitespace-nowrap bg-blue-100/30">
+                                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                                            mainTotal > 0 ? 'bg-blue-200 text-blue-800' : 'text-gray-400'
+                                          }`}>
+                                            {mainTotal > 0 ? mainTotal.toFixed(1) : '-'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    )}
+                                    {/* Final Criteria Scores - from final round score document */}
+                                    {finalCriteria.length > 0 && hasEventFinalRound() && (
+                                      <>
+                                        {finalCriteria.map((criterion, idx) => {
+                                          const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                          const finalKey = `final_${key}`;
+                                          // Look in final scores document
+                                          const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
+                                          return (
+                                            <td key={`final-${idx}`} className="px-2 py-2 text-center whitespace-nowrap bg-purple-50/30">
+                                              {score > 0 ? (
+                                                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${
+                                                  score >= 90 ? 'bg-green-100 text-green-700' :
+                                                  score >= 80 ? 'bg-purple-100 text-purple-700' :
+                                                  score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                  {score}
+                                                </span>
+                                              ) : (
+                                                <span className="text-gray-300">-</span>
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="px-2 py-2 text-center whitespace-nowrap bg-purple-100/30">
+                                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                                            finalTotal > 0 ? 'bg-purple-200 text-purple-800' : 'text-gray-400'
+                                          }`}>
+                                            {finalTotal > 0 ? finalTotal.toFixed(1) : '-'}
+                                          </span>
+                                        </td>
+                                      </>
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
                     </div>
                   );
@@ -976,8 +1731,27 @@ export default function ManageScoreDashboard() {
         {/* Scores Table */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden" ref={printRef}>
           <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-            <h2 className="text-lg font-bold text-gray-900">Score Overview by Criteria</h2>
-            <p className="text-sm text-gray-500">Shows average score per criteria from all judges. Click on a contestant to view detailed breakdown.</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {viewMode === 'main' && '📋 Main Round Scores'}
+                  {viewMode === 'final' && '🏆 Final Round Scores'}
+                  {viewMode === 'combined' && '📊 Combined Scores Overview'}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {viewMode === 'main' && 'Shows average score per main criteria from all judges. Click on a contestant to view detailed breakdown.'}
+                  {viewMode === 'final' && 'Shows average score per final round criteria from all judges. Click on a contestant to view detailed breakdown.'}
+                  {viewMode === 'combined' && 'Shows both main and final round scores side by side. Click on a contestant for details.'}
+                </p>
+              </div>
+              <div className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                viewMode === 'main' ? 'bg-blue-100 text-blue-700' :
+                viewMode === 'final' ? 'bg-purple-100 text-purple-700' :
+                'bg-emerald-100 text-emerald-700'
+              }`}>
+                {viewMode === 'main' ? 'Main Round' : viewMode === 'final' ? 'Final Round' : 'Combined'}
+              </div>
+            </div>
           </div>
           
           {/* Mobile Card View - visible only on small screens */}
@@ -1026,17 +1800,50 @@ export default function ManageScoreDashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs text-gray-500 mb-1">Final Score</div>
-                        <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-lg font-bold bg-emerald-100 text-emerald-700">
-                          {contestant.totalScore.toFixed(1)}
-                        </span>
+                        {viewMode === 'combined' ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex gap-2">
+                              <div className="text-center">
+                                <div className="text-[10px] text-blue-500">Main</div>
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">
+                                  {contestant.mainScore?.toFixed(1) || '0.0'}
+                                </span>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-[10px] text-purple-500">Final</div>
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-700">
+                                  {contestant.finalScore?.toFixed(1) || '0.0'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-sm font-bold bg-emerald-100 text-emerald-700">
+                                📊 {((contestant.mainScore || 0) + (contestant.finalScore || 0)).toFixed(1)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="text-xs text-gray-500 mb-1">{viewMode === 'main' ? 'Main Score' : 'Final Score'}</div>
+                            <span className={`inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-lg font-bold ${
+                              viewMode === 'main' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                            }`}>
+                              {viewMode === 'main' 
+                                ? (contestant.mainScore?.toFixed(1) || '0.0')
+                                : (contestant.finalScore?.toFixed(1) || '0.0')
+                              }
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     
                     {/* Criteria Scores - Compact Grid */}
                     {criteria.length > 0 && (
                       <div className="pt-3 border-t border-gray-100">
-                        <div className="text-xs text-gray-500 mb-2">Criteria Scores (Avg.)</div>
+                        <div className="text-xs text-gray-500 mb-2">
+                          {viewMode === 'main' ? 'Main ' : viewMode === 'final' ? 'Final ' : ''}Criteria Scores (Avg.)
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           {criteria.slice(0, 6).map((criterion, index) => {
                             const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -1075,9 +1882,117 @@ export default function ManageScoreDashboard() {
           <div className="hidden md:block overflow-x-auto">
             {(() => {
               const criteria = getCurrentEventCriteria();
+              const mainCriteria = getMainCriteria();
+              const finalCriteria = getFinalCriteria();
+              
+              // For combined view, show both main and final columns
+              if (viewMode === 'combined') {
+                return (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gradient-to-r from-emerald-600 to-teal-600 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-white/10"
+                            onClick={() => handleSort('rank')}>
+                          <div className="flex items-center">Rank <SortIcon column="rank" /></div>
+                        </th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">No.</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider min-w-[150px]"
+                            onClick={() => handleSort('contestantName')}>
+                          <div className="flex items-center">Contestant <SortIcon column="contestantName" /></div>
+                        </th>
+                        <th className="px-3 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider bg-blue-600/50">
+                          📋 Main Score
+                        </th>
+                        <th className="px-3 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider bg-purple-600/50">
+                          🏆 Final Score
+                        </th>
+                        <th className="px-3 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider bg-emerald-800/50 cursor-pointer hover:bg-white/10"
+                            onClick={() => handleSort('totalScore')}>
+                          <div className="flex items-center justify-center">📊 Combined <SortIcon column="totalScore" /></div>
+                        </th>
+                        <th className="px-3 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider">Judges</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {sortedContestants.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center">
+                            <div className="flex flex-col items-center">
+                              <span className="text-4xl mb-3">📋</span>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-1">No contestants found</h3>
+                              <p className="text-sm text-gray-500">
+                                {searchTerm ? 'Try adjusting your search term' : 'No contestants are registered for this event yet'}
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        sortedContestants.map((contestant) => {
+                          const rankBadge = getRankBadge(contestant.rank);
+                          const combinedTotal = (contestant.mainScore || 0) + (contestant.finalScore || 0);
+                          return (
+                            <tr key={contestant.id} 
+                                className={`hover:bg-emerald-50 cursor-pointer transition-colors duration-150 ${
+                                  contestant.rank === 1 ? 'bg-yellow-50' : 
+                                  contestant.rank === 2 ? 'bg-gray-50' : 
+                                  contestant.rank === 3 ? 'bg-orange-50' : ''
+                                }`}
+                                onClick={() => openDetailModal(contestant)}>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold border ${rankBadge.bg}`}>
+                                  {contestant.rank <= 3 ? rankBadge.icon : contestant.rank}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                  <span className="text-sm font-semibold text-emerald-700">
+                                    {contestant.contestantNumber || contestant.contestantNo || '?'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="text-sm font-semibold text-gray-900">{getContestantName(contestant)}</div>
+                                <div className="text-xs text-gray-500">{contestant.scoredJudges}/{eventJudges.length} judges</div>
+                              </td>
+                              <td className="px-3 py-3 text-center whitespace-nowrap bg-blue-50/50">
+                                <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-bold bg-blue-100 text-blue-700">
+                                  {contestant.mainScore?.toFixed(1) || '0.0'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-center whitespace-nowrap bg-purple-50/50">
+                                <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 text-purple-700">
+                                  {contestant.finalScore?.toFixed(1) || '0.0'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-center whitespace-nowrap bg-emerald-50/50">
+                                <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-bold bg-emerald-100 text-emerald-700">
+                                  {combinedTotal.toFixed(1)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-center whitespace-nowrap">
+                                <span className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700">
+                                  {contestant.scoredJudges}/{eventJudges.length}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                );
+              }
+              
+              // For main or final view, show detailed criteria columns
+              const headerBg = viewMode === 'main' 
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600' 
+                : 'bg-gradient-to-r from-purple-600 to-pink-600';
+              const scoreBg = viewMode === 'main' ? 'bg-blue-50/50' : 'bg-purple-50/50';
+              const scoreClass = viewMode === 'main' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700';
+              
               return (
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gradient-to-r from-emerald-600 to-teal-600 sticky top-0 z-10">
+                  <thead className={`${headerBg} sticky top-0 z-10`}>
                     <tr>
                       <th 
                         className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-white/10 transition-colors"
@@ -1108,16 +2023,16 @@ export default function ManageScoreDashboard() {
                         >
                           <div className="flex flex-col items-center">
                             <span className="truncate max-w-[80px]">{criterion.name}</span>
-                            <span className="text-[10px] text-emerald-200 font-normal">({criterion.weight}%)</span>
+                            <span className="text-[10px] text-white/70 font-normal">({criterion.weight}%)</span>
                           </div>
                         </th>
                       ))}
                       <th 
-                        className="px-3 sm:px-4 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-white/10 transition-colors bg-emerald-700/50"
+                        className="px-3 sm:px-4 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-white/10 transition-colors bg-black/20"
                         onClick={() => handleSort('totalScore')}
                       >
                         <div className="flex items-center justify-center">
-                          Final Score
+                          {viewMode === 'main' ? '📋 Main Score' : '🏆 Final Score'}
                           <SortIcon column="totalScore" />
                         </div>
                       </th>
@@ -1200,13 +2115,16 @@ export default function ManageScoreDashboard() {
                                 </td>
                               );
                             })}
-                            <td className="px-3 sm:px-4 py-3 text-center whitespace-nowrap bg-emerald-50/50">
-                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-bold bg-emerald-100 text-emerald-700">
-                                {contestant.totalScore.toFixed(1)}
+                            <td className={`px-3 sm:px-4 py-3 text-center whitespace-nowrap ${scoreBg}`}>
+                              <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-bold ${scoreClass}`}>
+                                {viewMode === 'main' 
+                                  ? (contestant.mainScore?.toFixed(1) || '0.0')
+                                  : (contestant.finalScore?.toFixed(1) || '0.0')
+                                }
                               </span>
                             </td>
                             <td className="px-3 sm:px-4 py-3 text-center whitespace-nowrap">
-                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700">
+                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700">
                                 {contestant.scoredJudges}/{eventJudges.length}
                               </span>
                             </td>
@@ -1218,87 +2136,6 @@ export default function ManageScoreDashboard() {
                 </table>
               );
             })()}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <span className="text-lg">⚡</span> Quick Actions
-            </h3>
-            <div className="space-y-2">
-              <button
-                onClick={() => router.push('/scoreboard')}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                View Live Scoreboard
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh Data
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <span className="text-lg">ℹ️</span> System Info
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                <span className="text-gray-500">User Role</span>
-                <span className="font-semibold text-gray-900">Score Manager</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                <span className="text-gray-500">Access Level</span>
-                <span className="font-semibold text-emerald-600">View Only</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5">
-                <span className="text-gray-500">Status</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                  Active
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <span className="text-lg">📊</span> Event Summary
-            </h3>
-            {selectedEvent ? (
-              <div className="space-y-2 text-sm">
-                <div className="py-1.5 border-b border-gray-100">
-                  <span className="text-gray-500 block text-xs">Event Name</span>
-                  <span className="font-semibold text-gray-900 truncate block">{selectedEvent.eventName}</span>
-                </div>
-                <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                  <span className="text-gray-500">Status</span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    selectedEvent.status === 'ongoing' ? 'bg-green-100 text-green-800' :
-                    selectedEvent.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {selectedEvent.status}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-1.5">
-                  <span className="text-gray-500">Criteria</span>
-                  <span className="font-semibold text-gray-900">{selectedEvent.criteria?.length || 0}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Select an event to view summary</p>
-            )}
           </div>
         </div>
       </main>
@@ -1346,28 +2183,52 @@ export default function ManageScoreDashboard() {
 
               {/* Content */}
               <div className="p-4 sm:p-6 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
-                {/* Score Summary */}
-                <div className="grid grid-cols-1 gap-4 mb-6">
-                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 sm:p-4 text-center border border-emerald-200">
-                    <p className="text-xs sm:text-sm text-emerald-600 font-medium mb-1">Final Score (Same as Live Scoreboard)</p>
-                    <p className="text-3xl sm:text-4xl font-bold text-emerald-700">{selectedContestant.totalScore.toFixed(1)}</p>
-                    <p className="text-xs text-emerald-500 mt-1">Aggregated from {selectedContestant.scoredJudges} judge(s)</p>
+                {/* Score Summary - Main and Final */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 sm:p-4 text-center border border-blue-200">
+                    <p className="text-xs sm:text-sm text-blue-600 font-medium mb-1">📋 Main Round Score</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-blue-700">{selectedContestant.mainScore?.toFixed(1) || '0.0'}</p>
+                    <p className="text-xs text-blue-500 mt-1">Preliminary/Main criteria</p>
+                  </div>
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-3 sm:p-4 text-center border border-purple-200">
+                    <p className="text-xs sm:text-sm text-purple-600 font-medium mb-1">🏆 Final Round Score</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-purple-700">{selectedContestant.finalScore?.toFixed(1) || '0.0'}</p>
+                    <p className="text-xs text-purple-500 mt-1">Final round criteria</p>
                   </div>
                 </div>
 
-                {/* Criteria Breakdown */}
-                {selectedContestant.criteriaScores && Object.keys(selectedContestant.criteriaScores).length > 0 && (
+                {/* Main Criteria Breakdown */}
+                {selectedContestant.mainCriteriaScores && Object.keys(selectedContestant.mainCriteriaScores).length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <span>📊</span> Criteria Breakdown (Averaged across all judges)
+                      <span>📋</span> Main Criteria Breakdown
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {Object.entries(selectedContestant.criteriaScores).map(([criteria, score]) => (
-                        <div key={criteria} className="bg-gray-50 rounded-lg p-3 text-center border border-gray-200">
-                          <p className="text-xs text-gray-500 mb-1 capitalize">
+                      {Object.entries(selectedContestant.mainCriteriaScores).map(([criteria, score]) => (
+                        <div key={criteria} className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
+                          <p className="text-xs text-blue-600 mb-1 capitalize">
                             {criteria.replace(/_/g, ' ')}
                           </p>
-                          <p className="text-xl font-bold text-gray-900">{typeof score === 'number' ? score.toFixed(1) : score}</p>
+                          <p className="text-xl font-bold text-blue-800">{typeof score === 'number' ? score.toFixed(1) : score}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Final Criteria Breakdown */}
+                {selectedContestant.finalCriteriaScores && Object.keys(selectedContestant.finalCriteriaScores).length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <span>🏆</span> Final Criteria Breakdown
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {Object.entries(selectedContestant.finalCriteriaScores).map(([criteria, score]) => (
+                        <div key={criteria} className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
+                          <p className="text-xs text-purple-600 mb-1 capitalize">
+                            {criteria.replace(/_/g, ' ')}
+                          </p>
+                          <p className="text-xl font-bold text-purple-800">{typeof score === 'number' ? score.toFixed(1) : score}</p>
                         </div>
                       ))}
                     </div>
@@ -1376,7 +2237,7 @@ export default function ManageScoreDashboard() {
 
                 {/* Judge Scores Breakdown */}
                 <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <span>📋</span> Detailed Scores by Judge
+                  <span>👨‍⚖️</span> Detailed Scores by Judge
                 </h4>
                 
                 <div className="space-y-4">
@@ -1390,33 +2251,61 @@ export default function ManageScoreDashboard() {
                           <span className="font-semibold text-gray-900">Judge {index + 1}</span>
                           <span className="text-sm text-gray-500">({js.judgeName})</span>
                         </div>
-                        {js.totalScore > 0 ? (
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                            js.totalScore >= 90 ? 'bg-green-100 text-green-700' :
-                            js.totalScore >= 80 ? 'bg-blue-100 text-blue-700' :
-                            js.totalScore >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-gray-100 text-gray-700'
+                        <div className="flex gap-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            js.mainScore > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'
                           }`}>
-                            {js.totalScore.toFixed(2)}
+                            Main: {js.mainScore?.toFixed(1) || '-'}
                           </span>
-                        ) : (
-                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-400">
-                            Not scored
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            js.finalScore > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            Final: {js.finalScore?.toFixed(1) || '-'}
                           </span>
-                        )}
+                        </div>
                       </div>
                       
-                      {js.totalScore > 0 && Object.keys(js.scores).length > 0 && (
+                      {(js.mainScore > 0 || js.finalScore > 0) && Object.keys(js.scores).length > 0 && (
                         <div className="p-4">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {Object.entries(js.scores).map(([criteria, score]) => (
-                              <div key={criteria} className="bg-gray-50 rounded-lg p-3 text-center">
-                                <p className="text-xs text-gray-500 mb-1 capitalize">
-                                  {criteria.replace(/_/g, ' ')}
-                                </p>
-                                <p className="text-lg font-bold text-gray-900">{score}</p>
+                          {/* Separate Main and Final scores */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Main Round Scores */}
+                            <div>
+                              <p className="text-xs font-semibold text-blue-600 mb-2">📋 Main Round</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {Object.entries(js.scores)
+                                  .filter(([key]) => !key.startsWith('final_'))
+                                  .map(([criteria, score]) => (
+                                    <div key={criteria} className="bg-blue-50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-blue-500 mb-0.5 capitalize">
+                                        {criteria.replace(/_/g, ' ')}
+                                      </p>
+                                      <p className="text-sm font-bold text-blue-800">{score}</p>
+                                    </div>
+                                  ))}
                               </div>
-                            ))}
+                            </div>
+                            {/* Final Round Scores */}
+                            <div>
+                              <p className="text-xs font-semibold text-purple-600 mb-2">🏆 Final Round</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {Object.entries(js.scores)
+                                  .filter(([key]) => key.startsWith('final_'))
+                                  .map(([criteria, score]) => (
+                                    <div key={criteria} className="bg-purple-50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-purple-500 mb-0.5 capitalize">
+                                        {criteria.replace('final_', '').replace(/_/g, ' ')}
+                                      </p>
+                                      <p className="text-sm font-bold text-purple-800">{score}</p>
+                                    </div>
+                                  ))}
+                                {Object.entries(js.scores).filter(([key]) => key.startsWith('final_')).length === 0 && (
+                                  <div className="col-span-2 text-center text-xs text-gray-400 py-2">
+                                    No final round scores yet
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}

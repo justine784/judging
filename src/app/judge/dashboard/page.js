@@ -43,6 +43,8 @@ export default function JudgeDashboard() {
   const [scoredContestantsFinal, setScoredContestantsFinal] = useState(new Set()); // Track which contestants have been scored in final rounds
   const [showFinalistsOnly, setShowFinalistsOnly] = useState(false); // Track if showing finalists only
   const [eventCurrentRound, setEventCurrentRound] = useState('preliminary'); // Track admin-set current round from event
+  const [previousContestantInfo, setPreviousContestantInfo] = useState(null); // Track previous contestant score when navigating
+  const [showPreviousScore, setShowPreviousScore] = useState(false); // Control visibility of previous score notification
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
@@ -1346,6 +1348,19 @@ export default function JudgeDashboard() {
   // Navigation functions
   const goToPreviousContestant = () => {
     if (currentContestantIndex > 0) {
+      // Store current contestant's score before navigating
+      const currentContestantData = contestants[currentContestantIndex];
+      if (currentContestantData) {
+        setPreviousContestantInfo({
+          name: currentContestantData.contestantName,
+          number: currentContestantData.contestantNo,
+          totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
+        });
+        setShowPreviousScore(true);
+        // Auto-hide after 3 seconds
+        setTimeout(() => setShowPreviousScore(false), 3000);
+      }
+      
       const newIndex = currentContestantIndex - 1;
       const contestant = contestants[newIndex];
       setCurrentContestantIndex(newIndex);
@@ -1365,6 +1380,19 @@ export default function JudgeDashboard() {
 
   const goToNextContestant = () => {
     if (currentContestantIndex < contestants.length - 1) {
+      // Store current contestant's score before navigating
+      const currentContestantData = contestants[currentContestantIndex];
+      if (currentContestantData) {
+        setPreviousContestantInfo({
+          name: currentContestantData.contestantName,
+          number: currentContestantData.contestantNo,
+          totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
+        });
+        setShowPreviousScore(true);
+        // Auto-hide after 3 seconds
+        setTimeout(() => setShowPreviousScore(false), 3000);
+      }
+      
       const newIndex = currentContestantIndex + 1;
       const contestant = contestants[newIndex];
       setCurrentContestantIndex(newIndex);
@@ -1386,6 +1414,19 @@ export default function JudgeDashboard() {
 
   const selectContestantByIndex = (index) => {
     if (index >= 0 && index < contestants.length) {
+      // Store current contestant's score before navigating
+      const currentContestantData = contestants[currentContestantIndex];
+      if (currentContestantData && index !== currentContestantIndex) {
+        setPreviousContestantInfo({
+          name: currentContestantData.contestantName,
+          number: currentContestantData.contestantNo,
+          totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
+        });
+        setShowPreviousScore(true);
+        // Auto-hide after 3 seconds
+        setTimeout(() => setShowPreviousScore(false), 3000);
+      }
+      
       // Determine slide direction
       if (index > currentContestantIndex) {
         setSlideDirection('left'); // Next contestant - slide left
@@ -2449,6 +2490,31 @@ export default function JudgeDashboard() {
               </button>
             </div>
 
+            {/* Previous Contestant Score Notification */}
+            {showPreviousScore && previousContestantInfo && (
+              <div className="px-2.5 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base">📊</span>
+                    <div>
+                      <p className="text-[10px] sm:text-xs font-medium text-blue-600">Previous Contestant</p>
+                      <p className="text-xs sm:text-sm font-bold text-blue-800">#{previousContestantInfo.number} - {previousContestantInfo.name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] sm:text-xs font-medium text-blue-600">Total Score</p>
+                    <p className="text-sm sm:text-lg font-extrabold text-blue-800">{previousContestantInfo.totalScore}</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowPreviousScore(false)}
+                    className="ml-2 text-blue-400 hover:text-blue-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Card Body: Quick Scoring - Mobile Optimized */}
             <div className="p-2.5 sm:p-4 md:p-6 max-h-[500px] sm:max-h-[600px] overflow-y-auto">
               {/* Warning Banner */}
@@ -2726,6 +2792,35 @@ export default function JudgeDashboard() {
                 );
               })()}
             </div>
+
+            {/* Previous Contestant Score Notification - Desktop */}
+            {showPreviousScore && previousContestantInfo && (
+              <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-200 shadow-sm animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <span className="text-xl">📊</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Previous Contestant</p>
+                      <p className="text-lg font-bold text-blue-800">#{previousContestantInfo.number} - {previousContestantInfo.name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right bg-white/80 px-4 py-2 rounded-xl border border-blue-200">
+                      <p className="text-xs font-medium text-blue-600">Total Score</p>
+                      <p className="text-2xl font-extrabold text-blue-800">{previousContestantInfo.totalScore}</p>
+                    </div>
+                    <button 
+                      onClick={() => setShowPreviousScore(false)}
+                      className="text-blue-400 hover:text-blue-600 text-lg p-2 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Contestant Cards Grid - Show exactly 3 per page - Enhanced */}

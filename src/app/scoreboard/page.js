@@ -91,7 +91,6 @@ export default function LiveScoreboard() {
   const [highestScorer, setHighestScorer] = useState(null);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [selectedRound, setSelectedRound] = useState('all'); // Round filter state
   const [showFinalRoundsOnly, setShowFinalRoundsOnly] = useState(false); // Final rounds filter state
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isLive, setIsLive] = useState(true);
@@ -270,54 +269,6 @@ export default function LiveScoreboard() {
       totalScores,
       completedEvaluations
     };
-  };
-
-  // Function to filter contestants by selected round
-  const filterContestantsByRound = (contestantsList, roundFilter) => {
-    if (!selectedEvent) {
-      return contestantsList;
-    }
-    
-    // Apply final rounds filter if active
-    if (showFinalRoundsOnly) {
-      contestantsList = filterFinalRoundContestants(contestantsList);
-    }
-    
-    // If no specific round filter selected, return the (possibly filtered) list
-    if (roundFilter === 'all') {
-      return contestantsList;
-    }
-    
-    if (!selectedEvent.rounds || selectedEvent.rounds.length === 0) {
-      return contestantsList;
-    }
-    
-    // Find selected round
-    const selectedRoundData = selectedEvent.rounds.find(round => round.name === roundFilter);
-    if (!selectedRoundData) {
-      return contestantsList;
-    }
-    
-    // Show all contestants for this round, but mark eliminated ones
-    return contestantsList.filter(contestant => {
-      // Check if contestant has scores for this specific round
-      const roundScores = scores.filter(score => 
-        score.contestantId === contestant.id && 
-        score.eventId === selectedEvent.id &&
-        score.roundName === roundFilter
-      );
-      
-      // If no round-specific scores, check if they have general scores (for compatibility)
-      if (roundScores.length === 0) {
-        const generalScores = scores.filter(score => 
-          score.contestantId === contestant.id && 
-          score.eventId === selectedEvent.id
-        );
-        return generalScores.length > 0;
-      }
-      
-      return roundScores.length > 0;
-    });
   };
 
   // Function to filter final round contestants only
@@ -1144,7 +1095,6 @@ export default function LiveScoreboard() {
                   onChange={(e) => {
                     const event = events.find(ev => ev.id === e.target.value);
                     setSelectedEvent(event);
-                    setSelectedRound('all'); // Reset round filter when event changes
                   }}
                   className="block w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border-2 border-slate-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 bg-white shadow-sm hover:border-emerald-300 font-medium text-slate-800"
                 >
@@ -1155,25 +1105,6 @@ export default function LiveScoreboard() {
                   ))}
                 </select>
               </div>
-              
-              {/* Round Filter */}
-              {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && (
-                <div className="w-full">
-                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5 sm:mb-2">Filter by Round</label>
-                  <select
-                    value={selectedRound}
-                    onChange={(e) => setSelectedRound(e.target.value)}
-                    className="block w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border-2 border-slate-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-all duration-200 bg-white shadow-sm hover:border-purple-300 font-medium text-slate-800"
-                  >
-                    <option value="all">🏆 All Rounds</option>
-                    {selectedEvent.rounds.map((round, index) => (
-                      <option key={index} value={round.name}>
-                        🎯 {round.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
               
               {/* Final Rounds Only Filter */}
               {selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0 && getFinalRoundName() && (
@@ -1238,16 +1169,11 @@ export default function LiveScoreboard() {
                     </div>
                   </div>
                   {/* Current Filter Display */}
-                  {(selectedRound !== 'all' || showFinalRoundsOnly) && (
+                  {showFinalRoundsOnly && (
                     <div className="flex justify-center mt-2 sm:mt-3">
                       <div className="bg-white/20 backdrop-blur-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border border-white/30">
                         <span className="text-white font-bold text-xs sm:text-sm">
-                          {showFinalRoundsOnly && selectedRound === 'all' 
-                            ? `🏆 Finalists (${filterFinalRoundContestants(contestants).length})`
-                            : selectedRound !== 'all' 
-                            ? `🎯 ${selectedRound}`
-                            : `🏆 Finalists (${filterFinalRoundContestants(contestants).length})`
-                          }
+                          🏆 Finalists ({filterFinalRoundContestants(contestants).length})
                         </span>
                       </div>
                     </div>
@@ -1416,7 +1342,7 @@ export default function LiveScoreboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filterContestantsByRound(contestants, selectedRound).map((contestant, index) => {
+                {(showFinalRoundsOnly ? filterFinalRoundContestants(contestants) : contestants).map((contestant, index) => {
                   const rank = index + 1;
                   const rankColorClass = getRankColor(rank);
                   const isRecentlyUpdated = updatedContestants.has(contestant.id);

@@ -387,6 +387,56 @@ export default function LiveScoreboard() {
     return finalRound.criteria.filter(c => c.enabled && c.name && c.name.trim() !== '');
   };
 
+  // Get criteria separated for three-table layout (same as judge dashboard)
+  const getThreeTableCriteria = () => {
+    const criteria = getCurrentEventCriteria();
+    
+    // Check if any criteria have a category (sub-criteria exist)
+    const hasSubCriteria = criteria.some(c => c.category !== null && c.category !== undefined);
+    
+    if (!hasSubCriteria) {
+      // No sub-criteria, return single table structure
+      return {
+        showSingleTable: true,
+        category1: [],
+        category2: [],
+        combined: criteria
+      };
+    }
+    
+    // Group criteria by category
+    const categoryGroups = {};
+    criteria.forEach(criterion => {
+      const categoryName = criterion.category || 'General';
+      if (!categoryGroups[categoryName]) {
+        categoryGroups[categoryName] = [];
+      }
+      categoryGroups[categoryName].push(criterion);
+    });
+    
+    const categoryNames = Object.keys(categoryGroups);
+    
+    // If we have exactly 2 categories, create three tables
+    if (categoryNames.length === 2) {
+      return {
+        showSingleTable: false,
+        category1: categoryGroups[categoryNames[0]] || [],
+        category2: categoryGroups[categoryNames[1]] || [],
+        combined: criteria,
+        category1Name: categoryNames[0],
+        category2Name: categoryNames[1]
+      };
+    }
+    
+    // Fallback to single table for other cases
+    return {
+      showSingleTable: true,
+      category1: [],
+      category2: [],
+      combined: criteria
+    };
+  };
+
   // Helper function to get criteria from event (same as judge dashboard)
   const getCurrentEventCriteria = () => {
     if (!selectedEvent) {
@@ -594,6 +644,203 @@ export default function LiveScoreboard() {
       judgeCount,
       criteriaScores
     };
+  };
+
+  // Helper function to render a single scoreboard table
+  const renderScoreboardTable = (tableCriteria, tableName, showCategoryHeaders = true) => {
+    if (!tableCriteria || tableCriteria.length === 0) return null;
+    
+    return (
+      <div className="mb-6">
+        <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <span className="text-xl">📊</span>
+          {tableName}
+        </h3>
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-slate-100">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-emerald-300 scrollbar-track-slate-100">
+            <table className="w-full min-w-[500px] sm:min-w-[600px] md:min-w-[700px] lg:min-w-[800px]">
+              <thead className="bg-gradient-to-r from-slate-50 via-emerald-50/50 to-slate-50 border-b-2 border-emerald-200">
+                <tr>
+                  <th className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider w-10 sm:w-14 lg:w-20">Rank</th>
+                  <th className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider w-16 sm:w-20 lg:w-32">Name</th>
+                  {tableCriteria.map((criteria, index) => {
+                    const isPointsGrading = selectedEvent?.gradingType === 'points';
+                    return (
+                      <th key={index} className="px-1 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider min-w-[50px] sm:min-w-[70px] md:min-w-[80px] lg:min-w-[100px]">
+                        <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+                          <span className="text-[9px] sm:text-[10px] md:text-xs font-bold text-slate-800 line-clamp-2">
+                            {criteria.name}
+                          </span>
+                          {showCategoryHeaders && criteria.category && (
+                            <span className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-700 rounded-full">
+                              {criteria.category}
+                            </span>
+                          )}
+                          {criteria.weight !== undefined && (
+                            <span className="text-[8px] sm:text-[9px] md:text-xs font-bold text-slate-500 bg-slate-100 px-1 sm:px-1.5 py-0.5 rounded-lg">
+                              {isPointsGrading ? `${criteria.weight}pt` : `${criteria.weight}%`}
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider w-14 sm:w-16 lg:w-24">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(showFinalRoundsOnly ? filterFinalRoundContestants(contestants) : contestants).map((contestant, index) => {
+                  const rank = index + 1;
+                  const rankColorClass = getRankColor(rank);
+                  const isRecentlyUpdated = updatedContestants.has(contestant.id);
+                  
+                  // Calculate total for this table's criteria only
+                  const tableTotal = (() => {
+                    let total = 0;
+                    const isPointsGrading = selectedEvent?.gradingType === 'points';
+                    
+                    tableCriteria.forEach((criteria) => {
+                      const score = getContestantCriteriaScore(contestant, criteria.name);
+                      if (isPointsGrading) {
+                        total += score;
+                      } else {
+                        total += score * (criteria.weight / 100);
+                      }
+                    });
+                    
+                    return parseFloat(total.toFixed(1));
+                  })();
+                  
+                  return (
+                    <tr key={`${contestant.id}-${tableName}`} className={`hover:bg-emerald-50/50 transition-all duration-300 border-l-4 ${
+                      rank === 1 ? 'hover:shadow-lg bg-gradient-to-r from-amber-50/50 to-white' : ''} ${
+                      isRecentlyUpdated ? 'bg-emerald-50 animate-pulse' : ''} ${
+                      contestant.eliminated ? 'opacity-60 bg-red-50' : ''} ${rankColorClass}`}>
+                      <td className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 whitespace-nowrap border-r border-gray-100 w-10 sm:w-14 lg:w-20">
+                        <div className="flex items-center justify-center">
+                          <span className="text-lg sm:text-2xl md:text-3xl lg:text-4xl">{getRankIcon(rank, contestant.eliminated)}</span>
+                        </div>
+                      </td>
+                      <td className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 whitespace-nowrap border-r border-gray-100 w-16 sm:w-20 lg:w-32">
+                        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
+                          <div className={`relative h-7 w-7 sm:h-9 sm:w-9 md:h-10 md:w-10 lg:h-14 lg:w-14 rounded-full flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden ${
+                            rank === 1 ? 'bg-gradient-to-br from-red-500 to-red-600' :
+                            rank === 2 ? 'bg-gradient-to-br from-gray-500 to-gray-600' :
+                            rank === 3 ? 'bg-gradient-to-br from-orange-500 to-orange-600' :
+                            rank === 4 ? 'bg-gradient-to-br from-blue-400 to-blue-500' :
+                            rank === 5 ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
+                            'bg-gradient-to-br from-gray-300 to-gray-400'
+                          }`}>
+                            {contestant.photo ? (
+                              <img 
+                                src={contestant.photo} 
+                                alt={contestant.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className={`font-bold text-[10px] sm:text-xs md:text-sm lg:text-lg ${
+                                rank <= 5 ? 'text-white' : 'text-gray-700'
+                              }`}>
+                                {contestant.name ? contestant.name.charAt(0).toUpperCase() : 'C'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                              <button 
+                                onClick={() => handleContestantClick(contestant)}
+                                className={`font-bold text-[10px] sm:text-xs md:text-sm lg:text-base transition-colors text-left truncate block hover:underline max-w-[60px] sm:max-w-[80px] md:max-w-none ${
+                                  rank === 1 ? 'text-red-700 hover:text-red-800' :
+                                  rank === 2 ? 'text-gray-700 hover:text-gray-800' :
+                                  rank === 3 ? 'text-orange-700 hover:text-orange-800' :
+                                  rank === 4 ? 'text-blue-700 hover:text-blue-800' :
+                                  rank === 5 ? 'text-blue-800 hover:text-blue-900' :
+                                  'text-gray-700 hover:text-gray-800'
+                                }`}
+                              >
+                                {contestant.name || 'Contestant ' + rank}
+                              </button>
+                              <div className="flex items-center gap-1">
+                                {contestant.contestantType === 'group' ? (
+                                  <span className="inline-flex items-center text-[10px] sm:text-xs" title="Group">👥</span>
+                                ) : (
+                                  <span className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] sm:text-xs font-medium bg-blue-100 text-blue-800 rounded-full" title="Solo">Solo</span>
+                                )}
+                                {isContestantInFinalRound(contestant) && (
+                                  <span className="inline-flex items-center text-[10px] sm:text-xs" title="Finalist">🏆</span>
+                                )}
+                                {isRecentlyUpdated && (
+                                  <div className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 bg-green-500 text-white text-[9px] sm:text-xs font-bold rounded-full animate-pulse">
+                                    <span>LIVE</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="hidden sm:flex items-center gap-1 sm:gap-2 mt-1 flex-wrap">
+                              <span className="text-xs sm:text-sm font-bold text-gray-700 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">#{contestant.number || rank}</span>
+                              {contestant.eliminated && (
+                                <span className="hidden md:inline-flex items-center px-1 py-0.5 bg-red-100 text-red-700 rounded-full text-[9px] sm:text-xs font-semibold" title="Eliminated">
+                                  ❌
+                                </span>
+                              )}
+                              {contestant.judgeCount > 0 && (
+                                <span className="inline-flex items-center px-1 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[9px] sm:text-xs font-semibold">
+                                  👤 {contestant.judgeCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      {tableCriteria.map((criteria, criteriaIndex) => {
+                        const score = getContestantCriteriaScore(contestant, criteria.name);
+                        const colors = [
+                          'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300',
+                          'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-300', 
+                          'bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 border-sky-300',
+                          'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300', 
+                          'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 border-amber-300'
+                        ];
+                        const colorClass = colors[criteriaIndex % colors.length];
+                        return (
+                          <td key={criteriaIndex} className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px]">
+                            <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px]`}>
+                              {score === 0 ? '—' : `${score.toFixed(1)}`}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap min-w-[50px] sm:min-w-[70px] md:min-w-[90px] lg:min-w-[100px]">
+                        <div className="flex flex-col items-center">
+                          <span className={`text-sm sm:text-lg md:text-xl lg:text-3xl font-extrabold ${
+                            rank === 1 ? 'bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent' :
+                            rank === 2 ? 'bg-gradient-to-r from-slate-500 to-slate-600 bg-clip-text text-transparent' :
+                            rank === 3 ? 'bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent' :
+                            rank === 4 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' :
+                            rank === 5 ? 'bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent' :
+                            'text-slate-600'
+                          }`}>
+                            {tableTotal === 0 ? '—' : tableTotal.toFixed(1)}
+                          </span>
+                          {tableTotal > 0 && (
+                            <span className="hidden sm:inline text-[9px] sm:text-xs md:text-sm text-slate-500 font-bold">
+                              {selectedEvent?.gradingType === 'points' 
+                                ? `/${tableCriteria.reduce((sum, c) => sum + (c.weight || 0), 0)}` 
+                                : '/100'
+                              }
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Function to update contestant scores when scores change
@@ -1310,13 +1557,20 @@ export default function LiveScoreboard() {
               </div>
               
               {/* Scrollable Table Container */}
-              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-emerald-300 scrollbar-track-slate-100 pt-8 sm:pt-10 lg:pt-0">
-                <table className="w-full min-w-[500px] sm:min-w-[600px] md:min-w-[700px] lg:min-w-[800px]">
+              {/* Three-Table Layout or Single Table */}
+              {(() => {
+                const tableConfig = getThreeTableCriteria();
+                
+                if (tableConfig.showSingleTable) {
+                  // Show original single table for events without sub-criteria or with more than 2 categories
+                  return (
+                    <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-emerald-300 scrollbar-track-slate-100 pt-8 sm:pt-10 lg:pt-0">
+                      <table className="w-full min-w-[500px] sm:min-w-[600px] md:min-w-[700px] lg:min-w-[800px]">
               <thead className="bg-gradient-to-r from-slate-50 via-emerald-50/50 to-slate-50 border-b-2 border-emerald-200">
                 <tr>
                   <th className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider w-10 sm:w-14 lg:w-20">Rank</th>
                   <th className="px-1.5 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider w-16 sm:w-20 lg:w-32">Name</th>
-                  {getCurrentEventCriteria().map((criteria, index) => {
+                  {tableConfig.combined.map((criteria, index) => {
                     const isPointsGrading = selectedEvent?.gradingType === 'points';
                     return (
                     <th key={index} className="px-1 sm:px-2 md:px-3 lg:px-4 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider min-w-[50px] sm:min-w-[70px] md:min-w-[80px] lg:min-w-[100px]">
@@ -1427,61 +1681,73 @@ export default function LiveScoreboard() {
                             </div>
                           </div>
                         </td>
-                    {getCurrentEventCriteria().map((criteria, criteriaIndex) => {
-                      const score = getContestantCriteriaScore(contestant, criteria.name);
-                      const colors = [
-                        'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300',
-                        'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-300', 
-                        'bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 border-sky-300',
-                        'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300', 
-                        'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 border-amber-300'
-                      ];
-                      const colorClass = colors[criteriaIndex % colors.length];
-                      return (
-                        <td key={criteriaIndex} className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px]">
-                          <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px]`}>
-                            {score === 0 ? '—' : `${score.toFixed(1)}`}
-                          </div>
-                        </td>
-                      );
-                    })}
-                    <td className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap min-w-[50px] sm:min-w-[70px] md:min-w-[90px] lg:min-w-[100px]">
-                      <div className="flex flex-col items-center">
-                        <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2">
-                          <span className={`text-sm sm:text-lg md:text-xl lg:text-3xl font-extrabold ${
-                            rank === 1 ? 'bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent' :
-                            rank === 2 ? 'bg-gradient-to-r from-slate-500 to-slate-600 bg-clip-text text-transparent' :
-                            rank === 3 ? 'bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent' :
-                            rank === 4 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' :
-                            rank === 5 ? 'bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent' :
-                            'text-slate-600'
-                          }`}>
-                            {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
-                          </span>
-                          {contestant.totalScore > 0 && (
-                            <span className="hidden sm:inline text-[9px] sm:text-xs md:text-sm text-slate-500 font-bold">
-                              {selectedEvent?.gradingType === 'points' 
-                                ? `/${getCurrentEventCriteria().reduce((sum, c) => sum + (c.weight || 0), 0)}`
-                                : '/100'
-                              }
-                            </span>
-                          )}
+                                    {tableConfig.combined.map((criteria, criteriaIndex) => {
+                                      const score = getContestantCriteriaScore(contestant, criteria.name);
+                                      const colors = [
+                                        'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300',
+                                        'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-300', 
+                                        'bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 border-sky-300',
+                                        'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300', 
+                                        'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 border-amber-300'
+                                      ];
+                                      const colorClass = colors[criteriaIndex % colors.length];
+                                      return (
+                                        <td key={criteriaIndex} className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px]">
+                                          <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px]`}>
+                                            {score === 0 ? '—' : `${score.toFixed(1)}`}
+                                          </div>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap min-w-[50px] sm:min-w-[70px] md:min-w-[90px] lg:min-w-[100px]">
+                                      <div className="flex flex-col items-center">
+                                        <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2">
+                                          <span className={`text-sm sm:text-lg md:text-xl lg:text-3xl font-extrabold ${
+                                            rank === 1 ? 'bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent' :
+                                            rank === 2 ? 'bg-gradient-to-r from-slate-500 to-slate-600 bg-clip-text text-transparent' :
+                                            rank === 3 ? 'bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent' :
+                                            rank === 4 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' :
+                                            rank === 5 ? 'bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent' :
+                                            'text-slate-600'
+                                          }`}>
+                                            {contestant.totalScore === 0 ? '—' : contestant.totalScore.toFixed(1)}
+                                          </span>
+                                          {contestant.totalScore > 0 && (
+                                            <span className="hidden sm:inline text-[9px] sm:text-xs md:text-sm text-slate-500 font-bold">
+                                              {selectedEvent?.gradingType === 'points' 
+                                                ? `/${tableConfig.combined.reduce((sum, c) => sum + (c.weight || 0), 0)}`
+                                                : '/100'
+                                              }
+                                            </span>
+                                          )}
+                                        </div>
+                                        {rank === 1 && contestant.totalScore > 0 && (
+                                          <div className="mt-0.5 sm:mt-1">
+                                            <span className="hidden sm:inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-xs font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full shadow-lg">
+                                              🏆 <span className="hidden md:inline ml-1">Leading</span>
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                        {rank === 1 && contestant.totalScore > 0 && (
-                          <div className="mt-0.5 sm:mt-1">
-                            <span className="hidden sm:inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-xs font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full shadow-lg">
-                              🏆 <span className="hidden md:inline ml-1">Leading</span>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-                })}
-              </tbody>
-            </table>
-              </div>
+                      );
+                    } else {
+                      // Show three separate tables for events with exactly 2 categories
+                      return (
+                        <div className="space-y-6">
+                          {renderScoreboardTable(tableConfig.category1, `Category 1: ${tableConfig.category1Name}`, false)}
+                          {renderScoreboardTable(tableConfig.category2, `Category 2: ${tableConfig.category2Name}`, false)}
+                          {renderScoreboardTable(tableConfig.combined, 'Combined Scores', true)}
+                        </div>
+                      );
+                    }
+                  })()}
             </div>
           )}
         </div>

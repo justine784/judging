@@ -679,6 +679,7 @@ export default function EventManagement() {
         hasRounds: selectedEvent.hasRounds || false,
         gradingType: selectedEvent.gradingType || 'percentage',
         defaultCategoryScoringType: selectedEvent.defaultCategoryScoringType || 'percentage',
+        enableIndividualSubmit: selectedEvent.enableIndividualSubmit || false,
         updatedAt: serverTimestamp()
       });
       
@@ -692,7 +693,8 @@ export default function EventManagement() {
               rounds: selectedEvent.rounds || [],
               hasRounds: selectedEvent.hasRounds || false,
               gradingType: selectedEvent.gradingType || 'percentage',
-              defaultCategoryScoringType: selectedEvent.defaultCategoryScoringType || 'percentage'
+              defaultCategoryScoringType: selectedEvent.defaultCategoryScoringType || 'percentage',
+              enableIndividualSubmit: selectedEvent.enableIndividualSubmit || false
             }
           : event
       ));
@@ -805,12 +807,17 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
-  const handleCategoryChange = (categoryIndex, field, value) => {
+  const handleIndividualSubmitToggle = () => {
+    const updatedEvent = { ...selectedEvent };
+    updatedEvent.enableIndividualSubmit = !updatedEvent.enableIndividualSubmit;
+    setSelectedEvent(updatedEvent);
+  };
+
+  const handleCategoryChange = (index, field, value) => {
     const updatedEvent = { ...selectedEvent };
     if (!updatedEvent.criteriaCategories) {
       updatedEvent.criteriaCategories = [];
     }
-    
     const category = updatedEvent.criteriaCategories[categoryIndex];
     
     // Special validation for totalWeight field
@@ -882,7 +889,8 @@ export default function EventManagement() {
         name: '',
         weight: Math.min(1, remainingWeight), // Default to 1% or remaining weight
         description: '',
-        enabled: true
+        enabled: true,
+        enableSubmitButton: true // Default to enabled submit button
       });
       
       // Show info about remaining weight
@@ -895,7 +903,8 @@ export default function EventManagement() {
         name: '',
         weight: 0,
         description: '',
-        enabled: true
+        enabled: true,
+        enableSubmitButton: true // Default to enabled submit button
       });
     }
     
@@ -2234,6 +2243,46 @@ export default function EventManagement() {
                   </div>
                 </div>
 
+                {/* Individual Submit Buttons Toggle */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm sm:text-lg font-semibold text-gray-900">Individual Submit Buttons</h4>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">Enable individual submit buttons for each criterion</p>
+                    </div>
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => handleIndividualSubmitToggle()}
+                        className={`relative inline-flex h-6 sm:h-7 w-11 sm:w-13 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          selectedEvent.enableIndividualSubmit ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 sm:h-5 w-4 sm:w-5 transform rounded-full bg-white transition-transform duration-200 ${
+                            selectedEvent.enableIndividualSubmit ? 'translate-x-6 sm:translate-x-7' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2 sm:mt-3 flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${selectedEvent.enableIndividualSubmit ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                    <span className="text-xs sm:text-sm text-gray-700">
+                      {selectedEvent.enableIndividualSubmit ? (
+                        <>
+                          <strong>Enabled</strong>
+                          <span className="hidden sm:inline"> - Judges must submit each criterion individually</span>
+                        </>
+                      ) : (
+                        <>
+                          <strong>Disabled</strong>
+                          <span className="hidden sm:inline"> - Judges submit all scores at once</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Categories Section */}
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between gap-2">
@@ -2401,6 +2450,18 @@ export default function EventManagement() {
                                     className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
                                   />
                                   <span className="ml-1 text-[10px] sm:text-xs text-gray-700">Enabled</span>
+                                </label>
+                              </div>
+
+                              <div className="flex items-center mt-1.5 sm:mt-2">
+                                <label className="flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={subCriterion.enableSubmitButton !== false}
+                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'enableSubmitButton', e.target.checked)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-1 text-[10px] sm:text-xs text-gray-700">Enable Submit Button</span>
                                 </label>
                               </div>
                             </div>

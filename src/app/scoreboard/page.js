@@ -173,60 +173,21 @@ export default function LiveScoreboard() {
         ...doc.data()
       }));
       setScores(scoresData);
+      console.log('Live Scoreboard - Scores updated:', scoresData.length, 'records');
       
-      // Trigger contestant recalculation when scores change
-      if (snapshot.docChanges().length > 0) {
-        const changes = snapshot.docChanges();
-        const relevantChanges = changes.filter(change => 
-          change.doc.data().eventId === selectedEvent.id
-        );
-        
-        if (relevantChanges.length > 0) {
-          console.log(`Live score update: ${relevantChanges.length} score(s) updated for event ${selectedEvent.id}`);
-          
-          // Track which contestants were updated
-          const updatedIds = new Set();
-          relevantChanges.forEach(change => {
-            const contestantId = change.doc.data().contestantId;
-            if (contestantId) {
-              updatedIds.add(contestantId);
-            }
-          });
-          
-          // Update the tracking set
-          setUpdatedContestants(prev => new Set([...prev, ...updatedIds]));
-          
-          // Clear the updated indicators after 3 seconds
-          setTimeout(() => {
-            setUpdatedContestants(prev => {
-              const newSet = new Set(prev);
-              updatedIds.forEach(id => newSet.delete(id));
-              return newSet;
-            });
-          }, 3000);
-          
-          // Show more detailed update notification
-          const updateIndicator = document.createElement('div');
-          updateIndicator.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg text-sm z-50 animate-pulse shadow-lg flex items-center gap-2';
-          updateIndicator.innerHTML = `
-            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>🔄 New Score Added</span>
-          `;
-          document.body.appendChild(updateIndicator);
-          
-          setTimeout(() => {
-            if (document.body.contains(updateIndicator)) {
-              document.body.removeChild(updateIndicator);
-            }
-          }, 3000);
-        }
-      }
+      // Update contestant scores immediately when scores change
+      updateContestantScores();
     });
+
+    // Also add polling as a backup mechanism for real-time updates
+    const pollingInterval = setInterval(() => {
+      updateContestantScores();
+      console.log('Live Scoreboard - Polling for updates');
+    }, 3000); // Poll every 3 seconds
 
     return () => {
       unsubscribeScores();
+      clearInterval(pollingInterval);
     };
   }, [selectedEvent]);
 
@@ -646,6 +607,17 @@ export default function LiveScoreboard() {
     };
   };
 
+  // Helper function to get the highest score for a specific criterion
+  const getHighestScore = (criteria) => {
+    if (!contestants || contestants.length === 0) return 0;
+    
+    const scores = contestants.map(contestant => {
+      return getContestantCriteriaScore(contestant, criteria.name);
+    });
+    
+    return Math.max(...scores);
+  };
+
   // Helper function to render a single scoreboard table
   const renderScoreboardTable = (tableCriteria, tableName, showCategoryHeaders = true) => {
     if (!tableCriteria || tableCriteria.length === 0) return null;
@@ -802,10 +774,23 @@ export default function LiveScoreboard() {
                           'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 border-amber-300'
                         ];
                         const colorClass = colors[criteriaIndex % colors.length];
+                        const hasScore = score > 0;
+                        
+                        // Check if this is the highest score for this criterion
+                        const highestScore = getHighestScore(criteria);
+                        const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                        
                         return (
-                          <td key={criteriaIndex} className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px]">
-                            <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px]`}>
-                              {score === 0 ? '—' : `${score.toFixed(1)}`}
+                          <td key={criteriaIndex} className={`px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px] ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                            <div className="relative inline-flex items-center justify-center">
+                              <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px] ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                {score === 0 ? '—' : `${score.toFixed(1)}`}
+                              </div>
+                              {isTopScore && (
+                                <span className="absolute -top-1 -right-1 text-[8px] sm:text-[9px] md:text-[10px]" title="Top score for this criterion">
+                                  🏆
+                                </span>
+                              )}
                             </div>
                           </td>
                         );
@@ -1691,10 +1676,23 @@ export default function LiveScoreboard() {
                                         'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 border-amber-300'
                                       ];
                                       const colorClass = colors[criteriaIndex % colors.length];
+                                      const hasScore = score > 0;
+                                      
+                                      // Check if this is the highest score for this criterion
+                                      const highestScore = getHighestScore(criteria);
+                                      const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                                      
                                       return (
-                                        <td key={criteriaIndex} className="px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px]">
-                                          <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px]`}>
-                                            {score === 0 ? '—' : `${score.toFixed(1)}`}
+                                        <td key={criteriaIndex} className={`px-1 sm:px-2 md:px-3 lg:px-4 py-1.5 sm:py-2 md:py-3 whitespace-nowrap text-center border-r border-slate-100 min-w-[40px] sm:min-w-[60px] md:min-w-[80px] lg:min-w-[100px] ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                                          <div className="relative inline-flex items-center justify-center">
+                                            <div className={`inline-flex items-center justify-center px-1 sm:px-1.5 md:px-2 lg:px-3 py-0.5 sm:py-1 md:py-1.5 lg:py-2 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-bold border ${colorClass} rounded-lg sm:rounded-xl shadow-sm min-w-[30px] sm:min-w-[40px] md:min-w-[50px] lg:min-w-[60px] ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                              {score === 0 ? '—' : `${score.toFixed(1)}`}
+                                            </div>
+                                            {isTopScore && (
+                                              <span className="absolute -top-1 -right-1 text-[8px] sm:text-[9px] md:text-[10px]" title="Top score for this criterion">
+                                                🏆
+                                              </span>
+                                            )}
                                           </div>
                                         </td>
                                       );

@@ -27,6 +27,18 @@ export default function ManageScoreDashboard() {
   const printRef = useRef(null);
   const router = useRouter();
 
+  // Helper function to get the highest score for a specific criterion
+  const getHighestScore = (criterion) => {
+    if (!contestants || contestants.length === 0) return 0;
+    
+    const scores = contestants.map(contestant => {
+      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+      return contestant.criteriaScores?.[key] || 0;
+    });
+    
+    return Math.max(...scores);
+  };
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
@@ -1653,20 +1665,43 @@ export default function ManageScoreDashboard() {
                                         {mainCriteria.map((criterion, idx) => {
                                           const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                                           const score = mainScoresObj[key] || 0;
+                                          const hasScore = score > 0;
+                                          
+                                          // Check if this is the highest score for this criterion
+                                          const highestScore = (() => {
+                                            if (!eventContestants || eventContestants.length === 0) return 0;
+                                            const scores = eventContestants.map(c => {
+                                              const contestantKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                              const contestantMainScoreData = latestMainScoresByContestant[c.id];
+                                              const contestantMainScoresObj = contestantMainScoreData?.scores || {};
+                                              return contestantMainScoresObj[contestantKey] || 0;
+                                            });
+                                            return Math.max(...scores);
+                                          })();
+                                          
+                                          const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                                          
                                           return (
-                                            <td key={`main-${idx}`} className="px-2 py-2 text-center whitespace-nowrap bg-blue-50/30">
-                                              {score > 0 ? (
-                                                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${
-                                                  score >= 90 ? 'bg-green-100 text-green-700' :
-                                                  score >= 80 ? 'bg-blue-100 text-blue-700' :
-                                                  score >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                                                  'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                  {score}
-                                                </span>
-                                              ) : (
-                                                <span className="text-gray-300">-</span>
-                                              )}
+                                            <td key={`main-${idx}`} className={`px-2 py-2 text-center whitespace-nowrap bg-blue-50/30 ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                                              <div className="relative inline-flex items-center justify-center">
+                                                {score > 0 ? (
+                                                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${
+                                                    score >= 90 ? 'bg-green-100 text-green-700' :
+                                                    score >= 80 ? 'bg-blue-100 text-blue-700' :
+                                                    score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                                  } ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                                    {score}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-gray-300">-</span>
+                                                )}
+                                                {isTopScore && (
+                                                  <span className="absolute -top-1 -right-1 text-[7px]" title="Top score for this criterion">
+                                                    🏆
+                                                  </span>
+                                                )}
+                                              </div>
                                             </td>
                                           );
                                         })}
@@ -1687,20 +1722,44 @@ export default function ManageScoreDashboard() {
                                           const finalKey = `final_${key}`;
                                           // Look in final scores document
                                           const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
+                                          const hasScore = score > 0;
+                                          
+                                          // Check if this is the highest score for this criterion
+                                          const highestScore = (() => {
+                                            if (!eventContestants || eventContestants.length === 0) return 0;
+                                            const scores = eventContestants.map(c => {
+                                              const contestantKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                                              const contestantFinalKey = `final_${contestantKey}`;
+                                              const contestantFinalScoreData = latestFinalScoresByContestant[c.id];
+                                              const contestantFinalScoresObj = contestantFinalScoreData?.scores || {};
+                                              return contestantFinalScoresObj[contestantFinalKey] || contestantFinalScoresObj[contestantKey] || 0;
+                                            });
+                                            return Math.max(...scores);
+                                          })();
+                                          
+                                          const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                                          
                                           return (
-                                            <td key={`final-${idx}`} className="px-2 py-2 text-center whitespace-nowrap bg-purple-50/30">
-                                              {score > 0 ? (
-                                                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${
-                                                  score >= 90 ? 'bg-green-100 text-green-700' :
-                                                  score >= 80 ? 'bg-purple-100 text-purple-700' :
-                                                  score >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                                                  'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                  {score}
-                                                </span>
-                                              ) : (
-                                                <span className="text-gray-300">-</span>
-                                              )}
+                                            <td key={`final-${idx}`} className={`px-2 py-2 text-center whitespace-nowrap bg-purple-50/30 ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                                              <div className="relative inline-flex items-center justify-center">
+                                                {score > 0 ? (
+                                                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${
+                                                    score >= 90 ? 'bg-green-100 text-green-700' :
+                                                    score >= 80 ? 'bg-purple-100 text-purple-700' :
+                                                    score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                                  } ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                                    {score}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-gray-300">-</span>
+                                                )}
+                                                {isTopScore && (
+                                                  <span className="absolute -top-1 -right-1 text-[7px]" title="Top score for this criterion">
+                                                    🏆
+                                                  </span>
+                                                )}
+                                              </div>
                                             </td>
                                           );
                                         })}
@@ -2098,20 +2157,33 @@ export default function ManageScoreDashboard() {
                             {criteria.map((criterion, index) => {
                               const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                               const score = contestant.criteriaScores?.[key] || 0;
+                              const hasScore = score > 0;
+                              
+                              // Check if this is the highest score for this criterion
+                              const highestScore = getHighestScore(criterion);
+                              const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                              
                               return (
-                                <td key={index} className="px-2 sm:px-3 py-3 text-center whitespace-nowrap">
-                                  {score > 0 ? (
-                                    <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg text-sm font-bold ${
-                                      score >= 90 ? 'bg-green-100 text-green-700' :
-                                      score >= 80 ? 'bg-blue-100 text-blue-700' :
-                                      score >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                                      'bg-gray-100 text-gray-700'
-                                    }`}>
-                                      {score.toFixed(1)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-300 text-sm">-</span>
-                                  )}
+                                <td key={index} className={`px-2 sm:px-3 py-3 text-center whitespace-nowrap ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                                  <div className="relative inline-flex items-center justify-center">
+                                    {score > 0 ? (
+                                      <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg text-sm font-bold ${
+                                        score >= 90 ? 'bg-green-100 text-green-700' :
+                                        score >= 80 ? 'bg-blue-100 text-blue-700' :
+                                        score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      } ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                        {score.toFixed(1)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-300 text-sm">-</span>
+                                    )}
+                                    {isTopScore && (
+                                      <span className="absolute -top-1 -right-1 text-[8px] sm:text-[9px]" title="Top score for this criterion">
+                                        🏆
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                               );
                             })}

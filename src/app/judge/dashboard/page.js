@@ -32,7 +32,7 @@ export default function JudgeDashboard() {
   });
   const [currentContestantIndex, setCurrentContestantIndex] = useState(0);
   const [currentEvent, setCurrentEvent] = useState(null);
-  const [quickScores, setQuickScores] = useState({});
+  const [contestantScores, setContestantScores] = useState({});
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [slideDirection, setSlideDirection] = useState('right'); // 'left' or 'right' for slide animation
@@ -45,6 +45,8 @@ export default function JudgeDashboard() {
   const [eventCurrentRound, setEventCurrentRound] = useState('preliminary'); // Track admin-set current round from event
   const [previousContestantInfo, setPreviousContestantInfo] = useState(null); // Track previous contestant score when navigating
   const [showPreviousScore, setShowPreviousScore] = useState(false); // Control visibility of previous score notification
+  const [submittedCriteria, setSubmittedCriteria] = useState({}); // Track submitted criteria per contestant
+  const [submittedSlides, setSubmittedSlides] = useState({}); // Track submitted slides per contestant
   const router = useRouter();
 
   // Store unsubscribe functions for cleanup
@@ -138,24 +140,27 @@ export default function JudgeDashboard() {
     }
   };
 
-  // Initialize quick scores when currentEvent changes
+  // Initialize contestant scores when currentEvent changes
   useEffect(() => {
     if (currentEvent && contestants.length > 0) {
       const currentContestant = contestants[currentContestantIndex];
       if (currentContestant) {
-        // Only initialize if we don't have any scores yet
-        if (Object.keys(quickScores).length === 0) {
+        // Only initialize if we don't have any scores yet for this contestant
+        if (!contestantScores[currentContestant.id]) {
           const initialScores = initializeQuickScores(currentEvent, currentContestant);
-          setQuickScores(initialScores);
-          console.log('Initialized quickScores for event change:', currentContestant.contestantName, initialScores);
+          setContestantScores(prev => ({
+            ...prev,
+            [currentContestant.id]: initialScores
+          }));
+          console.log('Initialized contestant scores for event change:', currentContestant.contestantName, initialScores);
         } else {
-          console.log('Preserving existing quickScores during event change:', quickScores);
+          console.log('Preserving existing contestant scores during event change:', contestantScores[currentContestant.id]);
         }
       }
     }
   }, [currentEvent, contestants, currentContestantIndex]);
 
-  // Update quick scores when contestant changes - preserve locked scores
+  // Update contestant scores when contestant changes - preserve locked scores
   useEffect(() => {
     if (currentEvent && contestants.length > 0 && currentContestantIndex >= 0) {
       const currentContestant = contestants[currentContestantIndex];
@@ -167,17 +172,26 @@ export default function JudgeDashboard() {
         if (isContestantLocked && lockedScores[lockKey]) {
           // If contestant is locked and we have saved locked scores, restore them
           const savedLockedScores = lockedScores[lockKey];
-          setQuickScores(savedLockedScores);
+          setContestantScores(prev => ({
+            ...prev,
+            [currentContestant.id]: savedLockedScores
+          }));
           console.log('Restored locked scores for contestant:', currentContestant.contestantName, 'round:', usingFinalRoundCriteria ? 'final' : 'main', savedLockedScores);
-        } else if (Object.keys(quickScores).length > 0) {
-          // If we already have quickScores (from unlock or previous navigation), preserve them
-          console.log('Preserving existing quickScores for contestant:', currentContestant.contestantName, quickScores);
+        } else if (contestantScores[currentContestant.id]) {
+          // If we already have contestant scores (from unlock or previous navigation), preserve them
+          console.log('Preserving existing contestant scores for contestant:', currentContestant.contestantName, contestantScores[currentContestant.id]);
         } else {
           // Initialize with saved scores from contestant data (for page refresh scenario)
           const savedScores = initializeQuickScores(currentEvent, currentContestant);
-          setQuickScores(savedScores);
+          setContestantScores(prev => ({
+            ...prev,
+            [currentContestant.id]: savedScores
+          }));
           console.log('Initialized scores from contestant data:', currentContestant.contestantName, savedScores);
         }
+        
+        // Load submitted criteria state
+        loadSubmittedCriteria(currentContestant);
       }
     }
   }, [currentContestantIndex, currentEvent?.id, contestants.length, lockedContestants, lockedScores, usingFinalRoundCriteria]);
@@ -255,6 +269,24 @@ export default function JudgeDashboard() {
         const currentEvents = judgeData?.assignedEvents || [];
         const newEvents = updatedJudgeData.assignedEvents || [];
         
+        // Check if only lock/unlock data changed (to avoid unnecessary contestant reload)
+        const currentLockData = {
+          lockedContestants: judgeData?.lockedContestants || [],
+          lockedScores: judgeData?.lockedScores || {},
+          scoredContestants: judgeData?.scoredContestants || [],
+          scoredContestantsFinal: judgeData?.scoredContestantsFinal || []
+        };
+        const newLockData = {
+          lockedContestants: updatedJudgeData.lockedContestants || [],
+          lockedScores: updatedJudgeData.lockedScores || {},
+          scoredContestants: updatedJudgeData.scoredContestants || [],
+          scoredContestantsFinal: updatedJudgeData.scoredContestantsFinal || []
+        };
+        
+        const onlyLockDataChanged = 
+          JSON.stringify(currentEvents) === JSON.stringify(newEvents) &&
+          JSON.stringify(currentLockData) !== JSON.stringify(newLockData);
+        
         if (JSON.stringify(currentEvents) !== JSON.stringify(newEvents)) {
           // Events changed, show notification
           setShowUpdateNotification(true);
@@ -269,8 +301,13 @@ export default function JudgeDashboard() {
         // Reload assigned events when judge data changes
         loadAssignedEvents(updatedJudgeData);
         
-        // Reload contestants when judge data changes
-        loadContestants(updatedJudgeData);
+        // Only reload contestants when significant data changed (not just lock/unlock)
+        if (!onlyLockDataChanged) {
+          console.log('🔄 Reloading contestants due to significant judge data change');
+          loadContestants(updatedJudgeData);
+        } else {
+          console.log('🔒 Lock/unlock data changed, skipping contestants reload to preserve navigation');
+        }
       }
     }, (error) => {
       console.error('Error listening to judge updates:', error);
@@ -523,11 +560,12 @@ export default function JudgeDashboard() {
       // Preserve current contestant position when reloading
       // Check if we have a current contestant and if they're still in the list
       setContestants(prevContestants => {
-        // Get the current contestant ID we're viewing
-        const currentViewingId = prevContestants[currentContestantIndex]?.id;
+        // Get the current contestant ID we're viewing from currentContestant state instead of prevContestants
+        const currentViewingId = currentContestant?.id || 
+                                (currentContestantIndex >= 0 && prevContestants[currentContestantIndex]?.id);
         
         // Find if the current contestant is still in the new list
-        const newIndex = rankedContestants.findIndex(c => c.id === currentViewingId);
+        const newIndex = currentViewingId ? rankedContestants.findIndex(c => c.id === currentViewingId) : -1;
         
         if (rankedContestants.length > 0) {
           let targetContestant;
@@ -537,20 +575,31 @@ export default function JudgeDashboard() {
             // Current contestant is still in the list, keep viewing them
             targetContestant = rankedContestants[newIndex];
             targetIndex = newIndex;
+            console.log('✅ Preserving current contestant:', targetContestant.contestantName, 'at index:', targetIndex);
           } else if (currentViewingId && prevContestants.length > 0) {
             // Current contestant was eliminated, navigate to next available or first
             // Try to keep same position if possible
             targetIndex = Math.min(currentContestantIndex, rankedContestants.length - 1);
             targetContestant = rankedContestants[targetIndex];
-            console.log('Contestant was eliminated, navigating to index:', targetIndex);
+            console.log('⚠️ Contestant was eliminated, navigating to index:', targetIndex);
           } else {
-            // First load or no previous state
-            targetContestant = rankedContestants[0];
-            targetIndex = 0;
+            // First load or no previous state - ONLY set to 0 if we don't have a valid current index
+            if (currentContestantIndex >= 0 && currentContestantIndex < rankedContestants.length) {
+              targetIndex = currentContestantIndex;
+              targetContestant = rankedContestants[targetIndex];
+              console.log('🔄 Keeping current index:', targetIndex);
+            } else {
+              targetContestant = rankedContestants[0];
+              targetIndex = 0;
+              console.log('🏠 Setting to first contestant (initial load)');
+            }
           }
           
-          // Update current contestant index
-          setCurrentContestantIndex(targetIndex);
+          // Update current contestant index - ONLY if it actually needs to change
+          if (targetIndex !== currentContestantIndex) {
+            console.log('📍 Updating contestant index from', currentContestantIndex, 'to', targetIndex);
+            setCurrentContestantIndex(targetIndex);
+          }
           
           // Update current contestant display
           setCurrentContestant({
@@ -562,11 +611,14 @@ export default function JudgeDashboard() {
             contestantType: targetContestant.contestantType || 'solo'
           });
           
-          // Initialize quick scores for the target contestant
+          // Initialize contestant scores for the target contestant
           setTimeout(() => {
             if (currentEvent) {
               const initialScores = initializeQuickScores(currentEvent, targetContestant);
-              setQuickScores(initialScores);
+              setContestantScores(prev => ({
+                ...prev,
+                [targetContestant.id]: initialScores
+              }));
             }
           }, 100);
         }
@@ -584,6 +636,206 @@ export default function JudgeDashboard() {
     setFormData(prev => ({
       ...prev,
       [name]: parseFloat(value) || 0
+    }));
+  };
+
+  // Handle individual criterion score changes
+  const handleScoreChange = (criteriaId, value) => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant) return;
+    
+    const contestantId = currentContestant.id;
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
+    const key = getCriteriaKey(criteriaId, useFinalRoundPrefix);
+    
+    setFormData(prev => ({
+      ...prev,
+      [key]: parseFloat(value) || 0
+    }));
+  };
+
+  // Handle slide-level score submission
+  const submitSlideScores = async (contestantId) => {
+    if (!user || !judgeData || !currentEvent) return;
+    
+    const contestant = contestants.find(c => c.id === contestantId);
+    if (!contestant) return;
+    
+    // Get all current scores for this contestant
+    const currentScores = contestantScores[contestantId] || {};
+    
+    // Confirm submission
+    if (!confirm(`Are you sure you want to submit all scores for "${contestant.contestantName}"? This will submit the entire slide.`)) {
+      return;
+    }
+    
+    try {
+      // Create slide submission record
+      const slideSubmissionKey = `${contestantId}_slide_${usingFinalRoundCriteria ? 'final' : 'main'}`;
+      const submissionData = {
+        judgeId: user.uid,
+        judgeName: user.displayName || user.email,
+        contestantId: contestantId,
+        contestantName: contestant.contestantName,
+        contestantNumber: contestant.contestantNo,
+        scores: currentScores,
+        submittedAt: new Date().toISOString(),
+        round: usingFinalRoundCriteria ? 'final' : 'main',
+        eventId: currentEvent.id,
+        eventName: currentEvent.eventName
+      };
+      
+      // Save slide submission to Firestore
+      await setDoc(doc(db, 'slideSubmissions', slideSubmissionKey), submissionData);
+      
+      // Update local state to mark slide as submitted
+      setSubmittedSlides(prev => ({
+        ...prev,
+        [slideSubmissionKey]: true
+      }));
+      
+      // Show success message
+      alert(`✅ All scores submitted for "${contestant.contestantName}"!`);
+      
+    } catch (error) {
+      console.error('Error submitting slide scores:', error);
+      alert('❌ Failed to submit slide scores. Please try again.');
+    }
+  };
+
+  // Handle individual criterion submission
+  const submitScore = async (criteriaId) => {
+    if (!user || !judgeData || !currentEvent) return;
+    
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant) return;
+    
+    const contestantId = currentContestant.id;
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
+    const key = getCriteriaKey(criteriaId, useFinalRoundPrefix);
+    
+    // Get the actual score from contestantScores, not formData
+    const score = contestantScores[contestantId]?.[key] || 0;
+    
+    // Confirm submission
+    if (!confirm(`Are you sure you want to submit your score for "${criteriaId}"? Score: ${score}`)) {
+      return;
+    }
+    
+    try {
+      const contestantRef = doc(db, 'contestants', contestantId);
+      
+      // Create submission data for contestant document (for individual submission tracking)
+      const submissionData = {
+        [key]: score,
+        [`${key}_submitted`]: {
+          judgeId: user.uid,
+          judgeName: judgeData.name,
+          contestantId: contestantId,
+          criterionName: criteriaId,
+          criterionKey: key,
+          score: score,
+          submittedAt: new Date().toISOString(),
+          round: useFinalRoundPrefix ? 'final' : 'main'
+        }
+      };
+      
+      await updateDoc(contestantRef, submissionData);
+      
+      // Also save to scores collection for Live Scoreboard to see immediately
+      const criteria = getCurrentEventCriteria();
+      const isPointsGrading = currentEvent?.gradingType === 'points';
+      let totalScore = 0;
+      
+      // Calculate total score with this single criterion
+      criteria.forEach((criterion, index) => {
+        const usePrefix = usingFinalRoundCriteria;
+        const critKey = getCriteriaKey(criterion.name, usePrefix);
+        
+        // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+        const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
+                               criterion.name.toUpperCase().includes('1ST') && 
+                               criterion.name.toUpperCase().includes('ROUND');
+        const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+        const isFirstRoundAverage = isNameBased || isPositionBased;
+        
+        let critScore;
+        if (isFirstRoundAverage) {
+          const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+          critScore = currentContestant[originalKey] !== undefined ? currentContestant[originalKey] : calculateFirstRoundAverage(currentContestant);
+        } else {
+          // Use the score from contestantScores for this criterion, or 0 for others
+          critScore = (critKey === key) ? score : (contestantScores[contestantId]?.[critKey] || 0);
+        }
+        
+        if (isPointsGrading) {
+          totalScore += critScore;
+        } else {
+          const weight = criterion.weight / 100;
+          totalScore += critScore * weight;
+        }
+      });
+      
+      // Create individual score document for Live Scoreboard
+      const individualScoreData = {
+        contestantId: contestantId,
+        contestantName: currentContestant.contestantName,
+        contestantNo: currentContestant.contestantNo,
+        eventId: currentEvent.id,
+        eventName: currentEvent.name,
+        judgeId: user.uid,
+        judgeName: judgeData.name,
+        judgeEmail: user.email,
+        scores: {
+          [key]: score
+        },
+        criteria: criteria,
+        totalScore: parseFloat(totalScore.toFixed(1)),
+        isFinalRound: usingFinalRoundCriteria,
+        timestamp: new Date().toISOString(),
+        isIndividualSubmission: true // Flag to identify this as individual submission
+      };
+      
+      // Save to scores collection
+      const scoreRef = doc(db, 'scores', `${user.uid}_${contestantId}_${key}_${Date.now()}`);
+      await setDoc(scoreRef, individualScoreData);
+      
+      // Update local state
+      setSubmittedCriteria(prev => ({
+        ...prev,
+        [`${contestantId}_${key}`]: true
+      }));
+      
+      // Show success feedback
+      alert(`✅ Score submitted for "${criteriaId}"!`);
+      
+    } catch (error) {
+      console.error('Error submitting score:', error);
+      alert('❌ Failed to submit score. Please try again.');
+    }
+  };
+
+  // Load submitted criteria state from contestant data
+  const loadSubmittedCriteria = (contestant) => {
+    if (!contestant) return;
+    
+    const submitted = {};
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
+    
+    // Check all possible criteria keys
+    getCurrentEventCriteria().forEach(criterion => {
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+      const submissionKey = `${key}_submitted`;
+      
+      // Check if this criterion has been submitted
+      if (contestant[submissionKey]) {
+        submitted[`${contestant.id}_${key}`] = true;
+      }
+    });
+    
+    setSubmittedCriteria(prev => ({
+      ...prev,
+      ...submitted
     }));
   };
 
@@ -638,9 +890,9 @@ export default function JudgeDashboard() {
         const finalRoundKey = getCriteriaKey(criterion.name, true);
         scores[key] = contestant ? (contestant[finalRoundKey] || 0) : 0;
       } else {
-        // Prioritize current quickScores values over saved scores to preserve editing state
-        if (quickScores[key] !== undefined) {
-          scores[key] = quickScores[key];
+        // Prioritize current contestant scores values over saved scores to preserve editing state
+        if (contestant && contestantScores[contestant.id]?.[key] !== undefined) {
+          scores[key] = contestantScores[contestant.id][key];
         } else {
           // Otherwise use existing score or default to 0
           let score = contestant ? (contestant[key] || 0) : 0;
@@ -685,7 +937,8 @@ export default function JudgeDashboard() {
         weight: c.weight || 0,
         enabled: c.enabled !== false,
         category: c.category || null,
-        scoringType: c.scoringType || 'percentage'
+        scoringType: c.scoringType || 'percentage',
+        enableSubmitButton: c.enableSubmitButton !== false // Default to true if not specified
       }));
       console.log('🔍 Final round criteria:', finalCriteria);
       return finalCriteria;
@@ -734,7 +987,8 @@ export default function JudgeDashboard() {
                   weight: subCriterion.weight,
                   enabled: subCriterion.enabled !== false,
                   category: category.name,
-                  scoringType: category.scoringType || 'percentage'
+                  scoringType: category.scoringType || 'percentage',
+                  enableSubmitButton: subCriterion.enableSubmitButton !== false // Include enableSubmitButton field
                 });
                 console.log(`      ✓ Added sub-criteria: ${subCriterion.name} from category ${category.name}`);
               }
@@ -748,7 +1002,8 @@ export default function JudgeDashboard() {
                 weight: category.totalWeight || 0,
                 enabled: category.enabled !== false,
                 category: null, // No parent category for the category itself
-                scoringType: category.scoringType || 'percentage'
+                scoringType: category.scoringType || 'percentage',
+                enableSubmitButton: category.enableSubmitButton !== false // Default to true if not specified
               });
               console.log(`      ✓ Added category as criterion: ${category.name} with weight ${category.totalWeight}`);
             }
@@ -762,7 +1017,10 @@ export default function JudgeDashboard() {
       // Legacy structure: use main event criteria (only for old events without criteriaCategories)
       console.log('🔍 Using legacy criteria structure (old event without criteriaCategories)');
       // Only include criteria that have a valid name and are enabled
-      criteria = currentEvent.criteria.filter(c => c.enabled && c.name && c.name.trim() !== '');
+      criteria = currentEvent.criteria.filter(c => c.enabled && c.name && c.name.trim() !== '').map(c => ({
+        ...c,
+        enableSubmitButton: c.enableSubmitButton !== false // Default to true if not specified
+      }));
       console.log('🔍 Using legacy criteria - filtered enabled criteria:', criteria);
     } else {
       console.log('🔍 No criteria found in event');
@@ -873,6 +1131,29 @@ export default function JudgeDashboard() {
       category2: [],
       combined: criteria
     };
+  };
+
+  // Helper function to get the highest score for a specific criterion
+  const getHighestScore = (criterion, index) => {
+    if (!contestants || contestants.length === 0) return 0;
+    
+    // Check if this is a first round average criterion
+    const isFirstRoundAverage = isFirstRoundAverageCriterion(criterion, index);
+    
+    const scores = contestants.map(contestant => {
+      if (isFirstRoundAverage) {
+        const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        const finalKey = `final_${originalKey}`;
+        return (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
+          ? contestant[finalKey] 
+          : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
+      } else {
+        const key = getCriteriaKey(criterion.name, usingFinalRoundCriteria);
+        return contestant[key] || 0;
+      }
+    });
+    
+    return Math.max(...scores);
   };
 
   // Helper function to render a single scoring table
@@ -1029,11 +1310,23 @@ export default function JudgeDashboard() {
                         const colors = ['bg-blue-100 text-black', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-black', 'bg-yellow-100 text-black'];
                         const colorClass = colors[index % colors.length];
                         const hasScore = score > 0;
+                        
+                        // Check if this is the highest score for this criterion
+                        const highestScore = getHighestScore(criterion, index);
+                        const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                        
                         return (
-                          <td key={index} className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center">
-                            <span className={`inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs md:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-black'} rounded-full ${hasScore ? 'shadow-sm' : ''}`}>
-                              {formatScoreDisplay(score, 100, false)}
-                            </span>
+                          <td key={index} className={`px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                            <div className="relative inline-flex items-center justify-center">
+                              <span className={`inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs md:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-black'} rounded-full ${hasScore ? 'shadow-sm' : ''} ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                {formatScoreDisplay(score, 100, false)}
+                              </span>
+                              {isTopScore && (
+                                <span className="absolute -top-1 -right-1 text-[10px] sm:text-xs" title="Top score for this criterion">
+                                  🏆
+                                </span>
+                              )}
+                            </div>
                           </td>
                         );
                       })}
@@ -1063,6 +1356,30 @@ export default function JudgeDashboard() {
     setSearchTerm(e.target.value);
   };
 
+  // Check if current contestant slide has been submitted
+  const isCurrentSlideSubmitted = () => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant || !currentContestant.id) return false;
+    
+    const slideSubmissionKey = `${currentContestant.id}_slide_${usingFinalRoundCriteria ? 'final' : 'main'}`;
+    return submittedSlides[slideSubmissionKey] || false;
+  };
+
+  // Check if any criterion in current slide has been submitted (blocks entire slide)
+  const isAnyCriterionSubmitted = () => {
+    const currentContestant = contestants[currentContestantIndex];
+    if (!currentContestant || !currentContestant.id) return false;
+    
+    const contestantId = currentContestant.id;
+    const useFinalRoundPrefix = usingFinalRoundCriteria;
+    
+    // Check if any criterion for this contestant has been submitted
+    return getCurrentEventCriteria().some(criterion => {
+      const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+      return submittedCriteria[`${contestantId}_${key}`] || false;
+    });
+  };
+
   // Check if current contestant has been scored
   const isCurrentContestantScored = () => {
     const currentContestant = contestants[currentContestantIndex];
@@ -1087,7 +1404,8 @@ export default function JudgeDashboard() {
     
     return enabledCriteria.some(criterion => {
       const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
-      const score = quickScores[key] || 0;
+      const currentContestant = contestants[currentContestantIndex];
+      const score = currentContestant ? (contestantScores[currentContestant.id]?.[key] ?? 0) : 0;
       const maxScore = isPointsGrading ? criterion.weight : 100;
       return score > maxScore;
     });
@@ -1106,9 +1424,50 @@ export default function JudgeDashboard() {
     return lockedContestants.has(lockKey);
   };
 
+  // Check if a contestant is locked for the current round
+  const isContestantLocked = (contestantId) => {
+    if (!contestantId) return false;
+    const lockKey = `${contestantId}_${usingFinalRoundCriteria ? 'final' : 'main'}`;
+    return lockedContestants.has(lockKey);
+  };
+
+  // Find the next unlocked contestant index
+  const findNextUnlockedContestantIndex = (startIndex) => {
+    for (let i = startIndex + 1; i < contestants.length; i++) {
+      if (!isContestantLocked(contestants[i].id)) {
+        return i;
+      }
+    }
+    return -1; // No unlocked contestants found
+  };
+
+  // Find the previous unlocked contestant index
+  const findPreviousUnlockedContestantIndex = (startIndex) => {
+    for (let i = startIndex - 1; i >= 0; i--) {
+      if (!isContestantLocked(contestants[i].id)) {
+        return i;
+      }
+    }
+    return -1; // No unlocked contestants found
+  };
+
+  // Check if navigation to previous contestant should be disabled
+  const isPreviousNavigationDisabled = () => {
+    const previousIndex = findPreviousUnlockedContestantIndex(currentContestantIndex);
+    return previousIndex === -1;
+  };
+
+  // Check if all contestants are locked
+  const areAllContestantsLocked = () => {
+    return contestants.every(contestant => isContestantLocked(contestant.id));
+  };
+
   // Toggle lock status for current contestant (persisted to Firestore)
   // Locking is now round-specific (main vs final)
   const toggleCurrentContestantLock = async () => {
+    // Store current index to prevent any unintended navigation
+    const currentIndexBeforeLock = currentContestantIndex;
+    
     const currentContestant = contestants[currentContestantIndex];
     if (!currentContestant || !currentContestant.id) return;
     if (!user) return;
@@ -1152,20 +1511,22 @@ export default function JudgeDashboard() {
       newSet.add(lockKey);
       
       // Save only scores for the current contestant
-      const contestantScoreKeys = Object.keys(quickScores).filter(key => {
+      const currentContestant = contestants[currentContestantIndex];
+      const currentContestantScores = contestantScores[currentContestant?.id] || {};
+      const contestantScoreKeys = Object.keys(currentContestantScores).filter(key => {
         if (usingFinalRoundCriteria) {
           return key.startsWith('final_');
         } else {
           return !key.startsWith('final_');
         }
       });
-      const contestantScores = {};
+      const scoresToLock = {};
       contestantScoreKeys.forEach(key => {
-        contestantScores[key] = quickScores[key];
+        scoresToLock[key] = currentContestantScores[key];
       });
       const newLockedScores = {
         ...lockedScores,
-        [lockKey]: contestantScores
+        [lockKey]: scoresToLock
       };
       
       setLockedContestants(newSet);
@@ -1185,8 +1546,11 @@ export default function JudgeDashboard() {
       }
     }
     
-    // Maintain current card index after lock/unlock
-    setCurrentContestantIndex(currentContestantIndex);
+    // Ensure current contestant index is preserved (prevent unintended navigation)
+    if (currentContestantIndex !== currentIndexBeforeLock) {
+      console.log('🔧 Restoring contestant index after lock/unlock:', currentIndexBeforeLock);
+      setCurrentContestantIndex(currentIndexBeforeLock);
+    }
   };
 
   // Helper function to get contestant's round status
@@ -1403,10 +1767,12 @@ export default function JudgeDashboard() {
   };
 
   const handleEditContestant = () => {
-    const totalScore = calculateWeightedScore({ ...formData, ...quickScores });
+    const currentContestant = contestants[currentContestantIndex];
+    const currentContestantScores = contestantScores[currentContestant?.id] || {};
+    const totalScore = calculateWeightedScore({ ...formData, ...currentContestantScores });
     const updatedContestants = contestants.map(contestant => 
       contestant.id === editingContestant.id 
-        ? { ...contestant, ...formData, ...quickScores, totalWeightedScore: parseFloat(totalScore) }
+        ? { ...contestant, ...formData, ...currentContestantScores, totalWeightedScore: parseFloat(totalScore) }
         : contestant
     );
     
@@ -1570,35 +1936,44 @@ export default function JudgeDashboard() {
 
   // Navigation functions
   const goToPreviousContestant = () => {
-    if (currentContestantIndex > 0) {
-      // Store current contestant's score before navigating
-      const currentContestantData = contestants[currentContestantIndex];
-      if (currentContestantData) {
-        setPreviousContestantInfo({
-          name: currentContestantData.contestantName,
-          number: currentContestantData.contestantNo,
-          totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
-        });
-        setShowPreviousScore(true);
-        // Auto-hide after 3 seconds
-        setTimeout(() => setShowPreviousScore(false), 3000);
-      }
-      
-      const newIndex = currentContestantIndex - 1;
-      const contestant = contestants[newIndex];
-      setCurrentContestantIndex(newIndex);
-      setCurrentContestant({
-        number: contestant.contestantNo,
-        name: contestant.contestantName,
-        category: contestant.category || 'Vocal Performance',
-        performanceOrder: contestant.performanceOrder || newIndex + 1,
-        photo: null,
-        contestantType: contestant.contestantType || 'solo'
-      });
-      // Update quick scores to match the previous contestant's saved scores
-      const newQuickScores = initializeQuickScores(currentEvent, contestant);
-      setQuickScores(newQuickScores);
+    // Find the previous unlocked contestant
+    const previousUnlockedIndex = findPreviousUnlockedContestantIndex(currentContestantIndex);
+    
+    if (previousUnlockedIndex === -1) {
+      // No previous unlocked contestants available
+      console.log('🚫 No previous unlocked contestants available');
+      return;
     }
+    
+    // Store current contestant's score before navigating
+    const currentContestantData = contestants[currentContestantIndex];
+    if (currentContestantData) {
+      setPreviousContestantInfo({
+        name: currentContestantData.contestantName,
+        number: currentContestantData.contestantNo,
+        totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
+      });
+      setShowPreviousScore(true);
+      // Auto-hide after 3 seconds
+      setTimeout(() => setShowPreviousScore(false), 3000);
+    }
+    
+    const contestant = contestants[previousUnlockedIndex];
+    setCurrentContestantIndex(previousUnlockedIndex);
+    setCurrentContestant({
+      number: contestant.contestantNo,
+      name: contestant.contestantName,
+      category: contestant.category || 'Vocal Performance',
+      performanceOrder: contestant.performanceOrder || previousUnlockedIndex + 1,
+      photo: null,
+      contestantType: contestant.contestantType || 'solo'
+    });
+    // Update contestant scores to match the previous contestant's saved scores
+    const newContestantScores = initializeQuickScores(currentEvent, contestant);
+    setContestantScores(prev => ({
+      ...prev,
+      [contestant.id]: newContestantScores
+    }));
   };
 
   const goToNextContestant = () => {
@@ -1627,9 +2002,12 @@ export default function JudgeDashboard() {
         photo: null,
         contestantType: contestant.contestantType || 'solo'
       });
-      // Update quick scores to match the next contestant's saved scores
-      const newQuickScores = initializeQuickScores(currentEvent, contestant);
-      setQuickScores(newQuickScores);
+      // Update contestant scores to match the next contestant's saved scores
+      const newContestantScores = initializeQuickScores(currentEvent, contestant);
+      setContestantScores(prev => ({
+        ...prev,
+        [contestant.id]: newContestantScores
+      }));
       // Force selector re-render
       setSelectorKey(prev => prev + 1);
     }
@@ -1672,11 +2050,28 @@ export default function JudgeDashboard() {
           photo: null,
           contestantType: contestant.contestantType || 'solo'
         });
-        // Update quick scores to match current contestant scores based on event criteria
-        const newQuickScores = initializeQuickScores(currentEvent, contestant);
-        setQuickScores(newQuickScores);
+        // Update contestant scores to match current contestant scores based on event criteria
+        const newContestantScores = initializeQuickScores(currentEvent, contestant);
+        setContestantScores(prev => ({
+          ...prev,
+          [contestant.id]: newContestantScores
+        }));
+        // Load submitted criteria state
+        loadSubmittedCriteria(contestant);
         // Force selector re-render
         setSelectorKey(prev => prev + 1);
+        
+        // Scroll to the selected contestant card for better UX
+        setTimeout(() => {
+          const contestantCards = document.querySelectorAll('[data-contestant-card]');
+          const selectedCard = contestantCards[index];
+          if (selectedCard) {
+            selectedCard.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
+        }, 100);
         
         // End animation
         setIsAnimating(false);
@@ -1715,7 +2110,7 @@ export default function JudgeDashboard() {
   };
 
   // Quick scoring functions
-  const handleQuickScoreChange = (criteria, value) => {
+  const handleQuickScoreChange = (contestantId, criteria, value) => {
     const numValue = parseFloat(value) || 0;
     
     // Find the criterion to get its weight for points-based grading
@@ -1735,9 +2130,12 @@ export default function JudgeDashboard() {
       finalValue = Math.min(numValue, 100);
     }
     
-    setQuickScores(prev => ({
+    setContestantScores(prev => ({
       ...prev,
-      [criteria]: finalValue
+      [contestantId]: {
+        ...prev[contestantId],
+        [criteria]: finalValue
+      }
     }));
   };
 
@@ -1766,8 +2164,8 @@ export default function JudgeDashboard() {
         const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
         score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
       } else {
-        // For other criteria, use quickScores value
-        score = quickScores[key] || 0;
+        // For other criteria, use contestant-specific scores
+        score = contestantScores[contestants[currentContestantIndex]?.id]?.[key] ?? 0;
       }
       
       if (isPointsGrading) {
@@ -1798,7 +2196,7 @@ export default function JudgeDashboard() {
       return currentContestant.totalWeightedScore.toString();
     }
     
-    // Otherwise, use the real-time calculation from quickScores
+    // Otherwise, use the real-time calculation from contestant scores
     return calculateQuickTotal();
   };
 
@@ -2056,17 +2454,18 @@ export default function JudgeDashboard() {
         
         console.log('📊 Contestant:', contestant.contestantName);
         console.log('📊 Total Score:', totalScore);
-        console.log('📊 Quick Scores:', quickScores);
+        console.log('📊 Contestant Scores:', contestantScores[contestant.id]);
         
         // Save score to Firestore scores collection
         // Create scores object - ONLY include relevant criteria for current round
         const currentCriteria = getCurrentEventCriteria();
         let scoresToSave = {};
+        const currentContestantScores = contestantScores[contestant.id] || {};
         
         // When in final round mode, ONLY save final_ prefixed keys to protect main criteria scores
         if (usingFinalRoundCriteria) {
-          // Filter quickScores to only include final_ prefixed keys
-          Object.entries(quickScores).forEach(([key, value]) => {
+          // Filter contestantScores to only include final_ prefixed keys
+          Object.entries(currentContestantScores).forEach(([key, value]) => {
             if (key.startsWith('final_')) {
               scoresToSave[key] = value;
             }
@@ -2092,8 +2491,8 @@ export default function JudgeDashboard() {
           
           console.log('📊 Final round - only saving final_ prefixed scores:', scoresToSave);
         } else {
-          // For main criteria, save all quickScores (no prefix filtering needed)
-          scoresToSave = { ...quickScores };
+          // For main criteria, save all contestant scores (no prefix filtering needed)
+          scoresToSave = { ...currentContestantScores };
         }
         
         // Check if we have "AVERAGE OF THE 1ST ROUND" criterion or first criterion in final round with <=35% weight
@@ -2109,7 +2508,7 @@ export default function JudgeDashboard() {
           // In final round, ensure the first criterion has the calculated main criteria average
           const averageKey = getCriteriaKey(averageCriterion.name, usingFinalRoundCriteria);
           const calculatedAverage = calculateFirstRoundAverage(contestant);
-          // Use the calculated value or the current quickScores value (whichever is valid)
+          // Use the calculated value or the current contestant scores value (whichever is valid)
           scoresToSave[averageKey] = scoresToSave[averageKey] || calculatedAverage;
           console.log(`📊 Saving first round average: ${averageKey} = ${scoresToSave[averageKey]}`);
         }
@@ -2150,7 +2549,7 @@ export default function JudgeDashboard() {
             let updatedContestant;
             
             // Create updated scores object
-            const updatedScores = { ...quickScores };
+            const updatedScores = { ...currentContestantScores };
             
             // Check if we have "AVERAGE OF THE 1ST ROUND" criterion or first criterion in final round
             const currentCriteria = getCurrentEventCriteria();
@@ -2164,8 +2563,8 @@ export default function JudgeDashboard() {
             
             if (averageCriterion && usingFinalRoundCriteria) {
               const averageKey = getCriteriaKey(averageCriterion.name, usingFinalRoundCriteria);
-              // Use the value from quickScores or calculate it
-              updatedScores[averageKey] = quickScores[averageKey] || calculateFirstRoundAverage(contestant);
+              // Use the value from contestant scores or calculate it
+              updatedScores[averageKey] = currentContestantScores[averageKey] || calculateFirstRoundAverage(contestant);
             }
             
             // When using final round criteria, only update final round criteria scores
@@ -2212,7 +2611,7 @@ export default function JudgeDashboard() {
             // Update the current contestant state as well
             setCurrentContestant(prev => ({
               ...prev,
-              scores: quickScores,
+              scores: currentContestantScores,
               totalWeightedScore: parseFloat(totalScore.toFixed(1))
             }));
             
@@ -2274,12 +2673,6 @@ export default function JudgeDashboard() {
         const rankedContestants = updateRankings(updatedContestants);
         setContestants(rankedContestants);
         
-        // Force a re-render by updating the current contestant index
-        setCurrentContestantIndex(prev => prev);
-        
-        // Also update quickScores to ensure consistency
-        setQuickScores(prev => ({ ...prev }));
-        
         // Mark current contestant as scored in the appropriate set and persist to Firestore
         if (contestant.id) {
           if (usingFinalRoundCriteria) {
@@ -2303,18 +2696,13 @@ export default function JudgeDashboard() {
           }
         }
         
-        // Show success message
-        const hasNextContestant = currentContestantIndex < contestants.length - 1;
-        const message = hasNextContestant 
-          ? `Scores saved for ${currentContestant.name}!\n\nMoving to next contestant...`
-          : `Scores saved for ${currentContestant.name}!\n\nAll contestants scored!`;
+        // Show success message - remove automatic navigation message
+        const message = `Scores saved for ${currentContestant.name}!\n\nYou can continue scoring or navigate manually.`;
         alert(message);
         
-        // Force immediate contestants reload to ensure showcase updates instantly
-        if (user && judgeData && judgeData.uid === user.uid) {
-          console.log('🔄 Force reloading contestants for immediate showcase update...');
-          await loadContestants(judgeData);
-        }
+        // Don't force contestants reload to prevent unintended navigation
+        // The rankings will be updated through real-time listeners
+        console.log('✅ Scores saved successfully - staying on current contestant');
       } catch (error) {
         console.error('❌ Error saving scores:', error);
         console.error('❌ Error code:', error.code);
@@ -2625,6 +3013,15 @@ export default function JudgeDashboard() {
                         <span className="hidden sm:inline">{event.status.charAt(0).toUpperCase() + event.status.slice(1)}</span>
                       </span>
                     </div>
+                    {event.enableIndividualSubmit && (
+                      <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4 border border-white/20">
+                        <label className="text-[10px] sm:text-xs font-semibold text-emerald-200 uppercase tracking-wider">📤 Scoring Mode</label>
+                        <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse flex-shrink-0"></div>
+                          <span className="text-xs sm:text-sm font-bold text-blue-100">Individual Submit</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
@@ -2660,6 +3057,11 @@ export default function JudgeDashboard() {
                       ) : (
                         <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-blue-100 text-blue-700 rounded-full flex-shrink-0 shadow-sm" title="Solo Contestant">
                           👤
+                        </span>
+                      )}
+                      {isCurrentContestantLocked() && (
+                        <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-red-100 text-red-700 rounded-full flex-shrink-0 shadow-sm" title="Contestant scores are locked">
+                          🔒
                         </span>
                       )}
                       {isCurrentContestantScored() && (
@@ -2699,7 +3101,7 @@ export default function JudgeDashboard() {
             <div className="px-2.5 sm:px-4 py-2 sm:py-3 border-b border-slate-100 bg-slate-50/50 flex gap-2 sm:gap-3">
               <button
                 onClick={() => selectContestantByIndex(currentContestantIndex - 1)}
-                disabled={currentContestantIndex === 0}
+                disabled={isPreviousNavigationDisabled()}
                 className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-200 hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 rounded-lg sm:rounded-xl font-semibold transition-all duration-200 text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 hover:shadow-md active:scale-95"
               >
                 ← Prev
@@ -2712,6 +3114,21 @@ export default function JudgeDashboard() {
                 Next →
               </button>
             </div>
+
+            {/* All Contestants Locked Notification */}
+            {areAllContestantsLocked() && (
+              <div className="px-2.5 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base">🔒</span>
+                    <div>
+                      <p className="text-[10px] sm:text-xs font-medium text-amber-600">All Scores Locked</p>
+                      <p className="text-xs sm:text-sm font-bold text-amber-800">All contestant scores have been locked</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Previous Contestant Score Notification */}
             {showPreviousScore && previousContestantInfo && (
@@ -2798,7 +3215,7 @@ export default function JudgeDashboard() {
                               ? contestants[currentContestantIndex][originalKey] 
                               : calculateFirstRoundAverage(contestants[currentContestantIndex]);
                           } else {
-                            score = quickScores[key] || 0;
+                            score = contestantScores[contestants[currentContestantIndex]?.id]?.[key] ?? 0;
                           }
                             
                           const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
@@ -2837,10 +3254,10 @@ export default function JudgeDashboard() {
                                   max={criterionMaxScore}
                                   step="0.1"
                                   value={score}
-                                  onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
+                                  onChange={(e) => handleQuickScoreChange(contestants[currentContestantIndex]?.id, key, e.target.value)}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`]}
                                   className={`flex-1 h-1.5 sm:h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
+                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
                                 />
                                 <input
@@ -2857,17 +3274,34 @@ export default function JudgeDashboard() {
                                     } else if (!isPointsGrading && newValue > 100) {
                                       newValue = 100;
                                     }
-                                    handleQuickScoreChange(key, newValue);
+                                    handleQuickScoreChange(contestants[currentContestantIndex]?.id, key, newValue);
                                   }}
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored()}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`]}
                                   className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-[10px] sm:text-xs font-medium text-black ${
-                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored ? 'bg-gray-100 cursor-not-allowed' : ''
+                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] ? 'bg-gray-100 cursor-not-allowed' : ''
                                   }`}
                                 />
                               </div>
                               <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-black text-right">
                                 → {formatScoreDisplay(score, criterionMaxScore, isPointsGrading)}
                               </div>
+                              
+                              {/* Individual Criteria Submit Button - Mobile */}
+                              {currentEvent?.enableIndividualSubmit && criterion.enableSubmitButton !== false && (
+                                <div className="mt-2">
+                                  <button
+                                    onClick={() => submitScore(criterion.name)}
+                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                                    className={`w-full px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                      submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`]
+                                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                                    }`}
+                                  >
+                                    {submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] ? '✓ Submitted' : '📤 Submit'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -2929,6 +3363,7 @@ export default function JudgeDashboard() {
                 >
                   💾 {isCurrentContestantScored() ? 'Saved' : 'Save Scores'}
                 </button>
+                
                 <div className="flex gap-2 sm:hidden">
                   <button
                     onClick={toggleCurrentContestantLock}
@@ -3165,7 +3600,7 @@ export default function JudgeDashboard() {
                 const useFinalRoundPrefix = usingFinalRoundCriteria;
               
               return (
-                <div key={contestant.id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-300 hover:shadow-xl ${
+                <div key={contestant.id} data-contestant-card className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-300 hover:shadow-xl ${
                   isCurrentCard ? 'border-emerald-400 ring-2 ring-emerald-200/50 shadow-emerald-500/10' : 'border-slate-200 hover:border-slate-300'
                 }`}>
                   {/* Card Header - Enhanced */}
@@ -3192,6 +3627,11 @@ export default function JudgeDashboard() {
                                 ) : (
                                   <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-full shadow-sm" title="Solo Contestant">
                                     👤 Solo
+                                  </span>
+                                )}
+                                {isContestantLocked(contestant.id) && (
+                                  <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded-full shadow-sm" title="Contestant scores are locked">
+                                    🔒 Locked
                                   </span>
                                 )}
                                 {isCurrentCard && (
@@ -3272,7 +3712,7 @@ export default function JudgeDashboard() {
                                     const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
                                     score = contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant);
                                   } else {
-                                    score = quickScores[key] || 0;
+                                    score = contestantScores[contestant.id]?.[key] ?? 0;
                                   }
                                   const colors = ['blue', 'green', 'purple', 'orange', 'pink'];
                                   const color = colors[index % colors.length];
@@ -3323,10 +3763,10 @@ export default function JudgeDashboard() {
                                           max={criterionMaxScore}
                                           step="0.1"
                                           value={score}
-                                          onChange={(e) => handleQuickScoreChange(key, e.target.value)}
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
+                                          onChange={(e) => handleQuickScoreChange(contestant.id, key, e.target.value)}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`]}
                                           className={`flex-1 h-1 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                                            isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() ? 'opacity-50 cursor-not-allowed' : ''
+                                            isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
                                           }`}
                                         />
                                         <input
@@ -3343,18 +3783,48 @@ export default function JudgeDashboard() {
                                             } else if (!isPointsGrading && newValue > 100) {
                                               newValue = 100;
                                             }
-                                            handleQuickScoreChange(key, newValue);
+                                            handleQuickScoreChange(contestant.id, key, newValue);
                                           }}
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored()}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`]}
                                           className={`w-16 px-1 py-1 border rounded text-center font-semibold text-xs ${
                                             isOverMax 
                                               ? 'border-red-300 bg-red-100 text-black' 
                                               : 'border-gray-300'
                                           } ${
-                                            isFirstRoundAverage || isCurrentContestantScored ? 'bg-gray-100 cursor-not-allowed' : ''
+                                            isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] ? 'bg-gray-100 cursor-not-allowed' : ''
                                           }`}
                                         />
                                       </div>
+                                      {/* Individual Submit Button */}
+                                      {currentEvent?.enableIndividualSubmit && criterion.enableSubmitButton !== false && (
+                                        <div className="mt-2">
+                                          <button
+                                            onClick={() => submitScore(criterion.name)}
+                                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                                            className={`w-full px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                              submittedCriteria[`${contestant.id}_${key}`]
+                                                ? 'bg-gray-100 text-gray-500 cursor-not-allowed border border-gray-200'
+                                                : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 shadow-md hover:shadow-lg'
+                                            }`}
+                                          >
+                                            {submittedCriteria[`${contestant.id}_${key}`] ? (
+                                              <span className="flex items-center justify-center gap-1">
+                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                                Submitted
+                                              </span>
+                                            ) : (
+                                              <span className="flex items-center justify-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                                </svg>
+                                                Submit
+                                              </span>
+                                            )}
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -3512,9 +3982,13 @@ export default function JudgeDashboard() {
                         </div>
                         <button
                           onClick={() => selectContestantByIndex(actualIndex)}
-                          className="w-full mt-3 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm transition-colors"
+                          className={`w-full mt-3 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-200 transform active:scale-95 ${
+                            isCurrentCard 
+                              ? 'bg-emerald-700 text-white cursor-default' 
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg'
+                          }`}
                         >
-                          Select This Contestant
+                          {isCurrentCard ? '✓ Current Contestant' : 'Select This Contestant'}
                         </button>
                       </div>
                     )}
@@ -3589,14 +4063,20 @@ export default function JudgeDashboard() {
                             const firstFinalistIndex = contestants.findIndex(c => c.id === finalists[0].id);
                             if (firstFinalistIndex >= 0) {
                               setCurrentContestantIndex(firstFinalistIndex);
-                              // Initialize quick scores for the first finalist
-                              const newQuickScores = initializeQuickScores(updatedEvent, finalists[0], true);
-                              setQuickScores(newQuickScores);
+                              // Initialize contestant scores for the first finalist
+                              const newContestantScores = initializeQuickScores(updatedEvent, finalists[0], true);
+                              setContestantScores(prev => ({
+                                ...prev,
+                                [finalists[0].id]: newContestantScores
+                              }));
                             }
                           } else if (contestants[currentContestantIndex]) {
                             // No finalists yet, keep current contestant
-                            const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex], true);
-                            setQuickScores(newQuickScores);
+                            const newContestantScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex], true);
+                            setContestantScores(prev => ({
+                              ...prev,
+                              [contestants[currentContestantIndex].id]: newContestantScores
+                            }));
                           }
                           
                           alert(`🏆 Final Rounds Mode Activated\n\nShowing only finalists. ${finalists.length} finalist(s) found.`);
@@ -3635,8 +4115,11 @@ export default function JudgeDashboard() {
                         setSelectorKey(prev => prev + 1);
                         if (contestants[currentContestantIndex]) {
                           // Pass false for forceFinalRound since we're switching back to main
-                          const newQuickScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex], false);
-                          setQuickScores(newQuickScores);
+                          const newContestantScores = initializeQuickScores(updatedEvent, contestants[currentContestantIndex], false);
+                          setContestantScores(prev => ({
+                            ...prev,
+                            [contestants[currentContestantIndex].id]: newContestantScores
+                          }));
                         }
                       }
                     }}
@@ -3806,11 +4289,23 @@ export default function JudgeDashboard() {
                                   const colors = ['bg-blue-100 text-black', 'bg-cyan-100 text-cyan-800', 'bg-sky-100 text-sky-800', 'bg-green-100 text-black', 'bg-yellow-100 text-black'];
                                   const colorClass = colors[index % colors.length];
                                   const hasScore = score > 0;
+                                  
+                                  // Check if this is the highest score for this criterion
+                                  const highestScore = getHighestScore(criterion, index);
+                                  const isTopScore = hasScore && score === highestScore && highestScore > 0;
+                                  
                                   return (
-                                    <td key={index} className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center">
-                                      <span className={`inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs md:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-black'} rounded-full ${hasScore ? 'shadow-sm' : ''}`}>
-                                        {formatScoreDisplay(score, 100, false)}
-                                      </span>
+                                    <td key={index} className={`px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                                      <div className="relative inline-flex items-center justify-center">
+                                        <span className={`inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs md:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-black'} rounded-full ${hasScore ? 'shadow-sm' : ''} ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
+                                          {formatScoreDisplay(score, 100, false)}
+                                        </span>
+                                        {isTopScore && (
+                                          <span className="absolute -top-1 -right-1 text-[10px] sm:text-xs" title="Top score for this criterion">
+                                            🏆
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                   );
                                 })}
@@ -3821,7 +4316,7 @@ export default function JudgeDashboard() {
                                       if (isCurrentContestant) {
                                         const criteria = tableConfig.combined;
                                         const isPointsGrading = currentEvent?.gradingType === 'points';
-                                        return getFormattedTotalScore(contestant, criteria, isPointsGrading, usingFinalRoundCriteria, quickScores);
+                                        return getFormattedTotalScore(contestant, criteria, isPointsGrading, usingFinalRoundCriteria, contestantScores[contestant.id] || {});
                                       }
                                       
                                       if (typeof contestant.totalWeightedScore === 'number' && contestant.totalWeightedScore > 0) {
@@ -3907,22 +4402,55 @@ export default function JudgeDashboard() {
               {getCurrentEventCriteria().map((criterion, index) => {
                 const useFinalRoundPrefix = usingFinalRoundCriteria;
                 const key = getCriteriaKey(criterion.name, useFinalRoundPrefix);
+                const currentContestant = contestants[currentContestantIndex];
+                const isSubmitted = currentContestant && submittedCriteria[`${currentContestant.id}_${key}`];
+                
                 return (
                   <div key={index}>
                     <label className="block text-sm font-bold text-slate-700 mb-1">
                       {criterion.name} Score ({currentEvent?.gradingType === 'points' ? criterion.weight + ' points' : criterion.weight + '%'})
                     </label>
-                    <input
-                      type="number"
-                      name={key}
-                      value={formData[key] || 0}
-                      onChange={handleInputChange}
-                      min="0"
-                      max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
-                      step="0.1"
-                      className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 text-slate-800 font-medium"
-                      required
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        name={key}
+                        value={formData[key] || 0}
+                        onChange={handleInputChange}
+                        min="0"
+                        max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
+                        step="0.1"
+                        className="flex-1 px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 text-slate-800 font-medium"
+                        required
+                      />
+                      {currentEvent?.enableIndividualSubmit && (
+                        <button
+                          type="button"
+                          onClick={() => submitScore(criterion.name)}
+                          disabled={isSubmitted}
+                          className={`px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                            isSubmitted
+                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed border border-gray-200'
+                              : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 shadow-md hover:shadow-lg'
+                          }`}
+                        >
+                          {isSubmitted ? (
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              Submitted
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                              </svg>
+                              Submit
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

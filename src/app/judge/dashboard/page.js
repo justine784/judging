@@ -2863,7 +2863,6 @@ export default function JudgeDashboard() {
         </div>
       </header>
 
-      
       {/* Main Content */}
       <main className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Enhanced Dashboard Cards - Mobile Optimized */}
@@ -3047,30 +3046,55 @@ export default function JudgeDashboard() {
               
               <div className="relative text-white p-3 sm:p-4 md:p-5">
                 <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                      <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold truncate transition-all duration-300 drop-shadow-lg max-w-[200px] sm:max-w-none">{currentContestant.name}</h2>
-                      {currentContestant.contestantType === 'group' ? (
-                        <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-purple-100 text-purple-700 rounded-full flex-shrink-0 shadow-sm" title="Group Contestant">
-                          👥
-                        </span>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Contestant Image - Left Side */}
+                    <div className="flex-shrink-0">
+                      {currentContestant.photo ? (
+                        <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24">
+                          <div className="absolute inset-0 bg-white/20 backdrop-blur-sm rounded-full border-3 border-white/30 shadow-xl"></div>
+                          <Image
+                            src={currentContestant.photo}
+                            alt={`${currentContestant.name} photo`}
+                            fill
+                            className="rounded-full object-cover"
+                            sizes="(max-width: 640px) 64px, (max-width: 768px) 80px, 96px"
+                          />
+                        </div>
                       ) : (
-                        <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-blue-100 text-blue-700 rounded-full flex-shrink-0 shadow-sm" title="Solo Contestant">
-                          👤
-                        </span>
-                      )}
-                      {isCurrentContestantLocked() && (
-                        <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-red-100 text-red-700 rounded-full flex-shrink-0 shadow-sm" title="Contestant scores are locked">
-                          🔒
-                        </span>
-                      )}
-                      {isCurrentContestantScored() && (
-                        <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full flex-shrink-0 shadow-sm">
-                          ✅
-                        </span>
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-white/20 backdrop-blur-sm rounded-full border-3 border-white/30 flex items-center justify-center shadow-xl">
+                          <span className="text-2xl sm:text-3xl md:text-4xl">
+                            {currentContestant.contestantType === 'group' ? '👥' : '👤'}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm sm:text-base md:text-lg text-emerald-100 font-bold mt-0.5 sm:mt-1 truncate transition-all duration-300">Contestant #{currentContestant.number}</p>
+                    
+                    {/* Contestant Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold truncate transition-all duration-300 drop-shadow-lg max-w-[200px] sm:max-w-none">{currentContestant.name}</h2>
+                        {currentContestant.contestantType === 'group' ? (
+                          <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-purple-100 text-purple-700 rounded-full flex-shrink-0 shadow-sm" title="Group Contestant">
+                            👥
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-blue-100 text-blue-700 rounded-full flex-shrink-0 shadow-sm" title="Solo Contestant">
+                            👤
+                          </span>
+                        )}
+                        {isCurrentContestantLocked() && (
+                          <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-red-100 text-red-700 rounded-full flex-shrink-0 shadow-sm" title="Contestant scores are locked">
+                            🔒
+                          </span>
+                        )}
+                        {isCurrentContestantScored() && (
+                          <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full flex-shrink-0 shadow-sm">
+                            ✅
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm sm:text-base md:text-lg text-emerald-100 font-bold mt-0.5 sm:mt-1 truncate transition-all duration-300">Contestant #{currentContestant.number}</p>
+                    </div>
                   </div>
                   <div className="flex flex-col items-center bg-white/20 backdrop-blur-sm px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border border-white/30 flex-shrink-0">
                     <span className="text-lg sm:text-xl md:text-2xl font-extrabold">{currentContestantIndex + 1}</span>
@@ -3187,10 +3211,10 @@ export default function JudgeDashboard() {
                       {/* Category Header - only show if has sub-criteria */}
                       {!group.isFlat && group.categoryName && (
                         <div className="mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-gray-300">
-                          <h5 className="font-bold text-emerald-700 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                                  <h5 className="font-bold text-emerald-700 text-base sm:text-lg flex items-center gap-1.5 sm:gap-2">
                             <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-emerald-500 rounded-full"></span>
                             {group.categoryName}
-                            <span className="text-[10px] sm:text-xs font-normal text-gray-500">
+                            <span className="text-sm sm:text-base font-normal text-gray-500">
                               ({group.criteria.length})
                             </span>
                           </h5>
@@ -3229,20 +3253,20 @@ export default function JudgeDashboard() {
                             <div key={index} className="bg-white rounded-md sm:rounded-lg p-2 sm:p-3 border border-gray-200">
                               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                                 <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
-                                  <label className="text-xs sm:text-sm font-semibold text-black truncate max-w-[120px] sm:max-w-none">
+                                  <label className="text-base sm:text-lg font-semibold text-black truncate max-w-[120px] sm:max-w-none">
                                     {criterion.name}
                                   </label>
                                   {isFirstRoundAverage && (
-                                    <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
+                                    <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-sm sm:text-base font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
                                       🔒 Auto
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ml-1 sm:ml-2">
-                                  <span className="text-[10px] sm:text-xs font-medium text-black bg-gray-200 px-1.5 sm:px-2 py-0.5 rounded">
+                                  <span className="text-sm sm:text-base font-medium text-black bg-gray-200 px-1.5 sm:px-2 py-0.5 rounded">
                                     {isPointsGrading ? `${criterion.weight}pt` : `${criterion.weight}%`}
                                   </span>
-                                  <span className={`text-xs sm:text-sm font-bold text-${color}-600`}>
+                                  <span className={`text-base sm:text-lg font-bold text-${color}-600`}>
                                     {formatScoreDisplay(score, criterion.weight, isPointsGrading)}
                                   </span>
                                 </div>
@@ -3277,7 +3301,7 @@ export default function JudgeDashboard() {
                                     handleQuickScoreChange(contestants[currentContestantIndex]?.id, key, newValue);
                                   }}
                                   disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`]}
-                                  className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-[10px] sm:text-xs font-medium text-black ${
+                                  className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-sm sm:text-base font-medium text-black ${
                                     !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] ? 'bg-gray-100 cursor-not-allowed' : ''
                                   }`}
                                 />
@@ -3288,11 +3312,11 @@ export default function JudgeDashboard() {
                               
                               {/* Individual Criteria Submit Button - Mobile */}
                               {currentEvent?.enableIndividualSubmit && criterion.enableSubmitButton !== false && (
-                                <div className="mt-2">
+                                <div className="mt-2 flex justify-end">
                                   <button
                                     onClick={() => submitScore(criterion.name)}
                                     disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                                    className={`w-full px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                    className={`w-24 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                                       submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`]
                                         ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
                                         : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
@@ -3361,7 +3385,7 @@ export default function JudgeDashboard() {
                       : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
-                  💾 {isCurrentContestantScored() ? 'Saved' : 'Save Scores'}
+                  💾 {isCurrentContestantScored() ? 'Submitted' : 'Submit'}
                 </button>
                 
                 <div className="flex gap-2 sm:hidden">
@@ -3487,6 +3511,31 @@ export default function JudgeDashboard() {
                 </div>
               </div>
             </div>
+
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+              <h4 className="font-bold text-purple-800 mb-2 flex items-center gap-2">
+                <span className="text-lg">🎯</span>
+                Evaluation Guidelines
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-purple-700">
+                <div className="flex items-start gap-2">
+                  <span className="text-purple-500 mt-0.5">•</span>
+                  <span>Evaluate each criterion independently and objectively</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-purple-500 mt-0.5">•</span>
+                  <span>Use the full range of scores (0-100) for better differentiation</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-purple-500 mt-0.5">•</span>
+                  <span>Consider both technical skill and performance quality</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-purple-500 mt-0.5">•</span>
+                  <span>Maintain consistency across all contestants</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3522,8 +3571,8 @@ export default function JudgeDashboard() {
                 </div>
               </div>
               {(() => {
-                // Page-based pagination: show exactly 3 contestants per page
-                const pageSize = 3;
+                // Page-based pagination: show exactly 1 contestant per page
+                const pageSize = 1;
                 const currentPage = Math.floor(currentContestantIndex / pageSize);
                 const pageStart = currentPage * pageSize;
                 const pageEnd = Math.min(pageStart + pageSize, contestants.length);
@@ -3540,7 +3589,7 @@ export default function JudgeDashboard() {
                     </button>
                     <div className="text-center bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
                       <span className="text-sm text-emerald-700 font-bold block">
-                        {pageStart + 1}-{pageEnd} of {contestants.length}
+                        Contestant {pageStart + 1} of {contestants.length}
                       </span>
                       <span className="text-xs text-emerald-600">Page {currentPage + 1}/{totalPages}</span>
                     </div>
@@ -3586,10 +3635,11 @@ export default function JudgeDashboard() {
             )}
           </div>
 
-          {/* Contestant Cards Grid - Show exactly 3 per page - Enhanced */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+          {/* Contestant Cards Grid - Full Width Landscape Layout */}
+          <div className="grid grid-cols-1 gap-5 w-full">
             {(() => {
-              const pageSize = 3;
+              // Page-based pagination: show exactly 1 contestant per page
+              const pageSize = 1;
               const currentPage = Math.floor(currentContestantIndex / pageSize);
               const pageStart = currentPage * pageSize;
               const pageEnd = Math.min(pageStart + pageSize, contestants.length);
@@ -3603,64 +3653,93 @@ export default function JudgeDashboard() {
                 <div key={contestant.id} data-contestant-card className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-300 hover:shadow-xl ${
                   isCurrentCard ? 'border-emerald-400 ring-2 ring-emerald-200/50 shadow-emerald-500/10' : 'border-slate-200 hover:border-slate-300'
                 }`}>
-                  {/* Card Header - Enhanced */}
-                  <div className={`relative overflow-hidden ${
-                    isCurrentCard 
-                      ? 'bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600' 
-                      : 'bg-gradient-to-br from-slate-500 via-slate-600 to-slate-700'
-                  }`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-white/5"></div>
-                    <div className="relative p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/30">
-                              <div className="text-2xl lg:text-3xl font-extrabold text-white">#{contestant.contestantNo}</div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-bold truncate text-white drop-shadow-sm">{contestant.contestantName}</h3>
-                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                {contestant.contestantType === 'group' ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded-full shadow-sm" title="Group Contestant">
-                                    👥 Group
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-full shadow-sm" title="Solo Contestant">
-                                    👤 Solo
-                                  </span>
-                                )}
-                                {isContestantLocked(contestant.id) && (
-                                  <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded-full shadow-sm" title="Contestant scores are locked">
-                                    🔒 Locked
-                                  </span>
-                                )}
-                                {isCurrentCard && (
-                                  <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full shadow-sm animate-pulse">
-                                    📍 Active
-                                  </span>
-                                )}
+                  {/* Card Content - Full Width Landscape Layout */}
+                  <div className="flex flex-col lg:flex-row h-full">
+                    {/* Left Side - Contestant Info Header - Compact Landscape */}
+                    <div className={`relative overflow-hidden lg:w-80 xl:w-96 ${
+                      isCurrentCard 
+                        ? 'bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600' 
+                        : 'bg-gradient-to-br from-slate-500 via-slate-600 to-slate-700'
+                    }`}>
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-white/5"></div>
+                      <div className="relative p-6 h-full min-h-[200px]">
+                        {/* Contestant Image - Top */}
+                        <div className="flex justify-center mb-4">
+                          <div className="w-52 h-48 lg:w-60 lg:h-56 xl:w-85 xl:h-110">
+                            {contestant.photo ? (
+                              <div className="relative w-full h-full">
+                                <div className="absolute inset-0 bg-white/20 backdrop-blur-sm rounded-lg border-3 border-white/30 shadow-xl"></div>
+                                <Image
+                                  src={contestant.photo}
+                                  alt={`${contestant.contestantName} photo`}
+                                  fill
+                                  className="rounded-lg object-cover"
+                                  sizes="272px"
+                                />
                               </div>
-                              <p className="text-xs text-white/80 mt-1 font-medium">🎭 Performance #{contestant.performanceOrder}</p>
-                            </div>
+                            ) : (
+                              <div className="w-full h-full bg-white/20 backdrop-blur-sm rounded-lg border-3 border-white/30 flex items-center justify-center shadow-xl">
+                                <span className="text-6xl lg:text-7xl xl:text-8xl">
+                                  {contestant.contestantType === 'group' ? '👥' : '👤'}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="text-right bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20">
-                          <div className="text-xl font-extrabold text-white">{actualIndex + 1}</div>
-                          <div className="text-xs text-white/70 font-medium">of {contestants.length}</div>
+                        
+                        {/* Contestant Details - Below Image */}
+                        <div className="text-center px-2">
+                          {/* Contestant Number */}
+                          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-10 py-2 border border-white/30 mb-3 inline-block">
+                            <div className="text-xl lg:text-2xl xl:text-3xl font-extrabold text-white">#{contestant.contestantNo}</div>
+                          </div>
+                          
+                          {/* Contestant Name */}
+                          <h3 className="text-xl lg:text-2xl xl:text-3xl font-bold text-white drop-shadow-sm mb-3 px-4">{contestant.contestantName}</h3>
+                          
+                          {/* Contestant Type and Status Badges */}
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center mb-2">
+                            {contestant.contestantType === 'group' ? (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded-full shadow-sm" title="Group Contestant">
+                                👥 Group
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-full shadow-sm" title="Solo Contestant">
+                                👤 Solo
+                              </span>
+                            )}
+                            {isContestantLocked(contestant.id) && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded-full shadow-sm" title="Contestant scores are locked">
+                                🔒 Locked
+                              </span>
+                            )}
+                            {isCurrentCard && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full shadow-sm animate-pulse">
+                                📍 Active
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Performance Order */}
+                          <p className="text-xs text-white/80 font-medium mb-2">🎭 Performance #{contestant.performanceOrder}</p>
+                          
+                          {/* Contestant Position */}
+                          <div className="bg-white/10 backdrop-blur-sm rounded-lg px-2.5 py-1.5 border border-white/20 inline-block">
+                            <div className="text-sm font-extrabold text-white">{actualIndex + 1} / {contestants.length}</div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Card Body - Compact Scoring Form */}
-                  <div className="p-4">
-                    {isCurrentCard ? (
-                      // Current contestant - full scoring form
-                      <div>
-                        <h4 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-                          <span className="h-8 w-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">📝</span>
-                          Scoring Form
-                        </h4>
+                    {/* Right Side - Scoring Form - Full Width */}
+                    <div className="flex-1 p-6 min-h-[400px]">
+                      {isCurrentCard ? (
+                        // Current contestant - full scoring form
+                        <div>
+                          <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <span className="h-8 w-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">📝</span>
+                            Scoring Form
+                          </h4>
                         
                         {/* Warning Banner */}
                         {currentEvent && (currentEvent.scoresLocked || currentEvent.status === 'upcoming') && (
@@ -3729,20 +3808,20 @@ export default function JudgeDashboard() {
                                     }`}>
                                       <div className="flex items-center justify-between mb-1">
                                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                                          <label className="font-semibold text-black text-xs">
+                                          <label className="font-semibold text-black text-lg">
                                             {criterion.name}
                                           </label>
                                           {isFirstRoundAverage && (
-                                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
+                                            <span className="inline-flex items-center px-2 py-0.5 text-lg font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
                                               🔒 Auto
                                             </span>
                                           )}
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
-                                          <span className="text-xs font-medium text-black bg-gray-200 px-2 py-0.5 rounded">
+                                          <span className="text-lg font-medium text-black bg-gray-200 px-2 py-0.5 rounded">
                                             {isPointsGrading ? `${criterion.weight} pts` : `${criterion.weight}%`}
                                           </span>
-                                          <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                          <span className={`text-lg font-bold px-2 py-1 rounded ${
                                             isOverMax 
                                               ? 'text-black bg-red-100 border border-red-300' 
                                               : 'text-black bg-emerald-50'
@@ -3752,7 +3831,7 @@ export default function JudgeDashboard() {
                                         </div>
                                       </div>
                                       {isOverMax && (
-                                        <div className="mb-2 p-1 bg-red-100 border border-red-300 rounded text-xs text-black font-medium">
+                                        <div className="mb-2 p-1 bg-red-100 border border-red-300 rounded text-lg text-black font-medium">
                                           ⚠️ Score exceeds maximum of {criterionMaxScore}{isPointsGrading ? ' points' : '%'}!
                                         </div>
                                       )}
@@ -3786,7 +3865,7 @@ export default function JudgeDashboard() {
                                             handleQuickScoreChange(contestant.id, key, newValue);
                                           }}
                                           disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`]}
-                                          className={`w-16 px-1 py-1 border rounded text-center font-semibold text-xs ${
+                                          className={`w-16 px-1 py-1 border rounded text-center font-semibold text-base ${
                                             isOverMax 
                                               ? 'border-red-300 bg-red-100 text-black' 
                                               : 'border-gray-300'
@@ -3797,11 +3876,11 @@ export default function JudgeDashboard() {
                                       </div>
                                       {/* Individual Submit Button */}
                                       {currentEvent?.enableIndividualSubmit && criterion.enableSubmitButton !== false && (
-                                        <div className="mt-2">
+                                        <div className="mt-2 flex justify-end">
                                           <button
                                             onClick={() => submitScore(criterion.name)}
                                             disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
-                                            className={`w-full px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                            className={`w-24 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                                               submittedCriteria[`${contestant.id}_${key}`]
                                                 ? 'bg-gray-100 text-gray-500 cursor-not-allowed border border-gray-200'
                                                 : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 shadow-md hover:shadow-lg'
@@ -3886,7 +3965,7 @@ export default function JudgeDashboard() {
                                 : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-black'
                             }`}
                           >
-                            {!currentEvent ? '🔄 Loading...' : currentEvent.status === 'upcoming' ? '📅 Event Upcoming' : isEventFinished() ? '🏁 Event Finished' : hasInvalidScores() ? '⚠️ Invalid Scores' : isCurrentContestantLocked() ? '🔒 Locked' : '💾 Save'}
+                            {!currentEvent ? '🔄 Loading...' : currentEvent.status === 'upcoming' ? '📅 Event Upcoming' : isEventFinished() ? '🏁 Event Finished' : hasInvalidScores() ? '⚠️ Invalid Scores' : isCurrentContestantLocked() ? '🔒 Locked' : '📤 Submit'}
                           </button>
                         </div>
                         
@@ -3915,7 +3994,7 @@ export default function JudgeDashboard() {
                               {/* Category Header - only show if has sub-criteria */}
                               {!group.isFlat && group.categoryName && (
                                 <div className="mb-2 pb-1 border-b border-gray-300">
-                                  <h5 className="font-bold text-emerald-700 text-xs flex items-center gap-1">
+                                  <h5 className="font-bold text-emerald-700 text-sm flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
                                     {group.categoryName}
                                   </h5>
@@ -3994,6 +4073,7 @@ export default function JudgeDashboard() {
                     )}
                   </div>
                 </div>
+              </div>
               );
             });
             })()}

@@ -11,7 +11,11 @@ export async function POST(request) {
     const body = await request.json();
     const { uid } = body;
 
+    console.log('Received request to delete auth account for UID:', uid);
+    console.log('Request body:', body);
+
     if (!uid) {
+      console.log('Missing UID in request');
       return Response.json({ 
         success: false,
         error: 'UID is required',
@@ -22,12 +26,24 @@ export async function POST(request) {
       });
     }
 
-    console.log(`Received request to delete auth account for UID: ${uid}`);
+    console.log(`Attempting to delete auth account for UID: ${uid}`);
 
     // Check if Firebase Admin SDK environment variables are configured
-    const hasAdminConfig = !!(process.env.FIREBASE_PROJECT_ID && 
-                           process.env.FIREBASE_CLIENT_EMAIL && 
-                           process.env.FIREBASE_PRIVATE_KEY);
+    const envVars = {
+      FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+      FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+      FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY
+    };
+    
+    console.log('Environment variables status:', {
+      FIREBASE_PROJECT_ID: !!envVars.FIREBASE_PROJECT_ID,
+      FIREBASE_CLIENT_EMAIL: !!envVars.FIREBASE_CLIENT_EMAIL,
+      FIREBASE_PRIVATE_KEY: !!envVars.FIREBASE_PRIVATE_KEY
+    });
+
+    const hasAdminConfig = !!(envVars.FIREBASE_PROJECT_ID && 
+                           envVars.FIREBASE_CLIENT_EMAIL && 
+                           envVars.FIREBASE_PRIVATE_KEY);
 
     if (!hasAdminConfig) {
       console.warn('Firebase Admin SDK not configured. Returning manual deletion instructions.');
@@ -45,9 +61,9 @@ export async function POST(request) {
           step6: 'Confirm the deletion'
         },
         missingVars: {
-          FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
-          FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
-          FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
+          FIREBASE_PROJECT_ID: !!envVars.FIREBASE_PROJECT_ID,
+          FIREBASE_CLIENT_EMAIL: !!envVars.FIREBASE_CLIENT_EMAIL,
+          FIREBASE_PRIVATE_KEY: !!envVars.FIREBASE_PRIVATE_KEY,
         }
       }, { 
         status: 503, // Service Unavailable
@@ -57,20 +73,34 @@ export async function POST(request) {
 
     // Try to use Firebase Admin SDK if available
     try {
+      console.log('Attempting to initialize Firebase Admin SDK...');
+      
       // Dynamic import to avoid errors when SDK is not available
-      const admin = require('firebase-admin');
+      let admin;
+      try {
+        admin = require('firebase-admin');
+        console.log('Firebase Admin SDK loaded successfully');
+      } catch (importError) {
+        console.error('Failed to import Firebase Admin SDK:', importError);
+        throw new Error('Firebase Admin SDK not available. Please install firebase-admin package.');
+      }
       
       // Initialize if not already done
       if (!admin.apps.length) {
+        console.log('Initializing Firebase Admin SDK...');
         admin.initializeApp({
           credential: admin.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            projectId: envVars.FIREBASE_PROJECT_ID,
+            clientEmail: envVars.FIREBASE_CLIENT_EMAIL,
+            privateKey: envVars.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
           }),
         });
+        console.log('Firebase Admin SDK initialized successfully');
+      } else {
+        console.log('Firebase Admin SDK already initialized');
       }
 
+      console.log('Attempting to delete user from Firebase Auth...');
       // Delete the user
       await admin.auth().deleteUser(uid);
       console.log(`Successfully deleted auth account for UID: ${uid}`);
@@ -85,6 +115,12 @@ export async function POST(request) {
 
     } catch (adminError) {
       console.error('Firebase Admin SDK error:', adminError);
+      console.error('Admin error details:', {
+        message: adminError.message,
+        stack: adminError.stack,
+        code: adminError.code,
+        name: adminError.name
+      });
       
       return Response.json({ 
         success: false,
@@ -106,6 +142,12 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('API Error:', error);
+    console.error('API error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code
+    });
     
     return Response.json({ 
       success: false,

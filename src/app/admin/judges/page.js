@@ -15,7 +15,8 @@ export default function JudgeManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownButtonRef, setDropdownButtonRef] = useState(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedJudge, setSelectedJudge] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -68,6 +69,56 @@ export default function JudgeManagement() {
     }
   };
 
+  useEffect(() => {
+    if (activeDropdown && dropdownButtonRef) {
+      const updatePosition = () => {
+        const rect = dropdownButtonRef.getBoundingClientRect();
+        const dropdownHeight = 280; // Estimated dropdown height in pixels
+        const dropdownWidth = 208; // w-52 = 13rem = 208px
+        
+        // Calculate horizontal position
+        const leftPosition = rect.right - dropdownWidth;
+        const finalLeft = Math.max(8, Math.min(leftPosition, window.innerWidth - dropdownWidth - 8));
+        
+        // Calculate vertical position
+        let topPosition = rect.bottom + 4;
+        
+        // Check if dropdown would go below viewport
+        if (topPosition + dropdownHeight > window.innerHeight) {
+          // Position dropdown above the button instead
+          topPosition = rect.top - dropdownHeight - 4;
+          
+          // Ensure it doesn't go above viewport
+          if (topPosition < 8) {
+            topPosition = 8;
+          }
+        }
+        
+        setDropdownPosition({
+          top: topPosition,
+          left: finalLeft
+        });
+      };
+
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, { passive: true });
+      window.addEventListener('resize', updatePosition, { passive: true });
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [activeDropdown, dropdownButtonRef]);
+
+  // Check if dropdown should appear above button
+  const isDropdownAbove = () => {
+    if (!dropdownButtonRef) return false;
+    const rect = dropdownButtonRef.getBoundingClientRect();
+    const dropdownHeight = 280; // Estimated dropdown height in pixels
+    return rect.bottom + dropdownHeight + 4 > window.innerHeight;
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -83,21 +134,18 @@ export default function JudgeManagement() {
   const toggleDropdown = (judgeId, event) => {
     if (activeDropdown === judgeId) {
       setActiveDropdown(null);
+      setDropdownButtonRef(null);
     } else {
-      const rect = event.target.getBoundingClientRect();
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
-      setDropdownPosition({
-        top: rect.bottom + scrollTop + 4,
-        right: window.innerWidth - rect.right - scrollLeft + 4
-      });
+      setDropdownButtonRef(event.target);
       setActiveDropdown(judgeId);
+      
+      // Position will be updated by useEffect
     }
   };
 
   const closeDropdown = () => {
     setActiveDropdown(null);
+    setDropdownButtonRef(null);
   };
 
   // Function to check if judge is already assigned to any event
@@ -343,6 +391,8 @@ export default function JudgeManagement() {
       let manualInstructions = null;
       
       try {
+        console.log('Attempting to delete auth account for judge:', judgeId);
+        
         const response = await fetch('/api/admin/delete-judge-auth', {
           method: 'POST',
           headers: {
@@ -351,10 +401,16 @@ export default function JudgeManagement() {
           body: JSON.stringify({ uid: judgeId }),
         });
 
+        console.log('Auth deletion response status:', response.status);
+        console.log('Auth deletion response headers:', response.headers);
+
         // Check if response is JSON
         const contentType = response.headers.get('content-type');
+        console.log('Response content type:', contentType);
+        
         if (contentType && contentType.includes('application/json')) {
           const result = await response.json();
+          console.log('Auth deletion result:', result);
           
           if (result.success) {
             authDeleted = true;
@@ -378,11 +434,18 @@ export default function JudgeManagement() {
           // Handle non-JSON response (likely HTML error page)
           const text = await response.text();
           console.error('Non-JSON response:', text.substring(0, 200));
-          authError = 'Server returned non-JSON response. Check server logs for Firebase Admin SDK configuration errors.';
+          console.error('Response status:', response.status);
+          console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+          authError = `Server returned non-JSON response (${response.status}). Check server logs for Firebase Admin SDK configuration errors.`;
         }
       } catch (apiError) {
-        authError = apiError.message;
         console.error('API call failed:', apiError);
+        console.error('API error details:', {
+          message: apiError.message,
+          stack: apiError.stack,
+          name: apiError.name
+        });
+        authError = `API call failed: ${apiError.message}`;
       }
       
       // Delete the judge document from Firestore
@@ -424,6 +487,12 @@ export default function JudgeManagement() {
       await loadJudges();
     } catch (error) {
       console.error('Error deleting judge:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code
+      });
       setError('Failed to delete judge: ' + error.message);
     }
   };
@@ -798,29 +867,74 @@ export default function JudgeManagement() {
                 )}
               </div>
               
-              {/* Mobile Action Buttons */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => {
-                    setSelectedJudge(judge);
-                    setShowEventModal(true);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition-colors"
-                >
-                  <span>✏️</span> Assign Events
-                </button>
-                <button
-                  onClick={() => handleToggleJudgeStatus(judge.id, judge.isActive)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                    judge.isActive 
-                      ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' 
-                      : 'bg-green-50 text-green-700 hover:bg-green-100'
-                  }`}
-                >
-                  <span>{judge.isActive ? '⏸️' : '▶️'}</span>
-                  {judge.isActive ? 'Deactivate' : 'Activate'}
-                </button>
-              </div>
+              {/* Enhanced Mobile Dropdown Menu */}
+              {activeDropdown === judge.id && (
+                <div className="pt-3 mt-3 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedJudge(judge);
+                        closeDropdown();
+                        setShowEventModal(true);
+                      }}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition-colors"
+                    >
+                      <span>✏️</span> Assign Events
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleToggleJudgeStatus(judge.id, judge.isActive);
+                        closeDropdown();
+                      }}
+                      className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        judge.isActive 
+                          ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' 
+                          : 'bg-green-50 text-green-700 hover:bg-green-100'
+                      }`}
+                    >
+                      <span>{judge.isActive ? '⏸️' : '▶️'}</span>
+                      {judge.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this judge? This action cannot be undone.')) {
+                          handleDeleteJudge(judge.id);
+                          closeDropdown();
+                        }
+                      }}
+                      className="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 text-xs font-medium rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <span>🗑️</span> Delete Judge
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Mobile Action Buttons - Only show when dropdown is not active */}
+              {activeDropdown !== judge.id && (
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => {
+                      setSelectedJudge(judge);
+                      setShowEventModal(true);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition-colors"
+                  >
+                    <span>✏️</span> Assign Events
+                  </button>
+                  <button
+                    onClick={() => handleToggleJudgeStatus(judge.id, judge.isActive)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                      judge.isActive 
+                        ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' 
+                        : 'bg-green-50 text-green-700 hover:bg-green-100'
+                    }`}
+                  >
+                    <span>{judge.isActive ? '⏸️' : '▶️'}</span>
+                    {judge.isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -885,11 +999,13 @@ export default function JudgeManagement() {
                       {judge.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="relative dropdown-menu">
+                  
+                  {/* Mobile Actions - Grid Layout */}
+                  <td className="lg:hidden px-4 py-4">
+                    <div className="relative">
                       <button
                         onClick={(e) => toggleDropdown(judge.id, e)}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                        className="p-2.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-200 touch-manipulation active:scale-95"
                         title="More actions"
                       >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -897,54 +1013,129 @@ export default function JudgeManagement() {
                         </svg>
                       </button>
 
-                      {/* Dropdown Menu */}
+                      {/* Enhanced Mobile Dropdown Menu */}
                       {activeDropdown === judge.id && (
-                        <div 
-                          className="fixed w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-[9999]"
-                          style={{
-                            top: `${dropdownPosition.top}px`,
-                            right: `${dropdownPosition.right}px`
-                          }}
-                        >
-                          <button
-                            onClick={() => {
-                              setSelectedJudge(judge);
-                              closeDropdown();
-                              setShowEventModal(true);
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors"
-                          >
-                            <span className="text-emerald-600">✏️</span>
-                            Assign Events
-                          </button>
-                          <button
-                            onClick={() => {
-                              handleToggleJudgeStatus(judge.id, judge.isActive);
-                              closeDropdown();
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors ${
-                              judge.isActive 
-                                ? 'text-orange-600 hover:bg-orange-50' 
-                                : 'text-green-600 hover:bg-green-50'
-                            }`}
-                          >
-                            <span>{judge.isActive ? '⏸️' : '▶️'}</span>
-                            {judge.isActive ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <hr className="my-1 border-gray-100" />
-                          <button
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this judge? This action cannot be undone.')) {
-                                handleDeleteJudge(judge.id);
+                        <div className="pt-3 mt-3 border-t border-gray-200">
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedJudge(judge);
                                 closeDropdown();
-                              }
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                          >
-                            <span>🗑️</span>
-                            Delete Judge
-                          </button>
+                                setShowEventModal(true);
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-gray-700 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl hover:from-emerald-100 hover:to-teal-100 transition-all touch-manipulation active:scale-95 shadow-sm"
+                            >
+                              <span>📋</span>
+                              Events
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleToggleJudgeStatus(judge.id, judge.isActive);
+                                closeDropdown();
+                              }}
+                              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium ${
+                                judge.isActive 
+                                  ? 'text-orange-600 bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 hover:from-orange-100 hover:to-amber-100' 
+                                  : 'text-green-600 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 hover:from-green-100 hover:to-emerald-100'
+                              } rounded-xl transition-all touch-manipulation active:scale-95 shadow-sm`}
+                            >
+                              <span>{judge.isActive ? '⏸️' : '▶️'}</span>
+                              {judge.isActive ? 'Deact.' : 'Act.'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this judge? This action cannot be undone.')) {
+                                  handleDeleteJudge(judge.id);
+                                  closeDropdown();
+                                }
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 bg-gradient-to-br from-red-50 to-rose-50 border border-red-200 rounded-xl hover:from-red-100 hover:to-rose-100 transition-all touch-manipulation active:scale-95 shadow-sm col-span-2"
+                            >
+                              <span>🗑️</span>
+                              Delete Judge
+                            </button>
+                          </div>
                         </div>
+                      )}
+                    </div>
+                  </td>
+                  
+                  {/* Desktop Actions - Dropdown */}
+                  <td className="hidden lg:table-cell px-6 py-4 text-right">
+                    <div className="relative dropdown-menu">
+                      <button
+                        onClick={(e) => toggleDropdown(judge.id, e)}
+                        className="p-2.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-200 touch-manipulation active:scale-95"
+                        title="More actions"
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
+                      </button>
+
+                      {/* Enhanced Dropdown Menu */}
+                      {activeDropdown === judge.id && (
+                        <>
+                          {isDropdownAbove() && (
+                            <div 
+                              className="fixed w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-200 z-[9999]"
+                              style={{
+                                top: `${dropdownPosition.top - 8}px`,
+                                left: `${dropdownPosition.left + dropdownButtonRef?.getBoundingClientRect().width - 40}px`
+                              }}
+                            />
+                          )}
+                          <div 
+                            className={`fixed w-52 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-[9999] transition-all duration-200 ${
+                              isDropdownAbove() ? 'mb-2' : 'mt-2'
+                            }`}
+                            style={{
+                              top: `${dropdownPosition.top}px`,
+                              left: `${dropdownPosition.left}px`
+                            }}
+                          >
+                            <button
+                              onClick={() => {
+                                setSelectedJudge(judge);
+                                closeDropdown();
+                                setShowEventModal(true);
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 flex items-center gap-3 transition-colors"
+                            >
+                              <span className="text-emerald-500">📋</span>
+                              <span className="font-medium">Assign Events</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleToggleJudgeStatus(judge.id, judge.isActive);
+                                closeDropdown();
+                              }}
+                              className={`w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gradient-to-r flex items-center gap-3 transition-colors ${
+                                judge.isActive 
+                                  ? 'hover:from-orange-50 hover:to-amber-50' 
+                                  : 'hover:from-green-50 hover:to-emerald-50'
+                              }`}
+                            >
+                              <span className={judge.isActive ? 'text-orange-500' : 'text-green-500'}>
+                                {judge.isActive ? '⏸️' : '▶️'}
+                              </span>
+                              <span className="font-medium">{judge.isActive ? 'Deactivate Judge' : 'Activate Judge'}</span>
+                            </button>
+                            <hr className="my-2 border-gray-100" />
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this judge? This action cannot be undone.')) {
+                                  handleDeleteJudge(judge.id);
+                                  closeDropdown();
+                                }
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 flex items-center gap-3 transition-colors"
+                            >
+                              <span>🗑️</span>
+                              <span className="font-medium">Delete Judge</span>
+                            </button>
+                          </div>
+                        </>
                       )}
                     </div>
                   </td>

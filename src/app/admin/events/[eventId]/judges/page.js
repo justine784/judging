@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, setDoc, getDocs, collection, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 
 export default function EventJudgeManagement() {
   const [events, setEvents] = useState([]);
@@ -29,6 +29,12 @@ export default function EventJudgeManagement() {
 
   // Load events and judges
   useEffect(() => {
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      console.error('User not authenticated or not admin for event judges');
+      return;
+    }
+    
     loadEvents();
     loadJudges();
   }, []);
@@ -36,6 +42,12 @@ export default function EventJudgeManagement() {
   // Load event judges when eventId is set
   useEffect(() => {
     if (eventId) {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+        console.error('User not authenticated or not admin for event judges');
+        return;
+      }
+      
       loadEventJudges(eventId);
     }
   }, [eventId]);

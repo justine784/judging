@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { doc, setDoc, getDocs, collection, deleteDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 
 export default function EventContestants() {
   const [contestants, setContestants] = useState([]);
@@ -79,6 +79,12 @@ export default function EventContestants() {
   // Load event and contestants data with real-time listeners
   useEffect(() => {
     if (!eventId) return;
+    
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      console.error('User not authenticated or not admin for event contestants');
+      return;
+    }
 
     // Real-time listener for event
     const eventUnsubscribe = onSnapshot(doc(db, 'events', eventId), (eventDoc) => {
@@ -118,6 +124,12 @@ export default function EventContestants() {
   // Listen for scores in real-time
   useEffect(() => {
     if (!eventId) return;
+    
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      console.error('User not authenticated or not admin for scores');
+      return;
+    }
     
     const scoresCollection = collection(db, 'scores');
     const unsubscribe = onSnapshot(scoresCollection, (snapshot) => {

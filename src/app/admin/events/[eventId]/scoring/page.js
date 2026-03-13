@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { doc, deleteDoc, getDocs, collection } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 
 export default function EventScoring() {
   const [contestants, setContestants] = useState([]);
@@ -26,6 +26,12 @@ export default function EventScoring() {
 
   // Load event and contestants data
   useEffect(() => {
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      console.error('User not authenticated or not admin for event scoring');
+      return;
+    }
+    
     // Sample event data
     const sampleEvents = {
       '1': {

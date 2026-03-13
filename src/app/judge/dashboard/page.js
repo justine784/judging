@@ -682,7 +682,7 @@ export default function JudgeDashboard() {
         submittedAt: new Date().toISOString(),
         round: usingFinalRoundCriteria ? 'final' : 'main',
         eventId: currentEvent.id,
-        eventName: currentEvent.eventName
+        eventName: currentEvent.eventName || currentEvent.name || 'Unknown Event'
       };
       
       // Save slide submission to Firestore
@@ -730,7 +730,7 @@ export default function JudgeDashboard() {
         [key]: score,
         [`${key}_submitted`]: {
           judgeId: user.uid,
-          judgeName: judgeData.name,
+          judgeName: judgeData.name || user.displayName || user.email,
           contestantId: contestantId,
           criterionName: criteriaId,
           criterionKey: key,
@@ -782,9 +782,9 @@ export default function JudgeDashboard() {
         contestantName: currentContestant.contestantName,
         contestantNo: currentContestant.contestantNo,
         eventId: currentEvent.id,
-        eventName: currentEvent.name,
+        eventName: currentEvent.name || 'Unknown Event',
         judgeId: user.uid,
-        judgeName: judgeData.name,
+        judgeName: judgeData.name || user.displayName || user.email,
         judgeEmail: user.email,
         scores: {
           [key]: score
@@ -2518,7 +2518,7 @@ export default function JudgeDashboard() {
           contestantName: contestant.contestantName,
           contestantNo: contestant.contestantNo,
           eventId: contestant.eventId,
-          eventName: contestant.eventName,
+          eventName: contestant.eventName || currentEvent?.name || 'Unknown Event',
           judgeId: user.uid,
           judgeName: user.displayName || user.email,
           judgeEmail: user.email,

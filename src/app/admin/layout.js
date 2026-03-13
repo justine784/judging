@@ -20,7 +20,8 @@ export default function AdminLayout({ children }) {
       
       if (user) {
         // Check if the user is the allowed admin email
-        if (user.email === 'admin@gmail.com') {
+        const ADMIN_EMAIL = 'admin@gmail.com'; // Change this to your email
+        if (user.email === ADMIN_EMAIL) {
           setUser(user);
         } else if (!isCreatingJudge) {
           // Sign out unauthorized user and redirect to login

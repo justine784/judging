@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, getDoc, where } from 'firebase/firestore';
 
 export default function AdminScoreboard() {
+  const [user, setUser] = useState(null);
   const [contestants, setContestants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [contestInfo, setContestInfo] = useState(null);
@@ -20,7 +21,33 @@ export default function AdminScoreboard() {
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [updatedContestants, setUpdatedContestants] = useState(new Set()); // Track recently updated contestants
 
+  // Check authentication status
   useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+      if (currentUser && currentUser.email === 'admin@gmail.com') {
+        // User is authenticated admin, allow access
+      } else if (currentUser) {
+        // User is authenticated but not admin
+        setLoading(false);
+        alert('Access denied. Admin privileges required.');
+        window.location.href = '/admin/login';
+      } else {
+        // User not authenticated
+        window.location.href = '/admin/login';
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // Check if user is authenticated and is admin before fetching events
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      setLoading(false);
+      return;
+    }
+    
     // Fetch events and auto-select the first ongoing or upcoming event
     const eventsCollection = collection(db, 'events');
     const unsubscribeEvents = onSnapshot(eventsCollection, (snapshot) => {
@@ -53,6 +80,11 @@ export default function AdminScoreboard() {
     });
 
     // Fetch scores for aggregation
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      console.error('User not authenticated or not admin for scores');
+      return;
+    }
+    
     const scoresCollection = collection(db, 'scores');
     const unsubscribeScores = onSnapshot(scoresCollection, (snapshot) => {
       const scoresData = snapshot.docs.map(doc => ({
@@ -173,6 +205,12 @@ export default function AdminScoreboard() {
   useEffect(() => {
     // Fetch contestants filtered by selected event
     if (!selectedEvent) return;
+    
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser || auth.currentUser.email !== 'admin@gmail.com') {
+      console.error('User not authenticated or not admin for contestants');
+      return;
+    }
 
     const contestantsQuery = query(
       collection(db, 'contestants'),

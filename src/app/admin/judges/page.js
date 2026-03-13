@@ -45,6 +45,9 @@ export default function JudgeManagement() {
       // If user is not authenticated or not admin, redirect to admin login
       if (!user) {
         router.push('/admin/login');
+      } else if (user.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        router.push('/admin/login');
       }
     });
     
@@ -53,6 +56,17 @@ export default function JudgeManagement() {
 
   const loadJudges = async () => {
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        return;
+      }
+      
       const judgesCollection = collection(db, 'judges');
       const judgesSnapshot = await getDocs(judgesCollection);
       const judgesList = judgesSnapshot.docs.map(doc => ({
@@ -65,7 +79,11 @@ export default function JudgeManagement() {
       setJudges(filteredJudges);
     } catch (error) {
       console.error('Error loading judges:', error);
-      setError('Failed to load judges');
+      if (error.code === 'permission-denied') {
+        setError('Permission denied. Please check your admin credentials and try again.');
+      } else {
+        setError('Failed to load judges');
+      }
     }
   };
 
@@ -224,6 +242,19 @@ export default function JudgeManagement() {
 
   const loadEvents = async () => {
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        console.error('User not authenticated for loading events');
+        setEvents([]);
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        console.error('Access denied for loading events');
+        setEvents([]);
+        return;
+      }
+      
       // Load events from Firestore
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
@@ -234,6 +265,9 @@ export default function JudgeManagement() {
       setEvents(eventsList);
     } catch (error) {
       console.error('Error loading events:', error);
+      if (error.code === 'permission-denied') {
+        setError('Permission denied. Please check your admin credentials and try again.');
+      }
       setEvents([]);
     }
   };
@@ -256,6 +290,19 @@ export default function JudgeManagement() {
     setLoading(true);
     setError('');
     setSuccess('');
+
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser) {
+      setError('User not authenticated. Please log in again.');
+      setLoading(false);
+      return;
+    }
+    
+    if (auth.currentUser.email !== 'admin@gmail.com') {
+      setError('Access denied. Admin privileges required.');
+      setLoading(false);
+      return;
+    }
 
     // Store current admin user to preserve session
     const adminUser = auth.currentUser;
@@ -376,6 +423,17 @@ export default function JudgeManagement() {
 
   const handleDeleteJudge = async (judgeId) => {
     if (!confirm('Are you sure you want to delete this judge? This action cannot be undone.\n\nNote: This will remove the judge from the system and delete their authentication account.')) {
+      return;
+    }
+
+    // Check if user is authenticated and is admin
+    if (!auth.currentUser) {
+      setError('User not authenticated. Please log in again.');
+      return;
+    }
+    
+    if (auth.currentUser.email !== 'admin@gmail.com') {
+      setError('Access denied. Admin privileges required.');
       return;
     }
 

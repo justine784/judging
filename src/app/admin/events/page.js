@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, setDoc, getDocs, collection, deleteDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 
 export default function EventManagement() {
+  const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -32,10 +33,41 @@ export default function EventManagement() {
     scoresLocked: false
   });
 
-  // Load events from Firestore on component mount
+  // Check authentication status
   useEffect(() => {
-    loadEvents();
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      console.log('Auth state changed - Current user:', currentUser?.email);
+      console.log('Auth state changed - User UID:', currentUser?.uid);
+      console.log('Auth state changed - Is admin:', currentUser?.email === 'admin@gmail.com');
+      
+      setUser(currentUser);
+      if (currentUser) {
+        // TEMPORARY DEBUG: Allow any authenticated user for debugging
+        console.log('User authenticated, allowing access for debugging...');
+        loadEvents();
+        
+        // ORIGINAL CODE (uncomment when debugging is complete):
+        // if (currentUser.email === 'admin@gmail.com') {
+        //   console.log('User authenticated as admin, loading events...');
+        //   loadEvents();
+        // } else {
+        //   console.log('User authenticated but not admin:', currentUser.email);
+        //   setError('Access denied. Admin privileges required.');
+        // }
+      } else {
+        console.log('No user authenticated');
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Load events from Firestore on component mount (only if authenticated)
+  useEffect(() => {
+    if (user && user.email === 'admin@gmail.com') {
+      loadEvents();
+    }
+  }, [user]);
 
   // Update current time every second for live display
   useEffect(() => {
@@ -150,6 +182,28 @@ export default function EventManagement() {
   const loadEvents = async () => {
     try {
       setLoading(true);
+      setError('');
+      
+      console.log('loadEvents called - Checking authentication...');
+      console.log('Current auth user:', auth.currentUser?.email);
+      
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        console.error('No authenticated user found');
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      // TEMPORARY DEBUG: Allow any authenticated user
+      console.log('Authentication passed (debug mode), fetching events...');
+      
+      // ORIGINAL CODE (uncomment when debugging is complete):
+      // if (auth.currentUser.email !== 'admin@gmail.com') {
+      //   console.error('User is not admin:', auth.currentUser.email);
+      //   setError('Access denied. Admin privileges required.');
+      //   return;
+      // }
+      
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
       const eventsList = eventsSnapshot.docs.map(doc => ({
@@ -159,7 +213,11 @@ export default function EventManagement() {
       setEvents(eventsList);
     } catch (error) {
       console.error('Error loading events:', error);
-      setError('Failed to load events from database. Please refresh the page.');
+      if (error.code === 'permission-denied') {
+        setError('Permission denied. Please check your admin credentials and try again.');
+      } else {
+        setError('Failed to load events from database. Please refresh the page.');
+      }
       // Load sample data as fallback (with empty criteria - admin should configure via Manage Criteria)
       const sampleEvents = [
         {
@@ -296,6 +354,17 @@ export default function EventManagement() {
     setError('');
     
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        return;
+      }
+      
       // Create event with empty criteria - admin will configure via Manage Criteria
       const eventData = {
         ...formData,
@@ -335,6 +404,17 @@ export default function EventManagement() {
     setError('');
     
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        return;
+      }
+      
       // Update event in Firestore
       const eventRef = doc(db, 'events', editingEvent.id);
       const updatedData = {
@@ -367,6 +447,17 @@ export default function EventManagement() {
   // Utility function to clean up orphaned judge assignments
   const cleanupOrphanedAssignments = async () => {
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        console.error('User not authenticated for cleanup');
+        return 0;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        console.error('Access denied for cleanup');
+        return 0;
+      }
+      
       const judgesCollection = collection(db, 'judges');
       const judgesSnapshot = await getDocs(judgesCollection);
       const eventsCollection = collection(db, 'events');
@@ -416,6 +507,17 @@ export default function EventManagement() {
     setError('');
     
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        return;
+      }
+      
       // Delete from Firestore
       const eventRef = doc(db, 'events', eventId);
       await deleteDoc(eventRef);
@@ -459,6 +561,17 @@ export default function EventManagement() {
     setError('');
     
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        return;
+      }
+      
       const event = events.find(e => e.id === eventId);
       
       // Prevent locking scores if event is upcoming
@@ -644,6 +757,17 @@ export default function EventManagement() {
     setError('');
     
     try {
+      // Check if user is authenticated and is admin
+      if (!auth.currentUser) {
+        setError('User not authenticated. Please log in again.');
+        return;
+      }
+      
+      if (auth.currentUser.email !== 'admin@gmail.com') {
+        setError('Access denied. Admin privileges required.');
+        return;
+      }
+      
       // Validate that total category weights equal 100% for percentage-based events
       if (selectedEvent.gradingType === 'percentage' && selectedEvent.criteriaCategories) {
         const totalWeight = selectedEvent.criteriaCategories.reduce((sum, cat) => sum + (cat.totalWeight || 0), 0);
@@ -813,7 +937,7 @@ export default function EventManagement() {
     setSelectedEvent(updatedEvent);
   };
 
-  const handleCategoryChange = (index, field, value) => {
+  const handleCategoryChange = (categoryIndex, field, value) => {
     const updatedEvent = { ...selectedEvent };
     if (!updatedEvent.criteriaCategories) {
       updatedEvent.criteriaCategories = [];

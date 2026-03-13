@@ -1646,6 +1646,11 @@ export default function JudgeDashboard() {
     try {
       console.log('Starting database write operations...');
       
+      // Validate we have all necessary data before proceeding
+      if (!db || !contestantId) {
+        throw new Error('Missing database connection or contestant ID');
+      }
+      
       const contestantRef = doc(db, 'contestants', contestantId);
 
       
@@ -1660,7 +1665,7 @@ export default function JudgeDashboard() {
 
           judgeId: user.uid,
 
-          judgeName: judgeData.name,
+          judgeName: judgeData.name || 'Unknown Judge',
 
           contestantId: contestantId,
 
@@ -1691,7 +1696,17 @@ export default function JudgeDashboard() {
 
       console.log('Creating score document for Live Scoreboard...');
       
-      const criteria = getCurrentEventCriteria();
+      let criteria;
+      try {
+        criteria = getCurrentEventCriteria();
+        if (!criteria || !Array.isArray(criteria)) {
+          console.warn('No criteria found, using empty array');
+          criteria = [];
+        }
+      } catch (criteriaError) {
+        console.error('Error getting criteria:', criteriaError);
+        criteria = [];
+      }
 
       const isPointsGrading = currentEvent?.gradingType === 'points';
 
@@ -1703,56 +1718,63 @@ export default function JudgeDashboard() {
 
       criteria.forEach((criterion, index) => {
 
-        const usePrefix = usingFinalRoundCriteria;
+        try {
+          const usePrefix = usingFinalRoundCriteria;
 
-        const critKey = getCriteriaKey(criterion.name, usePrefix);
+          const critKey = getCriteriaKey(criterion.name, usePrefix);
 
-        
+          
 
-        // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+          // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
 
-        const isNameBased = criterion.name.toUpperCase().includes('AVERAGE') && 
+          const isNameBased = criterion.name && criterion.name.toUpperCase().includes('AVERAGE') && 
+                                 criterion.name.toUpperCase().includes('1ST') && 
+                                 criterion.name.toUpperCase().includes('ROUND');
 
-                               criterion.name.toUpperCase().includes('1ST') && 
+          const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
 
-                               criterion.name.toUpperCase().includes('ROUND');
+          const isFirstRoundAverage = isNameBased || isPositionBased;
 
-        const isPositionBased = usingFinalRoundCriteria && index === 0 && criterion.weight <= 35;
+          
 
-        const isFirstRoundAverage = isNameBased || isPositionBased;
+          let critScore;
 
-        
+          if (isFirstRoundAverage) {
 
-        let critScore;
+            try {
+              const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+              critScore = currentContestant && currentContestant[originalKey] !== undefined 
+                ? currentContestant[originalKey] 
+                : (calculateFirstRoundAverage ? calculateFirstRoundAverage(currentContestant) : 0);
+            } catch (avgError) {
+              console.error('Error calculating first round average:', avgError);
+              critScore = 0;
+            }
 
-        if (isFirstRoundAverage) {
+          } else {
 
-          const originalKey = criterion.name.toLowerCase().replace(/\s+/g, '_');
+            // Use the score from contestantScores for this criterion, or 0 for others
 
-          critScore = currentContestant[originalKey] !== undefined ? currentContestant[originalKey] : calculateFirstRoundAverage(currentContestant);
+            critScore = (critKey === key) ? score : (contestantScores[contestantId]?.[critKey] || 0);
 
-        } else {
+          }
 
-          // Use the score from contestantScores for this criterion, or 0 for others
+          
 
-          critScore = (critKey === key) ? score : (contestantScores[contestantId]?.[critKey] || 0);
+          if (isPointsGrading) {
 
+            totalScore += critScore;
+
+          } else {
+
+            const weight = (criterion.weight || 0) / 100;
+            totalScore += critScore * weight;
+
+          }
+        } catch (criterionError) {
+          console.error('Error processing criterion:', criterion, criterionError);
+          // Continue with next criterion
         }
-
-        
-
-        if (isPointsGrading) {
-
-          totalScore += critScore;
-
-        } else {
-
-          const weight = criterion.weight / 100;
-
-          totalScore += critScore * weight;
-
-        }
-
       });
       
       console.log('Calculated total score:', totalScore);
@@ -1765,19 +1787,19 @@ export default function JudgeDashboard() {
 
         contestantId: contestantId,
 
-        contestantName: currentContestant.contestantName,
+        contestantName: currentContestant?.contestantName || 'Unknown Contestant',
 
-        contestantNo: currentContestant.contestantNo,
+        contestantNo: currentContestant?.contestantNo || 'Unknown',
 
-        eventId: currentEvent.id,
+        eventId: currentEvent?.id || 'unknown',
 
-        eventName: currentEvent.name,
+        eventName: currentEvent?.name || 'Unknown Event',
 
         judgeId: user.uid,
 
-        judgeName: judgeData.name,
+        judgeName: judgeData?.name || 'Unknown Judge',
 
-        judgeEmail: user.email,
+        judgeEmail: user.email || '',
 
         scores: {
 
@@ -1785,11 +1807,11 @@ export default function JudgeDashboard() {
 
         },
 
-        criteria: criteria,
+        criteria: criteria || [],
 
-        totalScore: parseFloat(totalScore.toFixed(1)),
+        totalScore: parseFloat(totalScore.toFixed(1)) || 0,
 
-        isFinalRound: usingFinalRoundCriteria,
+        isFinalRound: usingFinalRoundCriteria || false,
 
         timestamp: new Date().toISOString(),
 
@@ -1803,33 +1825,49 @@ export default function JudgeDashboard() {
 
       // Save to scores collection
 
-      const scoreRef = doc(db, 'scores', `${user.uid}_${contestantId}_${key}_${Date.now()}`);
-
-      await setDoc(scoreRef, individualScoreData);
-      console.log('✅ Score document created successfully');
+      try {
+        const scoreRef = doc(db, 'scores', `${user.uid}_${contestantId}_${key}_${Date.now()}`);
+        await setDoc(scoreRef, individualScoreData);
+        console.log('✅ Score document created successfully');
+      } catch (scoreDocError) {
+        console.error('Error creating score document:', scoreDocError);
+        // Continue with local state updates even if score doc fails
+      }
 
       
 
       // Update local state
-      setSubmittedCriteria(prev => ({
-        ...prev,
-        [`${user.uid}_${contestantId}_${key}`]: true
-      }));
+      try {
+        setSubmittedCriteria(prev => ({
+          ...prev,
+          [`${user.uid}_${contestantId}_${key}`]: true
+        }));
+      } catch (stateError) {
+        console.error('Error updating submitted criteria state:', stateError);
+      }
       
       // Clear loading state
-      setSubmittingCriteria(prev => ({
-        ...prev,
-        [`${user.uid}_${contestantId}_${key}`]: false
-      }));
+      try {
+        setSubmittingCriteria(prev => ({
+          ...prev,
+          [`${user.uid}_${contestantId}_${key}`]: false
+        }));
+      } catch (loadingError) {
+        console.error('Error clearing loading state:', loadingError);
+      }
       
       // Update local judge-specific scores state
-      setJudgeSpecificScores(prev => ({
-        ...prev,
-        [contestantId]: {
-          ...prev[contestantId],
-          [key]: score
-        }
-      }));
+      try {
+        setJudgeSpecificScores(prev => ({
+          ...prev,
+          [contestantId]: {
+            ...prev[contestantId],
+            [key]: score
+          }
+        }));
+      } catch (judgeScoreError) {
+        console.error('Error updating judge specific scores:', judgeScoreError);
+      }
       
       console.log('✅ Score submission completed successfully');
       alert(`✅ Score submitted successfully for "${criteriaId}"!`);

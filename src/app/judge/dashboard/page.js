@@ -1560,17 +1560,49 @@ export default function JudgeDashboard() {
     }));
     
     // Get the actual score from contestantScores, not formData
-
-    const score = contestantScores[contestantId]?.[key] || 0;
+    // Also check if score is actually set (not just default 0)
+    const contestantScoreData = contestantScores[contestantId] || {};
+    const score = contestantScoreData[key];
     
-    console.log('Score Data:', {
-      score: score,
-      contestantScores: contestantScores[contestantId],
-      key: key
-    });
+    console.log('=== DETAILED SCORE DEBUG ===');
+    console.log('Contestant ID:', contestantId);
+    console.log('Criteria Key:', key);
+    console.log('Full contestantScores object:', contestantScores);
+    console.log('Contestant score data:', contestantScoreData);
+    console.log('Raw score value:', score);
+    console.log('Score type:', typeof score);
+    console.log('Has key in object:', key in contestantScoreData);
+    console.log('Score is undefined:', score === undefined);
+    console.log('Score is null:', score === null);
+    console.log('Score is NaN:', isNaN(score));
+    console.log('Score value check:', score, '->', parseFloat(score));
+    
+    // Check if score is actually set (not undefined/null) and is a valid number
+    if (score === undefined || score === null || isNaN(score)) {
+      // Clear loading state before returning
+      setSubmittingCriteria(prev => ({
+        ...prev,
+        [`${user.uid}_${contestantId}_${key}`]: false
+      }));
+      console.error('❌ SCORE NOT PROPERLY SET:', {
+        score: score,
+        key: key,
+        contestantScoreData: contestantScoreData,
+        fullScores: contestantScores
+      });
+      alert('❌ Please set a score before submitting. Use the slider to select a score.');
+      return;
+    }
+    
+    console.log('✅ Score validation passed:', score);
+    
+    // TEMPORARY TEST: Allow score of 0 for testing
+    if (score === 0) {
+      console.log('⚠️ Score is 0, but allowing for testing');
+    }
     
     // Validate all required fields before submission
-    if (!currentEvent.id || !contestantId || !criteriaId || !user.uid || score === null || score === undefined) {
+    if (!currentEvent.id || !contestantId || !criteriaId || !user.uid) {
       // Clear loading state before returning
       setSubmittingCriteria(prev => ({
         ...prev,
@@ -1580,8 +1612,7 @@ export default function JudgeDashboard() {
         eventId: !!currentEvent.id,
         contestantId: !!contestantId,
         criteriaId: !!criteriaId,
-        judgeId: !!user.uid,
-        score: score
+        judgeId: !!user.uid
       });
       alert('❌ Missing required data for submission. Please try again.');
       return;

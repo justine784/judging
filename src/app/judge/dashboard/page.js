@@ -99,6 +99,10 @@ export default function JudgeDashboard() {
   const [judgeSpecificScores, setJudgeSpecificScores] = useState({}); // Store judge-specific scores loaded from Firestore
 
   const [submittedSlides, setSubmittedSlides] = useState({}); // Track submitted slides per contestant
+  
+  const [criteriaCompletion, setCriteriaCompletion] = useState({}); // Track completion status per criteria per event
+  const [currentActiveCriteriaIndex, setCurrentActiveCriteriaIndex] = useState(0); // Track which criteria is currently active
+  const [judgeCriteriaProgress, setJudgeCriteriaProgress] = useState({}); // Track per-judge criteria progression
 
   const router = useRouter();
 
@@ -140,11 +144,9 @@ export default function JudgeDashboard() {
 
           const judgeDoc = await getDoc(doc(db, 'judges', user.uid));
 
-          
-
           if (!judgeDoc.exists()) {
 
-            // User is not in the judges collection, sign out and redirect
+            console.error('Judge document does not exist for user:', user.uid);
 
             await auth.signOut();
 
@@ -154,10 +156,23 @@ export default function JudgeDashboard() {
 
           }
 
-          
-
           const judgeData = judgeDoc.data();
 
+          // Check if judgeData exists and has valid ID
+          // Use document ID if id field is missing (for backward compatibility)
+          const judgeId = judgeData.id || judgeDoc.id;
+          
+          if (!judgeData || !judgeId) {
+            console.error('Invalid judge data structure:', judgeData);
+            await auth.signOut();
+            router.push('/judge/login');
+            return;
+          }
+
+          // Update judgeData with document ID if missing (for future use)
+          if (!judgeData.id && judgeDoc.id) {
+            judgeData.id = judgeDoc.id;
+          }
           
 
           // Check if judge is inactive
@@ -396,6 +411,70 @@ export default function JudgeDashboard() {
 
   }, [currentContestantIndex, currentEvent?.id, contestants.length, lockedContestants, lockedScores, usingFinalRoundCriteria]);
 
+
+
+  // Initialize criteria completion tracking for individual submit mode
+  useEffect(() => {
+    if (currentEvent?.enableIndividualSubmit && contestants.length > 0) {
+      console.log('🔧 Initializing criteria completion tracking for individual submit mode');
+      
+      // Reset active criteria index when event changes
+      setCurrentActiveCriteriaIndex(0);
+      
+      // Initialize all criteria as not completed
+      const criteria = getCurrentEventCriteria();
+      const initialCompletion = {};
+      
+      criteria.forEach((criterion, index) => {
+        const key = getCriteriaKey(criterion.name, usingFinalRoundCriteria);
+        const completionKey = `${currentEvent.id}_${key}`;
+        initialCompletion[completionKey] = false;
+      });
+      
+      setCriteriaCompletion(initialCompletion);
+      console.log('📋 Initialized criteria completion status:', initialCompletion);
+    }
+  }, [currentEvent?.enableIndividualSubmit, currentEvent?.id, contestants.length]);
+
+
+  // Load judge's criteria progress from localStorage
+  useEffect(() => {
+    if (user && currentEvent?.enableIndividualSubmit) {
+      const judgeProgressKey = `${user.uid}_${currentEvent.id}`;
+      
+      // Try to load from localStorage first
+      try {
+        const savedProgress = localStorage.getItem(`judgeProgress_${judgeProgressKey}`);
+        if (savedProgress !== null) {
+          const progress = parseInt(savedProgress, 10);
+          setJudgeCriteriaProgress(prev => ({
+            ...prev,
+            [judgeProgressKey]: progress
+          }));
+          console.log(`📂 Loaded judge progress from localStorage: ${progress}`);
+        }
+      } catch (error) {
+        console.error('Error loading judge progress from localStorage:', error);
+      }
+    }
+  }, [user?.uid, currentEvent?.id, currentEvent?.enableIndividualSubmit]);
+
+  // Save judge's criteria progress to localStorage whenever it changes
+  useEffect(() => {
+    if (user && currentEvent?.enableIndividualSubmit) {
+      const judgeProgressKey = `${user.uid}_${currentEvent.id}`;
+      const progress = judgeCriteriaProgress[judgeProgressKey];
+      
+      if (progress !== undefined) {
+        try {
+          localStorage.setItem(`judgeProgress_${judgeProgressKey}`, progress.toString());
+          console.log(`💾 Saved judge progress to localStorage: ${progress}`);
+        } catch (error) {
+          console.error('Error saving judge progress to localStorage:', error);
+        }
+      }
+    }
+  }, [judgeCriteriaProgress, user?.uid, currentEvent?.id, currentEvent?.enableIndividualSubmit]);
 
 
   // Load judge's assigned events from Firestore
@@ -685,22 +764,29 @@ export default function JudgeDashboard() {
 
 
   // Set up real-time listener for scores collection to update rankings
-
+  // Only listen to scores from the current judge to ensure isolation
   const setupScoresListener = (judge) => {
+    // Check if judge parameter is valid
+    if (!judge || !judge.id) {
+      console.error('Invalid judge parameter in setupScoresListener:', judge);
+      return;
+    }
 
     const scoresCollection = collection(db, 'scores');
 
-    const unsubscribe = onSnapshot(scoresCollection, (snapshot) => {
+    const scoresQuery = query(scoresCollection, where('judgeId', '==', judge.id));
 
-      console.log('Scores updated in real-time - updating rankings');
+    const unsubscribe = onSnapshot(scoresQuery, (snapshot) => {
+
+      console.log('Judge scores updated in real-time - updating rankings for judge:', judge.id);
 
       // Reload contestants to recalculate rankings with new scores
-
+      // Only this judge's scores will affect their view
       loadContestants(judge);
 
     }, (error) => {
 
-      console.error('Error listening to scores updates:', error);
+      console.error('Error listening to judge scores updates:', error);
 
     });
 
@@ -1872,6 +1958,22 @@ export default function JudgeDashboard() {
       console.log('✅ Score submission completed successfully');
       alert(`✅ Score submitted successfully for "${criteriaId}"!`);
       
+      // Update judge's criteria progress for individual submit mode
+      if (currentEvent?.enableIndividualSubmit) {
+        console.log('Updating judge criteria progress...');
+        
+        // Find the criteria index
+        const criteria = getCurrentEventCriteria();
+        const criteriaIndex = criteria.findIndex(c => getCriteriaKey(c.name, usingFinalRoundCriteria) === key);
+        
+        if (criteriaIndex !== -1) {
+          updateJudgeCriteriaProgress(criteriaIndex);
+        }
+        
+        // Also update criteria completion status for global tracking
+        await updateCriteriaCompletion(key);
+      }
+      
     } catch (error) {
       // Clear loading state on error
       setSubmittingCriteria(prev => ({
@@ -2670,17 +2772,22 @@ export default function JudgeDashboard() {
 
         const finalKey = `final_${originalKey}`;
 
-        return (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
-
-          ? contestant[finalKey] 
-
-          : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
+        // Use judge-specific scores first, then fallback to contestant data
+        const judgeScore = judgeSpecificScores[contestant.id]?.[finalKey] ?? 
+                                 judgeSpecificScores[contestant.id]?.[originalKey];
+        
+        return (judgeScore !== undefined) ? judgeScore :
+                 (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
+                   ? contestant[finalKey] 
+                   : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
 
       } else {
 
         const key = getCriteriaKey(criterion.name, usingFinalRoundCriteria);
 
-        return contestant[key] || 0;
+        // Use judge-specific scores first, then fallback to contestant data
+        const judgeScore = judgeSpecificScores[contestant.id]?.[key];
+        return (judgeScore !== undefined) ? judgeScore : (contestant[key] || 0);
 
       }
 
@@ -2800,15 +2907,20 @@ export default function JudgeDashboard() {
 
                       const finalKey = `final_${originalKey}`;
 
-                      // Check both keys
-
-                      return (contestant[finalKey] !== undefined && contestant[finalKey] > 0) ||
-
+                      // Check judge-specific scores first, then fallback to contestant data
+                      const judgeScore = judgeSpecificScores[contestant.id]?.[finalKey] ?? 
+                                       judgeSpecificScores[contestant.id]?.[originalKey];
+                      
+                      return (judgeScore !== undefined && judgeScore > 0) ||
+                             (contestant[finalKey] !== undefined && contestant[finalKey] > 0) ||
                              (contestant[originalKey] !== undefined && contestant[originalKey] > 0);
 
                     } else {
 
-                      return contestant[key] !== undefined && contestant[key] > 0;
+                      // Use judge-specific scores first, then fallback to contestant data
+                      const judgeScore = judgeSpecificScores[contestant.id]?.[key];
+                      return (judgeScore !== undefined && judgeScore > 0) ||
+                             (contestant[key] !== undefined && contestant[key] > 0);
 
                     }
 
@@ -2866,15 +2978,20 @@ export default function JudgeDashboard() {
 
                         const finalKey = `final_${originalKey}`;
 
-                        score = (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
-
-                          ? contestant[finalKey] 
-
-                          : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
+                        // Use judge-specific scores first, then fallback to contestant data
+                        const judgeScore = judgeSpecificScores[contestant.id]?.[finalKey] ?? 
+                                         judgeSpecificScores[contestant.id]?.[originalKey];
+                        
+                        score = (judgeScore !== undefined) ? judgeScore :
+                                 (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
+                                   ? contestant[finalKey] 
+                                   : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
 
                       } else {
 
-                        score = contestant[key] || 0;
+                        // Use judge-specific scores first, then fallback to contestant data
+                        const judgeScore = judgeSpecificScores[contestant.id]?.[key];
+                        score = (judgeScore !== undefined) ? judgeScore : (contestant[key] || 0);
 
                       }
 
@@ -2982,15 +3099,20 @@ export default function JudgeDashboard() {
 
                           const finalKey = `final_${originalKey}`;
 
-                          score = (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
-
-                            ? contestant[finalKey] 
-
-                            : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
+                          // Use judge-specific scores first, then fallback to contestant data
+                          const judgeScore = judgeSpecificScores[contestant.id]?.[finalKey] ?? 
+                                           judgeSpecificScores[contestant.id]?.[originalKey];
+                          
+                          score = (judgeScore !== undefined) ? judgeScore :
+                                   (usingFinalRoundCriteria && contestant[finalKey] !== undefined) 
+                                     ? contestant[finalKey] 
+                                     : (contestant[originalKey] !== undefined ? contestant[originalKey] : calculateFirstRoundAverage(contestant));
 
                         } else {
 
-                          score = contestant[key] || 0;
+                          // Use judge-specific scores first, then fallback to contestant data
+                          const judgeScore = judgeSpecificScores[contestant.id]?.[key];
+                          score = (judgeScore !== undefined) ? judgeScore : (contestant[key] || 0);
 
                         }
 
@@ -4599,6 +4721,165 @@ export default function JudgeDashboard() {
   };
 
 
+
+  // Criteria Locking Functions for Individual Submit Mode
+  
+  // Check if all judges have submitted scores for a specific criteria
+  const checkAllJudgesSubmittedForCriteria = async (criteriaKey, eventId) => {
+    if (!currentEvent || !contestants || contestants.length === 0) return false;
+    
+    try {
+      const judgesRef = collection(db, 'judges');
+      const judgesSnapshot = await getDocs(judgesRef);
+      const judges = judgesSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(judge => judge.role === 'judge' && 
+                       judge.assignedEvents && 
+                       judge.assignedEvents.includes(eventId));
+      
+      console.log(`Checking submissions for criteria: ${criteriaKey}`);
+      console.log(`Total judges assigned: ${judges.length}`);
+      
+      // Check each contestant for this criteria's submissions
+      for (const contestant of contestants) {
+        const contestantRef = doc(db, 'contestants', contestant.id);
+        const contestantDoc = await getDoc(contestantRef);
+        
+        if (!contestantDoc.exists()) continue;
+        
+        const contestantData = contestantDoc.data();
+        const submissionKey = `${criteriaKey}_submitted`;
+        
+        // Count how many judges have submitted for this contestant and criteria
+        const submittedJudges = [];
+        
+        for (const judge of judges) {
+          // Check if this judge has a submission record for this criteria
+          if (contestantData[submissionKey] && 
+              contestantData[submissionKey].judgeId === judge.id) {
+            submittedJudges.push(judge.id);
+          }
+        }
+        
+        console.log(`Contestant ${contestant.contestantName}: ${submittedJudges.length}/${judges.length} judges submitted`);
+        
+        // If any contestant doesn't have all judges submitted, criteria is not complete
+        if (submittedJudges.length < judges.length) {
+          return false;
+        }
+      }
+      
+      console.log(`✅ All judges submitted for criteria: ${criteriaKey}`);
+      return true;
+      
+    } catch (error) {
+      console.error('Error checking judge submissions:', error);
+      return false;
+    }
+  };
+  
+  // Get the currently active criteria index for the current judge
+  const getCurrentActiveCriteriaIndex = () => {
+    if (!currentEvent?.enableIndividualSubmit) return -1; // Not in individual submit mode
+    if (!user) return 0;
+    
+    const criteria = getCurrentEventCriteria();
+    if (!criteria || criteria.length === 0) return 0;
+    
+    // Check this judge's progress
+    const judgeProgressKey = `${user.uid}_${currentEvent.id}`;
+    const judgeProgress = judgeCriteriaProgress[judgeProgressKey] || 0;
+    
+    // Ensure the progress is within bounds
+    return Math.min(judgeProgress, criteria.length - 1);
+  };
+  
+  // Reset judge's criteria progress (for testing or admin override)
+  const resetJudgeCriteriaProgress = () => {
+    if (!user || !currentEvent?.enableIndividualSubmit) return;
+    
+    const judgeProgressKey = `${user.uid}_${currentEvent.id}`;
+    
+    setJudgeCriteriaProgress(prev => ({
+      ...prev,
+      [judgeProgressKey]: 0
+    }));
+    
+    // Also clear localStorage
+    try {
+      localStorage.removeItem(`judgeProgress_${judgeProgressKey}`);
+      console.log(`🔄 Reset judge progress for ${judgeProgressKey}`);
+    } catch (error) {
+      console.error('Error clearing judge progress from localStorage:', error);
+    }
+  };
+  
+  // Update judge's criteria progress after submission
+  const updateJudgeCriteriaProgress = (criteriaIndex) => {
+    if (!user || !currentEvent?.enableIndividualSubmit) return;
+    
+    const judgeProgressKey = `${user.uid}_${currentEvent.id}`;
+    const currentProgress = judgeCriteriaProgress[judgeProgressKey] || 0;
+    
+    // Only advance if this is the current active criteria
+    if (criteriaIndex === currentProgress) {
+      const newProgress = Math.min(currentProgress + 1, getCurrentEventCriteria().length - 1);
+      setJudgeCriteriaProgress(prev => ({
+        ...prev,
+        [judgeProgressKey]: newProgress
+      }));
+      
+      console.log(`🎯 Judge ${user.uid} advanced to criteria index ${newProgress}`);
+    }
+  };
+  
+  // Check if a criteria is locked for scoring
+  const isCriteriaLocked = (criteriaIndex) => {
+    if (!currentEvent?.enableIndividualSubmit) return false; // Not in individual submit mode
+    
+    const activeIndex = getCurrentActiveCriteriaIndex();
+    return criteriaIndex !== activeIndex;
+  };
+  
+  // Check if a criteria is the currently active one
+  const isCriteriaActive = (criteriaIndex) => {
+    if (!currentEvent?.enableIndividualSubmit) return true; // Not in individual submit mode, all are active
+    
+    const activeIndex = getCurrentActiveCriteriaIndex();
+    return criteriaIndex === activeIndex;
+  };
+  
+  // Update criteria completion status after a judge submits
+  const updateCriteriaCompletion = async (criteriaKey) => {
+    if (!currentEvent?.enableIndividualSubmit) return;
+    
+    const completionKey = `${currentEvent.id}_${criteriaKey}`;
+    
+    // Check if all judges have now submitted for this criteria
+    const allSubmitted = await checkAllJudgesSubmittedForCriteria(criteriaKey, currentEvent.id);
+    
+    if (allSubmitted && !criteriaCompletion[completionKey]) {
+      // Mark this criteria as completed
+      setCriteriaCompletion(prev => ({
+        ...prev,
+        [completionKey]: true
+      }));
+      
+      console.log(`🎉 Criteria ${criteriaKey} completed by all judges!`);
+      
+      // Update the active criteria index
+      const newActiveIndex = getCurrentActiveCriteriaIndex();
+      setCurrentActiveCriteriaIndex(newActiveIndex);
+      
+      // Show notification to judges
+      if (newActiveIndex < getCurrentEventCriteria().length) {
+        const nextCriteria = getCurrentEventCriteria()[newActiveIndex];
+        alert(`🎉 All judges completed previous criteria! You can now score: ${nextCriteria.name}`);
+      } else {
+        alert('🎉 All criteria have been completed! Scoring is now finished.');
+      }
+    }
+  };
 
   // Quick scoring functions
 
@@ -6420,6 +6701,17 @@ export default function JudgeDashboard() {
 
                         </div>
 
+                        {/* Debug Reset Progress Button */}
+                        {process.env.NODE_ENV === 'development' && (
+                          <button
+                            onClick={resetJudgeCriteriaProgress}
+                            className="mt-2 w-full px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+                            title="Reset criteria progress (development only)"
+                          >
+                            🔄 Reset Progress
+                          </button>
+                        )}
+
                       </div>
 
                     )}
@@ -6882,17 +7174,48 @@ export default function JudgeDashboard() {
 
                           return (
 
-                            <div key={index} className="bg-white rounded-md sm:rounded-lg p-2 sm:p-3 border border-gray-200">
+                            <div key={index} className={`bg-white rounded-md sm:rounded-lg p-2 sm:p-3 border ${
+                              currentEvent?.enableIndividualSubmit && isCriteriaLocked(currentGlobalIndex)
+                                ? 'border-gray-300 bg-gray-50' 
+                                : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex)
+                                ? 'border-emerald-400 bg-emerald-50 shadow-md'
+                                : 'border-gray-200'
+                            }`}>
 
                               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
 
                                 <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
 
-                                  <label className="text-base sm:text-lg font-semibold text-black truncate max-w-[120px] sm:max-w-none">
-
+                                  <label className={`text-base sm:text-lg font-semibold truncate max-w-[120px] sm:max-w-none ${
+                                    currentEvent?.enableIndividualSubmit && isCriteriaLocked(currentGlobalIndex)
+                                      ? 'text-gray-500'
+                                      : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex)
+                                      ? 'text-emerald-700'
+                                      : 'text-black'
+                                  }`}>
                                     {criterion.name}
-
                                   </label>
+
+                                  {/* Criteria Status Indicator */}
+                                  {currentEvent?.enableIndividualSubmit && (
+                                    <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-medium rounded-full flex-shrink-0 ${
+                                      submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]
+                                        ? 'bg-green-100 text-green-800'
+                                        : isCriteriaLocked(currentGlobalIndex)
+                                        ? 'bg-gray-200 text-gray-600'
+                                        : isCriteriaActive(currentGlobalIndex)
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] 
+                                        ? '✅ Submitted' 
+                                        : isCriteriaLocked(currentGlobalIndex) 
+                                        ? '🔒 Locked' 
+                                        : isCriteriaActive(currentGlobalIndex) 
+                                        ? '🟢 Active' 
+                                        : '⏳ Waiting'}
+                                    </span>
+                                  )}
 
                                   {isFirstRoundAverage && (
 
@@ -6940,12 +7263,10 @@ export default function JudgeDashboard() {
 
                                   onChange={(e) => handleQuickScoreChange(contestants[currentContestantIndex]?.id, key, e.target.value)}
 
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`]}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] || isCriteriaLocked(currentGlobalIndex)}
 
                                   className={`flex-1 h-1.5 sm:h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-
-                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
-
+                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestants[currentContestantIndex]?.id}_${key}`] || isCriteriaLocked(currentGlobalIndex) ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
 
                                 />
@@ -6982,12 +7303,10 @@ export default function JudgeDashboard() {
 
                                   }}
 
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || isCriteriaLocked(currentGlobalIndex)}
 
                                   className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-sm sm:text-base font-medium text-black ${
-
-                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? 'bg-gray-100 cursor-not-allowed' : ''
-
+                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || isCriteriaLocked(currentGlobalIndex) ? 'bg-gray-100 cursor-not-allowed' : ''
                                   }`}
 
                                 />
@@ -7010,7 +7329,7 @@ export default function JudgeDashboard() {
 
                                   <button
                                     onClick={() => submitScore(criterion.name)}
-                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isCriteriaLocked(currentGlobalIndex)}
                                     className={`w-24 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                                       submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]
                                         ? 'bg-gray-400 text-gray-600 cursor-wait animate-pulse'
@@ -7981,29 +8300,49 @@ export default function JudgeDashboard() {
                                   return (
 
                                     <div key={index} className={`bg-white rounded-lg p-2 border-2 ${
-
-                                      isOverMax ? 'border-red-300 bg-red-50' : 'border-gray-200'
-
+                                      isOverMax 
+                                        ? 'border-red-300 bg-red-50' 
+                                        : currentEvent?.enableIndividualSubmit && isCriteriaLocked(currentGlobalIndex)
+                                        ? 'border-gray-300 bg-gray-50' 
+                                        : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex)
+                                        ? 'border-emerald-400 bg-emerald-50 shadow-md'
+                                        : 'border-gray-200'
                                     }`}>
-
                                       <div className="flex items-center justify-between mb-1">
-
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-
-                                          <label className="font-semibold text-black text-lg">
-
+                                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                                          <label className={`text-sm font-semibold truncate max-w-[150px] ${
+                                            currentEvent?.enableIndividualSubmit && isCriteriaLocked(currentGlobalIndex)
+                                              ? 'text-gray-500'
+                                              : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex)
+                                              ? 'text-emerald-700'
+                                              : 'text-black'
+                                          }`}>
                                             {criterion.name}
-
                                           </label>
-
-                                          {isFirstRoundAverage && (
-
-                                            <span className="inline-flex items-center px-2 py-0.5 text-lg font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
-
-                                              🔒 Auto
-
+                                          {/* Criteria Status Indicator */}
+                                          {currentEvent?.enableIndividualSubmit && (
+                                            <span className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
+                                              submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]
+                                                ? 'bg-green-100 text-green-800'
+                                                : isCriteriaLocked(currentGlobalIndex)
+                                                ? 'bg-gray-200 text-gray-600'
+                                                : isCriteriaActive(currentGlobalIndex)
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : 'bg-blue-100 text-blue-800'
+                                            }`}>
+                                              {submittedCriteria[`${user?.uid}_${contestant.id}_${key}`] 
+                                                ? '✅ Submitted' 
+                                                : isCriteriaLocked(currentGlobalIndex) 
+                                                ? '🔒 Locked' 
+                                                : isCriteriaActive(currentGlobalIndex) 
+                                                ? '🟢 Active' 
+                                                : '⏳ Waiting'}
                                             </span>
-
+                                          )}
+                                          {isFirstRoundAverage && (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
+                                              🔒 Auto
+                                            </span>
                                           )}
 
                                         </div>
@@ -8060,7 +8399,7 @@ export default function JudgeDashboard() {
 
                                           onChange={(e) => handleQuickScoreChange(contestant.id, key, e.target.value)}
 
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`]}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] || isCriteriaLocked(currentGlobalIndex)}
 
                                           className={`flex-1 h-1 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
 
@@ -8102,7 +8441,7 @@ export default function JudgeDashboard() {
 
                                           }}
 
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`]}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] || isCriteriaLocked(currentGlobalIndex)}
 
                                           className={`w-16 px-1 py-1 border rounded text-center font-semibold text-base ${
 
@@ -8132,7 +8471,7 @@ export default function JudgeDashboard() {
 
                                             onClick={() => submitScore(criterion.name)}
 
-                                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittedCriteria[`${contestant.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isCriteriaLocked(currentGlobalIndex)}
 
                                             className={`w-24 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
 

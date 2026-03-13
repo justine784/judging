@@ -242,7 +242,7 @@ export default function AdminDashboard() {
   };
 
   const handlePrint = async () => {
-    if (!selectedEventForPrint) {
+    if (!selectedEventForPrint || !selectedEventForPrint.id) {
       alert('Please select an event to print.');
       return;
     }

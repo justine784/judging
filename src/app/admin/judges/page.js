@@ -385,6 +385,7 @@ export default function JudgeManagement() {
 
       // Create judge document in Firestore
       const judgeData = {
+        id: user.uid, // Add the document ID as the id field
         uid: user.uid,
         name: newJudge.name,
         email: newJudge.email,

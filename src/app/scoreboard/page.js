@@ -904,7 +904,10 @@ export default function LiveScoreboard() {
 
   useEffect(() => {
     // Fetch contestants filtered by selected event
-    if (!selectedEvent) return;
+    if (!selectedEvent || !selectedEvent.id) {
+      console.log('No selected event or event has no ID');
+      return;
+    }
 
     const contestantsQuery = query(
       collection(db, 'contestants'),

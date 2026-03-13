@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, setDoc, getDocs, getDoc, collection, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, getAuth, fetchSignInMethodsForEmail, signOut, deleteUser } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth, fetchSignInMethodsForEmail, signOut, deleteUser, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth as getSecondaryAuth } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
 
 export default function JudgeManagement() {
   const [judges, setJudges] = useState([]);
@@ -21,6 +23,7 @@ export default function JudgeManagement() {
   const [selectedJudge, setSelectedJudge] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [emailWarning, setEmailWarning] = useState(''); // Track duplicate email warning
+  const [adminCredentials, setAdminCredentials] = useState({ email: '', password: '' }); // Store admin credentials to restore session
   const router = useRouter();
   const auth = getAuth();
   const emailCheckTimeoutRef = useRef(null); // For debouncing email checks
@@ -306,10 +309,11 @@ export default function JudgeManagement() {
 
     // Store current admin user to preserve session
     const adminUser = auth.currentUser;
-
+    
     // Set flag to prevent admin layout from redirecting during judge creation
     if (typeof window !== 'undefined') {
       window.creatingJudge = true;
+      window.justFinishedCreatingJudge = false;
     }
 
     try {
@@ -344,11 +348,27 @@ export default function JudgeManagement() {
         console.warn('Auth check warning:', authCheckError);
       }
 
-      // Create Firebase Auth user
+      // Create a secondary auth instance to avoid affecting admin session
+      // Use the same Firebase configuration as the main app
+      const firebaseConfig = {
+        apiKey: "AIzaSyD9-7W1EtFevUqrBcVruR3oHgXEc4K4KcQ",
+        authDomain: "judging-2a4da.firebaseapp.com",
+        projectId: "judging-2a4da",
+        storageBucket: "judging-2a4da.firebasestorage.app",
+        messagingSenderId: "954134091247",
+        appId: "1:954134091247:web:df9aea8c36ea8c64d2d21a",
+        measurementId: "G-PKDBVPZQQV"
+      };
+
+      const secondaryApp = initializeApp(firebaseConfig, 'secondary-app-' + Date.now());
+
+      const secondaryAuth = getAuth(secondaryApp);
+      
+      // Create Firebase Auth user with secondary auth
       let userCredential;
       try {
         userCredential = await createUserWithEmailAndPassword(
-          auth,
+          secondaryAuth,
           newJudge.email,
           newJudge.password
         );
@@ -377,6 +397,9 @@ export default function JudgeManagement() {
 
       await setDoc(doc(db, 'judges', user.uid), judgeData);
 
+      // Clean up secondary app
+      await secondaryAuth.signOut();
+      
       // Reset form
       setNewJudge({
         name: '',
@@ -413,9 +436,15 @@ export default function JudgeManagement() {
         setError('Failed to add judge: ' + (error.message || 'Unknown error occurred'));
       }
     } finally {
-      // Clear the creating judge flag
+      // Clear the creating judge flag and set completion flag
       if (typeof window !== 'undefined') {
         window.creatingJudge = false;
+        window.justFinishedCreatingJudge = true;
+        
+        // Clear the completion flag after a few seconds to avoid affecting other operations
+        setTimeout(() => {
+          window.justFinishedCreatingJudge = false;
+        }, 5000);
       }
       setLoading(false);
     }
@@ -467,8 +496,17 @@ export default function JudgeManagement() {
         console.log('Response content type:', contentType);
         
         if (contentType && contentType.includes('application/json')) {
-          const result = await response.json();
-          console.log('Auth deletion result:', result);
+          let result;
+          try {
+            result = await response.json();
+            console.log('Auth deletion result:', result);
+          } catch (jsonError) {
+            console.error('Failed to parse JSON response:', jsonError);
+            const text = await response.text();
+            console.error('Raw response text:', text.substring(0, 500));
+            authError = `Failed to parse server response. Server returned: ${text.substring(0, 100)}...`;
+            throw new Error(authError);
+          }
           
           if (result.success) {
             authDeleted = true;
@@ -501,9 +539,18 @@ export default function JudgeManagement() {
         console.error('API error details:', {
           message: apiError.message,
           stack: apiError.stack,
-          name: apiError.name
+          name: apiError.name,
+          code: apiError.code
         });
-        authError = `API call failed: ${apiError.message}`;
+        
+        // Provide more specific error messages
+        if (apiError.message.includes('Failed to fetch')) {
+          authError = 'Network error: Unable to connect to server. Please check your internet connection.';
+        } else if (apiError.message.includes('Failed to parse server response')) {
+          authError = apiError.message; // Use the detailed error from JSON parsing
+        } else {
+          authError = `API call failed: ${apiError.message}`;
+        }
       }
       
       // Delete the judge document from Firestore

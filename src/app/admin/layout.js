@@ -18,12 +18,33 @@ export default function AdminLayout({ children }) {
       // Check if we're in the middle of creating a judge account
       const isCreatingJudge = typeof window !== 'undefined' && window.creatingJudge;
       
+      // Check if we just finished creating a judge (new user is not admin)
+      const justFinishedCreatingJudge = typeof window !== 'undefined' && window.justFinishedCreatingJudge;
+      
       if (user) {
         // Check if the user is the allowed admin email
         const ADMIN_EMAIL = 'admin@gmail.com'; // Change this to your email
         if (user.email === ADMIN_EMAIL) {
           setUser(user);
-        } else if (!isCreatingJudge) {
+          // Clear any judge creation flags
+          if (typeof window !== 'undefined') {
+            window.creatingJudge = false;
+            window.justFinishedCreatingJudge = false;
+          }
+        } else if (isCreatingJudge) {
+          // We're in the middle of creating a judge - don't redirect yet
+          console.log('Judge creation in progress, temporarily allowing new user session');
+        } else if (justFinishedCreatingJudge) {
+          // We just finished creating a judge - DON'T redirect to login, just sign out and restore admin
+          console.log('Judge creation completed, signing out new judge and restoring admin session');
+          signOut(auth).then(() => {
+            // Clear the flag and let the admin sign back in automatically if needed
+            if (typeof window !== 'undefined') {
+              window.justFinishedCreatingJudge = false;
+            }
+            // Don't redirect - let the natural auth flow handle it
+          });
+        } else {
           // Sign out unauthorized user and redirect to login
           signOut(auth).then(() => {
             router.push('/admin/login');
@@ -32,7 +53,7 @@ export default function AdminLayout({ children }) {
       } else {
         setUser(null);
         // Only redirect if not on login page and not creating a judge
-        if (typeof window !== 'undefined' && !isCreatingJudge) {
+        if (typeof window !== 'undefined' && !isCreatingJudge && !justFinishedCreatingJudge) {
           const currentPath = window.location.pathname;
           if (!currentPath.includes('/admin/login')) {
             router.push('/admin/login');

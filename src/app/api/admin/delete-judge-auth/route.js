@@ -1,14 +1,31 @@
 // Simple API route for judge auth deletion
 // This provides a fallback when Firebase Admin SDK is not configured
 
-export async function POST(request) {
-  // Set headers to ensure JSON response
+// Helper function to ensure consistent JSON responses
+function createJsonResponse(data, status = 200) {
   const headers = {
     'Content-Type': 'application/json',
   };
+  return new Response(JSON.stringify(data), {
+    status,
+    headers
+  });
+}
 
+export async function POST(request) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      return createJsonResponse({ 
+        success: false,
+        error: 'Invalid JSON in request body',
+        details: parseError.message
+      }, 400);
+    }
+    
     const { uid } = body;
 
     console.log('Received request to delete auth account for UID:', uid);
@@ -16,14 +33,11 @@ export async function POST(request) {
 
     if (!uid) {
       console.log('Missing UID in request');
-      return Response.json({ 
+      return createJsonResponse({ 
         success: false,
         error: 'UID is required',
         received: body
-      }, { 
-        status: 400,
-        headers 
-      });
+      }, 400);
     }
 
     console.log(`Attempting to delete auth account for UID: ${uid}`);
@@ -48,7 +62,7 @@ export async function POST(request) {
     if (!hasAdminConfig) {
       console.warn('Firebase Admin SDK not configured. Returning manual deletion instructions.');
       
-      return Response.json({ 
+      return createJsonResponse({ 
         success: false,
         error: 'Firebase Admin SDK not configured on server',
         details: 'Manual deletion required. Please delete the user from Firebase Console.',
@@ -65,10 +79,7 @@ export async function POST(request) {
           FIREBASE_CLIENT_EMAIL: !!envVars.FIREBASE_CLIENT_EMAIL,
           FIREBASE_PRIVATE_KEY: !!envVars.FIREBASE_PRIVATE_KEY,
         }
-      }, { 
-        status: 503, // Service Unavailable
-        headers 
-      });
+      }, 503);
     }
 
     // Try to use Firebase Admin SDK if available
@@ -105,12 +116,10 @@ export async function POST(request) {
       await admin.auth().deleteUser(uid);
       console.log(`Successfully deleted auth account for UID: ${uid}`);
       
-      return Response.json({ 
+      return createJsonResponse({ 
         success: true, 
         message: 'Authentication account deleted successfully',
         uid: uid
-      }, { 
-        headers 
       });
 
     } catch (adminError) {
@@ -122,7 +131,7 @@ export async function POST(request) {
         name: adminError.name
       });
       
-      return Response.json({ 
+      return createJsonResponse({ 
         success: false,
         error: 'Firebase Admin SDK error',
         details: adminError.message,
@@ -134,10 +143,7 @@ export async function POST(request) {
           step5: 'Click the three-dot menu and select "Delete account"',
           step6: 'Confirm the deletion'
         }
-      }, { 
-        status: 500,
-        headers 
-      });
+      }, 500);
     }
 
   } catch (error) {
@@ -149,14 +155,11 @@ export async function POST(request) {
       code: error.code
     });
     
-    return Response.json({ 
+    return createJsonResponse({ 
       success: false,
       error: 'Internal server error',
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    }, { 
-      status: 500,
-      headers 
-    });
+    }, 500);
   }
 }

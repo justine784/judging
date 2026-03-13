@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import ForgotPasswordModal from '@/components/ForgotPasswordModal';
 
@@ -42,8 +42,41 @@ export default function AdminLogin() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const emailInputRef = useRef(null);
   const passwordInputRef = useRef(null);
+
+  // Handle URL parameters for success messages
+  useEffect(() => {
+    const message = searchParams.get('message');
+    if (message) {
+      // Convert URL parameter to success message
+      setError(''); // Clear any errors
+      // You can set a success state or show the message in a different way
+      // For now, let's show it as a success message
+      const successDiv = document.createElement('div');
+      successDiv.className = 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4';
+      successDiv.innerHTML = `
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>${decodeURIComponent(message)}</span>
+        </div>
+      `;
+      
+      // Insert the success message at the top of the form
+      const form = document.querySelector('form');
+      if (form) {
+        form.insertBefore(successDiv, form.firstChild);
+        
+        // Remove the success message after 5 seconds
+        setTimeout(() => {
+          successDiv.remove();
+        }, 5000);
+      }
+    }
+  }, [searchParams]);
 
   // Load saved credentials on mount
   useEffect(() => {

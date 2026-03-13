@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isJudge() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.role == 'judge';
+    }
+    
+    function isAssignedJudge(eventId) {
+      return isAuthenticated() && 
+             isJudge() && 
+             eventId in get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.assignedEvents;
+    }
+
+    // CONTESTANTS COLLECTION
+    match /contestants/{id} {
+      // Read access for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for admins only
+      allow write: if isAdmin();
+      
+      // Special update for judges to submit scores
+      allow update: if isJudge() && 
+                    request.resource.data.keys().hasAll(['submittedAt', 'judgeId']) &&
+                    request.resource.data.judgeId == request.auth.uid;
+    }
+
+    // EVENTS COLLECTION
+    match /events/{id} {
+      // Read access for everyone (including public for live scoreboard)
+      allow read: if true;
+      
+      // Write access for admins only
+      allow write: if isAdmin();
+      
+      // Special update for judges to update current round
+      allow update: if isAdmin() || (isJudge() && request.resource.data.keys().hasAll(['currentRound']));
+    }
+
+    // JUDGES COLLECTION
+    match /judges/{id} {
+      // Judges can read their own profile, admins can read all
+      allow read: if isAuthenticated() && 
+                 (request.auth.uid == id || isAdmin());
+      
+      // Write access for admins only
+      allow write: if isAdmin();
+      
+      // Judges can update their own profile (limited fields)
+      allow update: if isAuthenticated() && 
+                   request.auth.uid == id && 
+                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'lastLogin']);
+    }
+
+    // SCORES COLLECTION
+    match /scores/{id} {
+      // Read access for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for judges submitting scores
+      allow write: if isJudge() && 
+                   request.resource.data.judgeId == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['eventId', 'contestantId', 'judgeId', 'score', 'timestamp']);
+      
+      // Admin can write any score
+      allow write: if isAdmin();
+    }
+
+    // SLIDE SUBMISSIONS COLLECTION
+    match /slideSubmissions/{id} {
+      // Read access for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for judges submitting slide scores
+      allow write: if isJudge() && 
+                   request.resource.data.judgeId == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['eventId', 'contestantId', 'judgeId', 'scores', 'submittedAt']);
+      
+      // Admin can write any slide submission
+      allow write: if isAdmin();
+    }
+
+    // PASSWORD RESETS COLLECTION
+    match /passwordResets/{id} {
+      allow read, write: if true;
+    }
+
+    // LIVE SCOREBOARD (if you have a separate collection)
+    match /liveScoreboard/{id} {
+      // Read access for everyone
+      allow read: if true;
+      
+      // Write access for admins and judges
+      allow write: if isAdmin() || isJudge();
+    }
+
+    // EVENT CRITERIA (nested in events)
+    match /events/{eventId}/criteria/{criteriaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // JUDGE ASSIGNMENTS (nested in events)
+    match /events/{eventId}/assignedJudges/{judgeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

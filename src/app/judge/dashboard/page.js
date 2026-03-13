@@ -1515,12 +1515,20 @@ export default function JudgeDashboard() {
   // Handle individual criterion submission
 
   const submitScore = async (criteriaId) => {
-    if (!user || !judgeData || !currentEvent) return;
+    if (!user || !judgeData || !currentEvent) {
+      console.error('Missing required data:', { user: !!user, judgeData: !!judgeData, currentEvent: !!currentEvent });
+      alert('❌ Missing required data. Please refresh and try again.');
+      return;
+    }
     
 
     const currentContestant = contestants[currentContestantIndex];
 
-    if (!currentContestant) return;
+    if (!currentContestant) {
+      console.error('No current contestant found');
+      alert('❌ No contestant selected. Please select a contestant first.');
+      return;
+    }
     
 
     const contestantId = currentContestant.id;
@@ -1529,6 +1537,21 @@ export default function JudgeDashboard() {
 
     const key = getCriteriaKey(criteriaId, useFinalRoundPrefix);
 
+    
+    // DEBUG: Log all required data before submission
+    console.log('=== SCORE SUBMISSION DEBUG ===');
+    console.log('Required Data:', {
+      eventId: currentEvent.id,
+      eventName: currentEvent.name,
+      contestantId: contestantId,
+      contestantName: currentContestant.contestantName,
+      criteriaId: criteriaId,
+      criteriaKey: key,
+      judgeId: user.uid,
+      judgeName: judgeData.name,
+      judgeEmail: user.email,
+      round: useFinalRoundPrefix ? 'final' : 'main'
+    });
     
     // Set loading state to prevent multiple submissions
     setSubmittingCriteria(prev => ({
@@ -1540,14 +1563,39 @@ export default function JudgeDashboard() {
 
     const score = contestantScores[contestantId]?.[key] || 0;
     
-    // Validate score before submission
-    if (score === null || score === undefined || score < 0) {
+    console.log('Score Data:', {
+      score: score,
+      contestantScores: contestantScores[contestantId],
+      key: key
+    });
+    
+    // Validate all required fields before submission
+    if (!currentEvent.id || !contestantId || !criteriaId || !user.uid || score === null || score === undefined) {
       // Clear loading state before returning
       setSubmittingCriteria(prev => ({
         ...prev,
         [`${user.uid}_${contestantId}_${key}`]: false
       }));
-      alert('❌ Invalid score. Please enter a valid score before submitting.');
+      console.error('Validation failed - missing required fields:', {
+        eventId: !!currentEvent.id,
+        contestantId: !!contestantId,
+        criteriaId: !!criteriaId,
+        judgeId: !!user.uid,
+        score: score
+      });
+      alert('❌ Missing required data for submission. Please try again.');
+      return;
+    }
+    
+    // Validate score value
+    if (score < 0 || score > 100) {
+      // Clear loading state before returning
+      setSubmittingCriteria(prev => ({
+        ...prev,
+        [`${user.uid}_${contestantId}_${key}`]: false
+      }));
+      console.error('Invalid score value:', score);
+      alert('❌ Invalid score. Please enter a score between 0 and 100.');
       return;
     }
     
@@ -1558,13 +1606,15 @@ export default function JudgeDashboard() {
         ...prev,
         [`${user.uid}_${contestantId}_${key}`]: false
       }));
+      console.log('Submission cancelled by user');
       return;
     }
 
     
 
     try {
-
+      console.log('Starting database write operations...');
+      
       const contestantRef = doc(db, 'contestants', contestantId);
 
       
@@ -1596,15 +1646,20 @@ export default function JudgeDashboard() {
         }
 
       };
+      
+      console.log('Updating contestant document with data:', submissionData);
 
       
 
       await updateDoc(contestantRef, submissionData);
+      console.log('✅ Contestant document updated successfully');
 
       
 
       // Also save to scores collection for Live Scoreboard to see immediately
 
+      console.log('Creating score document for Live Scoreboard...');
+      
       const criteria = getCurrentEventCriteria();
 
       const isPointsGrading = currentEvent?.gradingType === 'points';
@@ -1668,6 +1723,8 @@ export default function JudgeDashboard() {
         }
 
       });
+      
+      console.log('Calculated total score:', totalScore);
 
       
 
@@ -1708,6 +1765,8 @@ export default function JudgeDashboard() {
         isIndividualSubmission: true // Flag to identify this as individual submission
 
       };
+      
+      console.log('Score document data:', individualScoreData);
 
       
 
@@ -1716,6 +1775,7 @@ export default function JudgeDashboard() {
       const scoreRef = doc(db, 'scores', `${user.uid}_${contestantId}_${key}_${Date.now()}`);
 
       await setDoc(scoreRef, individualScoreData);
+      console.log('✅ Score document created successfully');
 
       
 
@@ -1740,8 +1800,8 @@ export default function JudgeDashboard() {
         }
       }));
       
-      // Show success feedback
-      alert(`✅ Score submitted for "${criteriaId}"!`);
+      console.log('✅ Score submission completed successfully');
+      alert(`✅ Score submitted successfully for "${criteriaId}"!`);
       
     } catch (error) {
       // Clear loading state on error
@@ -1750,8 +1810,25 @@ export default function JudgeDashboard() {
         [`${user.uid}_${contestantId}_${key}`]: false
       }));
       
-      console.error('Error submitting score:', error);
-      alert('❌ Failed to submit score. Please try again.');
+      console.error('=== SCORE SUBMISSION ERROR ===');
+      console.error('Error details:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Provide specific error messages based on error type
+      let errorMessage = '❌ Failed to submit score. Please try again.';
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = '❌ Permission denied. You may not have rights to submit scores. Please contact admin.';
+      } else if (error.code === 'unavailable') {
+        errorMessage = '❌ Network error. Please check your connection and try again.';
+      } else if (error.code === 'deadline-exceeded') {
+        errorMessage = '❌ Request timeout. Please try again.';
+      } else if (error.code === 'not-found') {
+        errorMessage = '❌ Data not found. Please refresh and try again.';
+      }
+      
+      alert(errorMessage);
     }
 
 

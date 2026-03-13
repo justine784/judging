@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isJudge() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.role == 'judge';
+    }
+
+    // CONTESTANTS COLLECTION - Allow judges to write for score submissions
+    match /contestants/{id} {
+      // Read access for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for admins and judges (for score submissions)
+      allow write: if isAuthenticated();
+    }
+
+    // EVENTS COLLECTION
+    match /events/{id} {
+      // Read access for everyone (including public for live scoreboard)
+      allow read: if true;
+      
+      // Write access for admins only
+      allow write: if isAdmin();
+      
+      // Judges can update some fields like currentRound
+      allow update: if isJudge() && 
+                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentRound', 'status']);
+    }
+
+    // JUDGES COLLECTION
+    match /judges/{id} {
+      // Read access for authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for admins only
+      allow write: if isAdmin();
+      
+      // Judges can update their own profile
+      allow update: if isAuthenticated() && 
+                   request.auth.uid == id;
+    }
+
+    // SCORES COLLECTION - Critical for score submission
+    match /scores/{id} {
+      // Read access for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for judges submitting scores with proper validation
+      allow write: if isJudge() && 
+                   request.resource.data.judgeId == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['eventId', 'contestantId', 'judgeId', 'timestamp', 'scores']) &&
+                   request.resource.data.scores is map;
+      
+      // Admin can write any score
+      allow write: if isAdmin();
+    }
+
+    // SLIDE SUBMISSIONS COLLECTION
+    match /slideSubmissions/{id} {
+      // Read access for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Write access for judges submitting slide scores
+      allow write: if isJudge() && 
+                   request.resource.data.judgeId == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['eventId', 'contestantId', 'judgeId', 'submittedAt', 'scores']);
+      
+      // Admin can write any slide submission
+      allow write: if isAdmin();
+    }
+
+    // PASSWORD RESETS COLLECTION
+    match /passwordResets/{id} {
+      allow read, write: if true;
+    }
+
+    // LIVE SCOREBOARD DATA (if you have this collection)
+    match /liveScoreboard/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isJudge();
+    }
+
+    // EVENT SETTINGS
+    match /eventSettings/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

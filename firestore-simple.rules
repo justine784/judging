@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // CONTESTANTS - Read for authenticated, Write for authenticated
+    match /contestants/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // EVENTS - Read for everyone, Write for authenticated
+    match /events/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // JUDGES - Read/Write for authenticated users
+    match /judges/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // SCORES - Read/Write for authenticated users
+    match /scores/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // SLIDE SUBMISSIONS - Read/Write for authenticated users
+    match /slideSubmissions/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // PASSWORD RESETS - Public access
+    match /passwordResets/{id} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -1512,20 +1512,15 @@ export default function JudgeDashboard() {
 
   };
 
-
-
   // Handle individual criterion submission
 
   const submitScore = async (criteriaId) => {
-
     if (!user || !judgeData || !currentEvent) return;
-
     
 
     const currentContestant = contestants[currentContestantIndex];
 
     if (!currentContestant) return;
-
     
 
     const contestantId = currentContestant.id;
@@ -1535,19 +1530,34 @@ export default function JudgeDashboard() {
     const key = getCriteriaKey(criteriaId, useFinalRoundPrefix);
 
     
-
+    // Set loading state to prevent multiple submissions
+    setSubmittingCriteria(prev => ({
+      ...prev,
+      [`${user.uid}_${contestantId}_${key}`]: true
+    }));
+    
     // Get the actual score from contestantScores, not formData
 
     const score = contestantScores[contestantId]?.[key] || 0;
     
     // Validate score before submission
     if (score === null || score === undefined || score < 0) {
+      // Clear loading state before returning
+      setSubmittingCriteria(prev => ({
+        ...prev,
+        [`${user.uid}_${contestantId}_${key}`]: false
+      }));
       alert('❌ Invalid score. Please enter a valid score before submitting.');
       return;
     }
     
     // Confirm submission
     if (!confirm(`Are you sure you want to submit your score for "${criteriaId}"? Score: ${score}`)) {
+      // Clear loading state before returning
+      setSubmittingCriteria(prev => ({
+        ...prev,
+        [`${user.uid}_${contestantId}_${key}`]: false
+      }));
       return;
     }
 

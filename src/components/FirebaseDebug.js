@@ -1,41 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { auth } from '@/lib/firebase';
 
 export default function FirebaseDebug() {
   const [debugInfo, setDebugInfo] = useState({});
+  const isInitialized = useRef(false);
 
-  useEffect(() => {
-    const checkFirebase = () => {
-      const info = {
-        authInitialized: !!auth,
-        authConfig: auth.config || 'N/A',
-        currentUser: auth.currentUser ? {
-          email: auth.currentUser.email,
-          uid: auth.currentUser.uid,
-          isAnonymous: auth.currentUser.isAnonymous
-        } : null,
-        authState: 'checking...'
-      };
-
-      const unsubscribe = auth.onAuthStateChanged((user) => {
-        info.authState = user ? 'authenticated' : 'not authenticated';
-        info.currentUser = user ? {
-          email: user.email,
-          uid: user.uid,
-          isAnonymous: user.isAnonymous
-        } : null;
-        setDebugInfo(info);
-      });
-
-      setDebugInfo(info);
-      return unsubscribe;
+  const updateDebugInfo = useCallback((user = null) => {
+    const currentUser = user || auth.currentUser;
+    const info = {
+      authInitialized: !!auth,
+      authConfig: auth.config || 'N/A',
+      currentUser: currentUser ? {
+        email: currentUser.email,
+        uid: currentUser.uid,
+        isAnonymous: currentUser.isAnonymous
+      } : null,
+      authState: currentUser ? 'authenticated' : 'not authenticated'
     };
 
-    const unsubscribe = checkFirebase();
-    return unsubscribe;
+    // Only update if info has actually changed
+    setDebugInfo(prev => {
+      const hasChanged = JSON.stringify(prev) !== JSON.stringify(info);
+      return hasChanged ? info : prev;
+    });
   }, []);
+
+  useEffect(() => {
+    // Prevent multiple initializations
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+
+    // Initial update
+    updateDebugInfo();
+
+    // Listen for auth changes
+    const unsubscribe = auth.onAuthStateChanged(updateDebugInfo);
+
+    return unsubscribe;
+  }, [updateDebugInfo]);
 
   if (process.env.NODE_ENV === 'production') {
     return null;

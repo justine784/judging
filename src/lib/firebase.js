@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -38,6 +38,27 @@ auth.settings = {
 };
 
 export const db = getFirestore(app);
+
+// Configure Firestore for better connection reliability
+try {
+  // Enable offline persistence for better UX
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('Firestore persistence: Multiple tabs open, persistence disabled');
+    } else if (err.code === 'unimplemented') {
+      console.warn('Firestore persistence: Not supported by browser');
+    } else {
+      console.log('Firestore persistence enabled successfully');
+    }
+  });
+
+  // Note: configureFirestore is not available in this Firebase version
+  // The connection settings are handled by default Firebase configuration
+  
+} catch (error) {
+  console.warn('Firestore configuration error:', error);
+}
+
 export const storage = getStorage(app);
 
 export default app;

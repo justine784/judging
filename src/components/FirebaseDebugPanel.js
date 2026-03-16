@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/lib/client-auth';
 
@@ -15,47 +15,53 @@ export default function FirebaseDebug() {
 
   const mockAuth = useAuth();
 
+  // Use stable reference for mockAuth dependency
+  const mockAuthRef = useRef(mockAuth);
   useEffect(() => {
-    const updateDebugInfo = () => {
-      try {
-        const info = {
-          authState: auth.currentUser ? 'authenticated' : 'not authenticated',
-          currentUser: auth.currentUser ? {
-            uid: auth.currentUser.uid,
-            email: auth.currentUser.email,
-            emailVerified: auth.currentUser.emailVerified,
-            isAnonymous: auth.currentUser.isAnonymous
-          } : null,
-          firebaseConfig: {
-            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'judging-2a4da',
-            authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-            appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ? '***' + process.env.NEXT_PUBLIC_FIREBASE_APP_ID.slice(-4) : null
-          },
-          environment: {
-            NODE_ENV: process.env.NODE_ENV,
-            NEXT_PUBLIC_ENV: process.env.NEXT_PUBLIC_ENV,
-            isDevelopment: process.env.NODE_ENV === 'development',
-            hasMockAuth: !!mockAuth?.isDevelopment
-          },
-          error: null
-        };
+    mockAuthRef.current = mockAuth;
+  }, [mockAuth]);
 
-        setDebugInfo(info);
-      } catch (error) {
-        setDebugInfo(prev => ({
-          ...prev,
-          error: error.message
-        }));
-      }
-    };
+  const updateDebugInfo = useCallback(() => {
+    try {
+      const info = {
+        authState: auth.currentUser ? 'authenticated' : 'not authenticated',
+        currentUser: auth.currentUser ? {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+          emailVerified: auth.currentUser.emailVerified,
+          isAnonymous: auth.currentUser.isAnonymous
+        } : null,
+        firebaseConfig: {
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'judging-2a4da',
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+          appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ? '***' + process.env.NEXT_PUBLIC_FIREBASE_APP_ID.slice(-4) : null
+        },
+        environment: {
+          NODE_ENV: process.env.NODE_ENV,
+          NEXT_PUBLIC_ENV: process.env.NEXT_PUBLIC_ENV,
+          isDevelopment: process.env.NODE_ENV === 'development',
+          hasMockAuth: !!mockAuthRef.current?.isDevelopment
+        },
+        error: null
+      };
 
+      setDebugInfo(info);
+    } catch (error) {
+      setDebugInfo(prev => ({
+        ...prev,
+        error: error.message
+      }));
+    }
+  }, []); // Empty dependency array since we use ref for mockAuth
+
+  useEffect(() => {
     updateDebugInfo();
 
     // Listen for auth changes
     const unsubscribe = auth.onAuthStateChanged(updateDebugInfo);
     
     return unsubscribe;
-  }, [mockAuth]);
+  }, [updateDebugInfo]);
 
   const testFirestoreConnection = async () => {
     try {

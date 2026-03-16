@@ -1886,7 +1886,7 @@ export default function EventManagement() {
 
     }
 
-    const category = updatedEvent.criteriaCategories[categoryIndex];
+    const category = updatedEvent.criteriaCategories[index];
 
     
 
@@ -1930,7 +1930,7 @@ export default function EventManagement() {
 
       const otherCategoriesWeight = updatedEvent.criteriaCategories.reduce((sum, cat, i) => {
 
-        if (i !== categoryIndex) {
+        if (i !== index) {
 
           return sum + (cat.totalWeight || 0);
 
@@ -1950,17 +1950,17 @@ export default function EventManagement() {
 
         alert(`Warning: Total category weights cannot exceed 100%. Maximum allowed weight for this category is ${maxAllowedWeight}%.`);
 
-        updatedEvent.criteriaCategories[categoryIndex][field] = maxAllowedWeight;
+        updatedEvent.criteriaCategories[index][field] = maxAllowedWeight;
 
       } else {
 
-        updatedEvent.criteriaCategories[categoryIndex][field] = currentWeight;
+        updatedEvent.criteriaCategories[index][field] = currentWeight;
 
       }
 
     } else {
 
-      updatedEvent.criteriaCategories[categoryIndex][field] = value;
+      updatedEvent.criteriaCategories[index][field] = value;
 
     }
 

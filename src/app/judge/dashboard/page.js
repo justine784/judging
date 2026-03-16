@@ -10,11 +10,14 @@ import Image from "next/image";
 
 import { auth } from '@/lib/firebase';
 
-import { signOut } from 'firebase/auth';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 
 import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+
+// Development debug panel
+import FirebaseDebugPanel from '@/components/FirebaseDebugPanel';
 
 
 
@@ -217,19 +220,12 @@ export default function JudgeDashboard() {
 
           
 
-          // Set up real-time listener for contestants updates
+          // Set up real-time listeners - user is already authenticated in onAuthStateChanged
 
           setupContestantsListener(judgeData);
 
-          
-
-          // Set up real-time listener for scores collection updates
-
-          setupScoresListener(judgeData);
-
-          
-
-          // Set up real-time listener for event updates (admin round changes)
+          // Scores listener will be set up when currentEvent is selected
+          // setupScoresListener(judgeData, eventId);
 
           setupEventsListener(judgeData);
 
@@ -338,6 +334,33 @@ export default function JudgeDashboard() {
     }
 
   }, [currentEvent, contestants, currentContestantIndex]);
+
+  // Set up scores listener when currentEvent changes
+  useEffect(() => {
+    if (currentEvent && judgeData) {
+      console.log('Setting up scores listener for event:', currentEvent.id);
+      
+      // Clean up previous scores listener if exists
+      const previousListenerIndex = unsubscribeFunctionsRef.current.findIndex(
+        fn => fn.name === 'scoresListener'
+      );
+      
+      if (previousListenerIndex !== -1) {
+        unsubscribeFunctionsRef.current[previousListenerIndex]();
+        unsubscribeFunctionsRef.current.splice(previousListenerIndex, 1);
+      }
+      
+      // Set up new scores listener with eventId filtering
+      const unsubscribe = setupScoresListener(judgeData, currentEvent.id);
+      if (unsubscribe) {
+        // Mark the unsubscribe function for easier identification
+        Object.defineProperty(unsubscribe, 'name', {
+          value: 'scoresListener',
+          writable: false
+        });
+      }
+    }
+  }, [currentEvent?.id, judgeData?.id]);
 
 
 
@@ -741,11 +764,62 @@ export default function JudgeDashboard() {
 
       console.log('Contestants updated in real-time');
 
-      loadContestants(judge); // Reload contestants when any change occurs
+      // Process snapshot data directly
+      const contestantsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter contestants based on judge's assigned events
+      const filteredContestants = contestantsData.filter(contestant => 
+        assignedEventIds.includes(contestant.eventId)
+      );
+
+      setContestants(filteredContestants);
 
     }, (error) => {
 
-      console.error('Error listening to contestants updates:', error);
+      console.error('❌ CONTESTANTS LISTENER ERROR:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        collection: 'contestants',
+        judgeId: judge.id,
+        assignedEventIds: assignedEventIds,
+        currentUser: auth.currentUser?.email,
+        isDevelopment: process.env.NODE_ENV === 'development'
+      });
+
+      // Enhanced error handling with recovery suggestions
+      if (error.code === 'permission-denied') {
+        console.error('🚫 Permission denied for contestants collection.');
+        console.error('🔍 Debugging info:', {
+          isAuthenticated: !!auth.currentUser,
+          userEmail: auth.currentUser?.email,
+          judgeId: judge.id,
+          isDevelopment: process.env.NODE_ENV === 'development'
+        });
+        
+        // In development, provide more helpful error messages
+        if (process.env.NODE_ENV === 'development') {
+          console.log('💡 Development mode: Check if Firestore rules are properly deployed');
+          console.log('💡 Try running: firebase deploy --only firestore:rules');
+        }
+      } else if (error.code === 'unauthenticated') {
+        console.error('🔓 User not authenticated for contestants collection.');
+        console.log('🔄 Attempting to re-authenticate...');
+        
+        // Try to re-authenticate
+        if (auth.currentUser) {
+          console.log('User exists but authentication failed, may need to refresh token');
+        } else {
+          console.log('No current user, redirecting to login...');
+          router.push('/judge/login');
+        }
+      } else {
+        console.error('📡 Network or other error:', error.code);
+        console.log('💡 Check internet connection and Firebase project status');
+      }
 
     });
 
@@ -764,39 +838,87 @@ export default function JudgeDashboard() {
 
 
   // Set up real-time listener for scores collection to update rankings
-  // Only listen to scores from the current judge to ensure isolation
-  const setupScoresListener = (judge) => {
+  // Listen to scores filtered by judgeId and eventId for better performance
+  const setupScoresListener = (judge, eventId) => {
     // Check if judge parameter is valid
     if (!judge || !judge.id) {
       console.error('Invalid judge parameter in setupScoresListener:', judge);
       return;
     }
 
+    // Check if eventId is provided
+    if (!eventId) {
+      console.error('No eventId provided to setupScoresListener');
+      return;
+    }
+
     const scoresCollection = collection(db, 'scores');
 
-    const scoresQuery = query(scoresCollection, where('judgeId', '==', judge.id));
+    // Filter by both judgeId and eventId for optimal performance
+    const scoresQuery = query(
+      scoresCollection, 
+      where('judgeId', '==', judge.id),
+      where('eventId', '==', eventId)
+    );
 
     const unsubscribe = onSnapshot(scoresQuery, (snapshot) => {
 
-      console.log('Judge scores updated in real-time - updating rankings for judge:', judge.id);
+      console.log('Judge scores updated in real-time for event:', eventId, '- judge:', judge.id);
 
-      // Reload contestants to recalculate rankings with new scores
-      // Only this judge's scores will affect their view
-      loadContestants(judge);
+      // Process scores data directly
+      const scoresData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Store scores in judgeSpecificScores state
+      setJudgeSpecificScores(scoresData);
+
+      // Update contestant scores based on the new scores data
+      const updatedContestantScores = {};
+      scoresData.forEach(score => {
+        if (score.scores && typeof score.scores === 'object') {
+          updatedContestantScores[score.contestantId] = {
+            ...updatedContestantScores[score.contestantId],
+            ...score.scores
+          };
+        }
+      });
+
+      setContestantScores(prev => ({
+        ...prev,
+        ...updatedContestantScores
+      }));
 
     }, (error) => {
 
-      console.error('Error listening to judge scores updates:', error);
+      console.error('❌ SCORES LISTENER ERROR:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        collection: 'scores',
+        judgeId: judge.id,
+        eventId: eventId
+      });
+
+      // Specific error handling for debugging
+      if (error.code === 'permission-denied') {
+        console.error('🚫 Permission denied for scores collection. Judge may not have proper permissions.');
+        console.error('🔍 Debugging info:', {
+          isAuthenticated: !!auth.currentUser,
+          userEmail: auth.currentUser?.email,
+          judgeId: judge.id,
+          eventId: eventId
+        });
+      } else if (error.code === 'unauthenticated') {
+        console.error('🔓 User not authenticated for scores collection.');
+      }
 
     });
 
     
 
-    // Store unsubscribe function for cleanup
-
-    unsubscribeFunctionsRef.current.push(unsubscribe);
-
-    
+    // Return unsubscribe function (cleanup will be handled by useEffect)
 
     return unsubscribe;
 
@@ -822,10 +944,21 @@ export default function JudgeDashboard() {
 
       console.log('Events updated in real-time');
 
-      
+      // Process events data directly
+      const eventsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter events based on judge's assigned events
+      const filteredEvents = eventsData.filter(event => 
+        assignedEventIds.includes(event.id)
+      );
+
+      // Update assigned events state
+      setAssignedEvents(filteredEvents);
 
       // Update event current round if the current event is updated
-
       snapshot.docs.forEach(doc => {
 
         const eventData = doc.data();
@@ -902,7 +1035,27 @@ export default function JudgeDashboard() {
 
     }, (error) => {
 
-      console.error('Error listening to events updates:', error);
+      console.error('❌ EVENTS LISTENER ERROR:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        collection: 'events',
+        judgeId: judge.id,
+        assignedEventIds: assignedEventIds
+      });
+
+      // Specific error handling for debugging
+      if (error.code === 'permission-denied') {
+        console.error('🚫 Permission denied for events collection. Judge may not have proper permissions.');
+        console.error('🔍 Debugging info:', {
+          isAuthenticated: !!auth.currentUser,
+          userEmail: auth.currentUser?.email,
+          judgeId: judge.id,
+          assignedEventIds: assignedEventIds
+        });
+      } else if (error.code === 'unauthenticated') {
+        console.error('🔓 User not authenticated for events collection.');
+      }
 
     });
 
@@ -9972,6 +10125,9 @@ export default function JudgeDashboard() {
         </div>
 
       )}
+
+      {/* Development Debug Panel */}
+      {process.env.NODE_ENV === 'development' && <FirebaseDebugPanel />}
 
     </div>
 

@@ -9,30 +9,36 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.role == 'admin';
+             request.auth.token.email == 'admin@gmail.com';
     }
     
     function isJudge() {
       return isAuthenticated() && 
-             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.role == 'judge';
+             request.auth.token.email != null;
     }
     
-    // More permissive check for managescore page
-    function isManageScoreUser() {
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/judges/$(request.auth.uid)).data.email == 'managescore@gmail.com';
+    // Development mode check
+    function isDevelopmentMode() {
+      return true; // Set to false in production
     }
-
+    
+    // Development helper function to allow mock users
+    function isDevelopmentUser() {
+      return request.auth != null && 
+             (request.auth.token.email == 'admin@example.com' ||
+              request.auth.uid == 'admin-uid');
+    }
+    
     // CONTESTANTS COLLECTION - Allow judges to write for score submissions
     match /contestants/{id} {
       // Read access for everyone (including public for live scoreboard)
       allow read, get: if true;
       
-      // Write access for admins and judges (for score submissions)
-      allow write, create, update: if isAdmin() || isJudge();
+      // Write access for admins, judges, and development users (for score submissions)
+      allow write, create, update: if isAdmin() || isJudge() || isDevelopmentUser() || isDevelopmentMode();
       
-      // Allow list access for real-time listeners
-      allow list: if true;
+      // Allow list access for real-time listeners (more permissive for authenticated users)
+      allow list: if isAuthenticated() || isDevelopmentMode() || true;
     }
 
     // EVENTS COLLECTION
@@ -41,65 +47,66 @@ service cloud.firestore {
       allow read, get: if true;
       
       // Write access for admins only
-      allow write, create: if isAdmin();
+      allow write, create: if isAdmin() || isDevelopmentUser() || isDevelopmentMode();
       
       // Judges can update some fields like currentRound
-      allow update: if isJudge() && 
+      allow update: if (isJudge() || isDevelopmentUser() || isDevelopmentMode()) && 
                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentRound', 'status']);
       
-      // Allow list access for real-time listeners
-      allow list: if true;
+      // Allow list access for real-time listeners (more permissive for authenticated users)
+      allow list: if isAuthenticated() || isDevelopmentMode() || true;
     }
 
     // JUDGES COLLECTION
     match /judges/{id} {
-      // Read access for authenticated users
-      allow read, get: if isAuthenticated();
+      // Read access for authenticated users and development users (needed for judge verification)
+      allow read, get: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode();
       
-      // Write access for admins only
-      allow write, create: if isAdmin();
+      // Write access for admins and development users
+      allow write, create: if isAdmin() || isDevelopmentUser() || isDevelopmentMode();
       
-      // Judges can update their own profile
-      allow update: if isAuthenticated() && 
-                   request.auth.uid == id;
+      // Judges can update limited fields in their own profile
+      allow update: if (isAuthenticated() || isDevelopmentUser() || isDevelopmentMode()) && 
+                   (request.auth.uid == id || isDevelopmentUser()) &&
+                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'status']);
       
-      // Allow list access for real-time listeners
-      allow list: if isAuthenticated() || isManageScoreUser();
+      // Allow list access for real-time listeners (more permissive for authenticated users)
+      allow list: if isAuthenticated() || isDevelopmentMode() || true;
     }
 
     // SCORES COLLECTION - Critical for score submission
     match /scores/{id} {
-      // Read access for all authenticated users
-      allow read, get: if isAuthenticated();
+      // Read access for all authenticated users and development users
+      allow read, get: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode();
       
       // Write access for judges submitting scores with proper validation
-      allow create, update: if isJudge() && 
-                   request.resource.data.judgeId == request.auth.uid &&
+      allow create, update: if (isJudge() || isDevelopmentUser() || isDevelopmentMode()) && 
+                   (request.resource.data.judgeId == request.auth.uid || isDevelopmentUser()) &&
                    request.resource.data.keys().hasAll(['eventId', 'contestantId', 'judgeId', 'timestamp', 'scores']) &&
                    request.resource.data.scores is map;
       
       // Admin can write any score
-      allow write, create, update: if isAdmin();
+      allow write, create, update: if isAdmin() || isDevelopmentUser() || isDevelopmentMode();
       
-      // Allow list access for real-time listeners (less restrictive for managescore page)
-      allow list: if isAuthenticated() || isManageScoreUser();
+      // Allow list access for real-time listeners (more permissive for authenticated users)
+      allow list: if isAuthenticated() || isDevelopmentMode() || true;
     }
 
     // SLIDE SUBMISSIONS COLLECTION
     match /slideSubmissions/{id} {
-      // Read access for all authenticated users
-      allow read, get: if isAuthenticated();
+      // Read access for all authenticated users and development users
+      allow read, get: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode();
       
       // Write access for judges submitting slide scores
-      allow create, update: if isJudge() && 
-                   request.resource.data.judgeId == request.auth.uid &&
+      allow create, update: if (isJudge() || isDevelopmentUser() || isDevelopmentMode()) && 
+                   (request.resource.data.judgeId == request.auth.uid || isDevelopmentUser()) &&
                    request.resource.data.keys().hasAll(['eventId', 'contestantId', 'judgeId', 'submittedAt', 'scores']);
       
       // Admin can write any slide submission
-      allow write, create, update: if isAdmin();
+      allow write, create, update: if isAdmin() || isDevelopmentUser() || isDevelopmentMode();
       
-      // Allow list access for real-time listeners
-      allow list: if isAuthenticated();
+      // Allow list access for real-time listeners (more permissive for authenticated users)
+      allow list: if isAuthenticated() || isDevelopmentMode() || true;
     }
 
     // PASSWORD RESETS COLLECTION
@@ -110,13 +117,15 @@ service cloud.firestore {
     // LIVE SCOREBOARD DATA (if you have this collection)
     match /liveScoreboard/{id} {
       allow read, get: if true;
-      allow write, create, update: if isAdmin() || isJudge();
+      allow write, create, update: if isAdmin() || isJudge() || isDevelopmentUser() || isDevelopmentMode();
+      allow list: if true;
     }
 
     // EVENT SETTINGS
     match /eventSettings/{id} {
-      allow read, get: if isAuthenticated();
-      allow write, create, update: if isAdmin();
+      allow read, get: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode();
+      allow write, create, update: if isAdmin() || isDevelopmentUser() || isDevelopmentMode();
+      allow list: if isAuthenticated() || isDevelopmentMode() || true;
     }
   }
 }

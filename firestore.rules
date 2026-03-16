@@ -72,6 +72,21 @@ service cloud.firestore {
       
       // Allow list access for real-time listeners (more permissive for authenticated users)
       allow list: if isAuthenticated() || isDevelopmentMode() || true;
+      
+      // JUDGES SUBMITTED CRITERIA SUBCOLLECTION
+      match /submittedCriteria/{docId} {
+        // Read access for the judge who owns the data and admins
+        allow read, get: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+        
+        // Write access for the judge who owns the data and admins
+        allow create, update: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+        
+        // Delete access for the judge who owns the data and admins
+        allow delete: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+        
+        // Allow list access for the judge who owns the data
+        allow list: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+      }
     }
 
     // SCORES COLLECTION - Critical for score submission
@@ -125,7 +140,22 @@ service cloud.firestore {
     match /eventSettings/{id} {
       allow read, get: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode();
       allow write, create, update: if isAdmin() || isDevelopmentUser() || isDevelopmentMode();
-      allow list: if isAuthenticated() || isDevelopmentMode() || true;
+      allow list: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode() || true;
+    }
+    
+    // JUDGE UI STATE COLLECTION - For persistent scoring state
+    match /judgeUIState/{id} {
+      // Read access for the judge who owns the data and admins
+      allow read, get: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+      
+      // Write access for the judge who owns the data and admins
+      allow create, update: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+      
+      // Delete access for the judge who owns the data and admins
+      allow delete: if (request.auth.uid == id || isAdmin() || isDevelopmentUser() || isDevelopmentMode());
+      
+      // Allow list access for real-time listeners (more permissive for authenticated users)
+      allow list: if isAuthenticated() || isDevelopmentUser() || isDevelopmentMode() || true;
     }
   }
 }

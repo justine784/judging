@@ -542,29 +542,98 @@ export default function LiveScoreboard() {
     const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
     const judgeCount = uniqueJudges.length;
     
-    // Get the latest score from each judge
-    const latestScoresByJudge = {};
+    // Aggregate all scores from each judge (merge individual criteria submissions)
+    const aggregatedScoresByJudge = {};
     contestantScores.forEach(score => {
-      if (!latestScoresByJudge[score.judgeId] || 
-          new Date(score.timestamp) > new Date(latestScoresByJudge[score.judgeId].timestamp)) {
-        latestScoresByJudge[score.judgeId] = score;
+      const judgeId = score.judgeId;
+      if (!aggregatedScoresByJudge[judgeId]) {
+        aggregatedScoresByJudge[judgeId] = {
+          judgeId: judgeId,
+          judgeName: score.judgeName,
+          scores: {},
+          totalScore: 0,
+          timestamp: score.timestamp
+        };
+      }
+      
+      // Merge scores from this submission
+      Object.assign(aggregatedScoresByJudge[judgeId].scores, score.scores || {});
+      
+      // Update timestamp if this is more recent
+      if (new Date(score.timestamp) > new Date(aggregatedScoresByJudge[judgeId].timestamp)) {
+        aggregatedScoresByJudge[judgeId].timestamp = score.timestamp;
       }
     });
     
-    // Calculate average of all judges' pre-calculated totalScores
-    const judgeScoresList = Object.values(latestScoresByJudge);
+    // Calculate total scores for each judge based on merged criteria scores
+    const judgeScoresList = Object.values(aggregatedScoresByJudge);
+    const criteria = getCurrentEventCriteria();
+    
+    judgeScoresList.forEach(judgeScore => {
+      const event = events.find(e => e.id === eventId);
+      const isPointsGrading = event?.gradingType === 'points';
+      
+      let totalScore = 0;
+      criteria.forEach((criterion, index) => {
+        const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+        const finalKey = `final_${key}`;
+        
+        // Check if this is "AVERAGE OF THE 1ST ROUND" criterion
+        const isNameBased = criterion.name && criterion.name.toUpperCase().includes('AVERAGE') && 
+                               criterion.name.toUpperCase().includes('1ST') && 
+                               criterion.name.toUpperCase().includes('ROUND');
+        const isPositionBased = showFinalRoundsOnly && index === 0 && criterion.weight <= 35;
+        const isFirstRoundAverage = isNameBased || isPositionBased;
+        
+        let critScore = 0;
+        if (isFirstRoundAverage) {
+          // For first round average, calculate from other criteria (simplified for now)
+          critScore = 0;
+        } else {
+          // Use the merged score for this criterion
+          if (showFinalRoundsOnly) {
+            const finalScore = judgeScore.scores[finalKey];
+            const regularScore = judgeScore.scores[key];
+            critScore = finalScore > 0 ? finalScore : (regularScore > 0 ? regularScore : 0);
+          } else {
+            critScore = judgeScore.scores[key] || 0;
+          }
+        }
+        
+        if (isPointsGrading) {
+          totalScore += critScore;
+        } else {
+          const weight = (criterion.weight || 0) / 100;
+          totalScore += critScore * weight;
+        }
+      });
+      
+      judgeScore.totalScore = parseFloat(totalScore.toFixed(1)) || 0;
+    });
+    
+    // Calculate average of all judges' totalScores
     const totalScoreSum = judgeScoresList.reduce((sum, score) => sum + (score.totalScore || 0), 0);
     let totalScore = judgeScoresList.length > 0 ? totalScoreSum / judgeScoresList.length : 0;
-    
-    // Get criteria for breakdown display
-    const criteria = getCurrentEventCriteria();
     
     console.log('Live Scoreboard - Aggregating scores:', {
       contestantId,
       judgeCount,
       criteriaCount: criteria.length,
       totalScore,
-      showFinalRoundsOnly
+      showFinalRoundsOnly,
+      rawScoresCount: contestantScores.length,
+      aggregatedJudges: Object.keys(aggregatedScoresByJudge).length
+    });
+    
+    // Debug: Log merged scores for each judge
+    console.log('Live Scoreboard - Merged scores by judge:', {
+      contestantId,
+      mergedScores: judgeScoresList.map(judge => ({
+        judgeId: judge.judgeId,
+        judgeName: judge.judgeName,
+        scores: judge.scores,
+        totalScore: judge.totalScore
+      }))
     });
     
     // Calculate average for each criteria for breakdown display

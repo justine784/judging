@@ -115,6 +115,11 @@ export default function JudgeDashboard() {
   const [criteriaCompletion, setCriteriaCompletion] = useState({}); // Track completion status per criteria per event
   const [judgeCriteriaProgress, setJudgeCriteriaProgress] = useState({}); // Track per-judge criteria progression per contestant
 
+  // Real-time judge table state
+  const [judgeTableData, setJudgeTableData] = useState({}); // Store real-time judge table data
+  const [judgeScoresListener, setJudgeScoresListener] = useState(null); // Store listener reference
+  const [realtimeUpdateIndicator, setRealtimeUpdateIndicator] = useState({}); // Track real-time updates per contestant
+
   const router = useRouter();
 
 
@@ -219,7 +224,9 @@ export default function JudgeDashboard() {
           setUser(user);
 
           setJudgeData(judgeData);
-
+          
+          // Load submitted criteria from Firestore
+          loadSubmittedCriteriaFromFirestore(user.uid);
           
 
           // Set up real-time listener for judge data updates
@@ -370,7 +377,23 @@ export default function JudgeDashboard() {
     }
   }, [currentEvent?.id, judgeData?.id]);
 
-
+  // Update contestant scores when judge-specific scores are loaded (for page refresh scenario)
+  useEffect(() => {
+    if (currentEvent && contestants.length > 0 && currentContestantIndex >= 0 && Object.keys(judgeSpecificScores).length > 0) {
+      const currentContestant = contestants[currentContestantIndex];
+      
+      if (currentContestant && judgeSpecificScores[currentContestant.id]) {
+        console.log('Updating contestant scores with loaded judge-specific scores for:', currentContestant.contestantName);
+        
+        const updatedScores = initializeQuickScores(currentEvent, currentContestant, null, judgeSpecificScores);
+        
+        setContestantScores(prev => ({
+          ...prev,
+          [currentContestant.id]: updatedScores
+        }));
+      }
+    }
+  }, [judgeSpecificScores, currentEvent?.id, currentContestantIndex, contestants.length]);
 
   // Update contestant scores when contestant changes - preserve locked scores
   // NOTE: Removed lockedContestants and lockedScores from dependencies to prevent interference between contestants
@@ -532,6 +555,144 @@ export default function JudgeDashboard() {
       }
     }
   }, [judgeCriteriaProgress, user?.uid, currentEvent?.id, currentEvent?.enableIndividualSubmit]);
+
+
+
+  // Save UI state to Firestore for persistence
+  const saveUIStateToFirestore = async (contestantId, criteriaIndex, isLocked) => {
+    if (!user || !currentEvent) return;
+    
+    try {
+      const uiStateRef = doc(db, 'judgeUIState', `${user.uid}_${currentEvent.id}_${contestantId}`);
+      const uiStateData = {
+        judgeId: user.uid,
+        eventId: currentEvent.id,
+        contestantId: contestantId,
+        currentCriteriaIndex: criteriaIndex,
+        isCriteriaLocked: isLocked,
+        lastUpdated: new Date().toISOString(),
+        scoringMode: currentEvent?.enableIndividualSubmit ? 'individual' : 'all'
+      };
+      
+      await setDocWithRetry(uiStateRef, uiStateData);
+      console.log('💾 Saved UI state to Firestore:', uiStateData);
+    } catch (error) {
+      console.error('Error saving UI state to Firestore:', error);
+    }
+  };
+
+  // Load UI state from Firestore on component mount
+  const loadUIStateFromFirestore = async () => {
+    if (!user || !currentEvent) return;
+    
+    try {
+      const uiStateQuery = query(
+        collection(db, 'judgeUIState'),
+        where('judgeId', '==', user.uid),
+        where('eventId', '==', currentEvent.id)
+      );
+      
+      const querySnapshot = await getDocs(uiStateQuery);
+      const uiStates = {};
+      
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        uiStates[data.contestantId] = data;
+      });
+      
+      console.log('📂 Loaded UI states from Firestore:', uiStates);
+      return uiStates;
+    } catch (error) {
+      console.error('Error loading UI state from Firestore:', error);
+      return {};
+    }
+  };
+
+  // Restore UI state from Firestore
+  const restoreUIState = async () => {
+    if (!user || !currentEvent || contestants.length === 0) return;
+    
+    const uiStates = await loadUIStateFromFirestore();
+    
+    // Restore current contestant index if available
+    let restoredContestantIndex = 0;
+    if (currentEvent?.enableIndividualSubmit) {
+      // Find the contestant with the most recent activity
+      let latestTimestamp = null;
+      let latestContestantId = null;
+      
+      Object.keys(uiStates).forEach(contestantId => {
+        const state = uiStates[contestantId];
+        if (state.lastUpdated && (!latestTimestamp || state.lastUpdated > latestTimestamp)) {
+          latestTimestamp = state.lastUpdated;
+          latestContestantId = contestantId;
+        }
+      });
+      
+      if (latestContestantId) {
+        const contestantIndex = contestants.findIndex(c => c.id === latestContestantId);
+        if (contestantIndex >= 0) {
+          restoredContestantIndex = contestantIndex;
+          console.log(`🔄 Restored to contestant: ${contestants[contestantIndex].contestantName} (index: ${contestantIndex})`);
+        }
+      }
+    } else {
+      // For All Criteria mode, find first unscored contestant
+      for (let i = 0; i < contestants.length; i++) {
+        const contestant = contestants[i];
+        const state = uiStates[contestant.id];
+        
+        // If contestant has no state or is not locked, this is our starting point
+        if (!state || !state.isCriteriaLocked) {
+          restoredContestantIndex = i;
+          console.log(`🔄 Restored to first unscored contestant: ${contestant.contestantName} (index: ${i})`);
+          break;
+        }
+      }
+    }
+    
+    setCurrentContestantIndex(restoredContestantIndex);
+    
+    // Restore criteria progress for individual submit mode
+    if (currentEvent?.enableIndividualSubmit) {
+      const restoredProgress = {};
+      Object.keys(uiStates).forEach(contestantId => {
+        const state = uiStates[contestantId];
+        if (state.currentCriteriaIndex !== undefined && state.currentCriteriaIndex >= 0) {
+          const progressKey = `${user.uid}_${currentEvent.id}_${contestantId}`;
+          restoredProgress[progressKey] = state.currentCriteriaIndex;
+        }
+      });
+      
+      if (Object.keys(restoredProgress).length > 0) {
+        setJudgeCriteriaProgress(prev => ({ ...prev, ...restoredProgress }));
+        console.log('🔄 Restored criteria progress:', restoredProgress);
+      }
+    } else {
+      // For All Criteria mode, check if contestants should be locked
+      const lockedContestants = new Set();
+      Object.keys(uiStates).forEach(contestantId => {
+        const state = uiStates[contestantId];
+        if (state.isCriteriaLocked) {
+          lockedContestants.add(contestantId);
+        }
+      });
+      
+      if (lockedContestants.size > 0) {
+        console.log('🔄 Restored locked contestants:', Array.from(lockedContestants));
+        // Update locked contestants state
+        setLockedContestants(prev => new Set([...prev, ...lockedContestants]));
+      }
+    }
+  };
+
+  // Initialize UI state restoration
+  useEffect(() => {
+    if (user && currentEvent && contestants.length > 0) {
+      console.log('🔄 Initializing UI state restoration...');
+      restoreUIState();
+    }
+  }, [user?.uid, currentEvent?.id, contestants.length]);
 
 
   // Load judge's assigned events from Firestore
@@ -924,6 +1085,9 @@ export default function JudgeDashboard() {
         ...updatedContestantScores
       }));
 
+      // Update real-time judge table data
+      updateJudgeTableData(scoresData, judge.id);
+
     }, (error) => {
 
       console.error('❌ SCORES LISTENER ERROR:', error);
@@ -956,6 +1120,88 @@ export default function JudgeDashboard() {
 
     return unsubscribe;
 
+  };
+
+
+
+  // Update real-time judge table data
+  const updateJudgeTableData = (scoresData, judgeId) => {
+    console.log('🔄 Updating judge table data for judge:', judgeId);
+    
+    const tableData = {};
+    
+    // Process scores and organize by contestant and criteria
+    scoresData.forEach(score => {
+      const contestantId = score.contestantId;
+      
+      if (!tableData[contestantId]) {
+        tableData[contestantId] = {
+          contestantId: contestantId,
+          contestantName: score.contestantName,
+          contestantNo: score.contestantNo || '',
+          criteria: {},
+          totalScore: 0,
+          status: 'Not Rated',
+          lastUpdated: score.timestamp || null
+        };
+      }
+      
+      // Update criteria scores
+      if (score.scores && typeof score.scores === 'object') {
+        Object.keys(score.scores).forEach(criteriaKey => {
+          const previousScore = tableData[contestantId].criteria[criteriaKey]?.score;
+          const newScore = score.scores[criteriaKey];
+          
+          tableData[contestantId].criteria[criteriaKey] = {
+            score: newScore,
+            submitted: true,
+            submittedAt: score.timestamp || new Date().toISOString(),
+            judgeId: judgeId,
+            isUpdated: previousScore !== newScore // Track if this is an update
+          };
+          
+          // Show real-time update indicator if score changed
+          if (previousScore !== newScore) {
+            setRealtimeUpdateIndicator(prev => ({
+              ...prev,
+              [`${contestantId}_${criteriaKey}`]: {
+                show: true,
+                timestamp: Date.now()
+              }
+            }));
+            
+            // Hide indicator after 3 seconds
+            setTimeout(() => {
+              setRealtimeUpdateIndicator(prev => ({
+                ...prev,
+                [`${contestantId}_${criteriaKey}`]: {
+                  show: false,
+                  timestamp: null
+                }
+              }));
+            }, 3000);
+          }
+        });
+      }
+      
+      // Update total score
+      if (score.totalScore !== undefined) {
+        tableData[contestantId].totalScore = score.totalScore;
+      }
+      
+      // Update status
+      if (score.scores && Object.keys(score.scores).length > 0) {
+        tableData[contestantId].status = 'Submitted';
+      }
+      
+      // Update last updated timestamp
+      if (score.timestamp) {
+        tableData[contestantId].lastUpdated = score.timestamp;
+      }
+    });
+    
+    console.log('📊 Updated judge table data:', tableData);
+    setJudgeTableData(tableData);
   };
 
 
@@ -1783,6 +2029,59 @@ export default function JudgeDashboard() {
 
   };
 
+  // Persist submitted criteria to Firestore
+  const persistSubmittedCriteria = async (judgeId, contestantId, criteriaKey, score) => {
+    try {
+      const submissionData = {
+        judgeId,
+        contestantId,
+        criteriaKey,
+        score,
+        submittedAt: new Date().toISOString(),
+        eventId: currentEvent?.id || 'unknown',
+        round: usingFinalRoundCriteria ? 'final' : 'main'
+      };
+      
+      // Store in judge's submitted criteria subcollection
+      const submissionRef = doc(db, 'judges', judgeId, 'submittedCriteria', `${contestantId}_${criteriaKey}`);
+      await setDocWithRetry(submissionRef, submissionData);
+      
+      console.log('✅ Submitted criteria persisted to Firestore:', criteriaKey);
+    } catch (error) {
+      console.error('Error persisting submitted criteria:', error);
+    }
+  };
+
+  // Load submitted criteria from Firestore
+  const loadSubmittedCriteriaFromFirestore = async (judgeId) => {
+    try {
+      const submittedCriteriaRef = collection(db, 'judges', judgeId, 'submittedCriteria');
+      const snapshot = await getDocs(submittedCriteriaRef);
+      
+      const submitted = {};
+      const scores = {};
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const key = `${data.judgeId}_${data.contestantId}_${data.criteriaKey}`;
+        submitted[key] = true;
+        
+        // Also restore the score values
+        if (!scores[data.contestantId]) {
+          scores[data.contestantId] = {};
+        }
+        scores[data.contestantId][data.criteriaKey] = data.score;
+      });
+      
+      setSubmittedCriteria(submitted);
+      setJudgeSpecificScores(prev => ({ ...prev, ...scores }));
+      console.log('✅ Loaded submitted criteria from Firestore:', submitted);
+      console.log('✅ Loaded judge scores from Firestore:', scores);
+    } catch (error) {
+      console.error('Error loading submitted criteria from Firestore:', error);
+    }
+  };
+
   // Handle individual criterion submission
 
   const submitScore = async (criteriaId) => {
@@ -2065,9 +2364,17 @@ export default function JudgeDashboard() {
       try {
         const scoreRef = doc(db, 'scores', `${user.uid}_${contestantId}_${key}_${Date.now()}`);
         await setDocWithRetry(scoreRef, individualScoreData);
-        console.log('✅ Score document created successfully');
+        console.log('✅ Individual score document created successfully for Live Scoreboard:', {
+          documentId: scoreRef.id,
+          judgeId: user.uid,
+          contestantId: contestantId,
+          criteriaKey: key,
+          score: score,
+          totalScore: individualScoreData.totalScore,
+          isIndividualSubmission: individualScoreData.isIndividualSubmission
+        });
       } catch (scoreDocError) {
-        console.error('Error creating score document:', scoreDocError);
+        console.error('Error creating individual score document:', scoreDocError);
         // Continue with local state updates even if score doc fails
       }
 
@@ -2079,6 +2386,9 @@ export default function JudgeDashboard() {
           ...prev,
           [`${user.uid}_${contestantId}_${key}`]: true
         }));
+        
+        // Persist submitted criteria to Firestore
+        await persistSubmittedCriteria(user.uid, contestantId, key, score);
       } catch (stateError) {
         console.error('Error updating submitted criteria state:', stateError);
       }
@@ -2129,6 +2439,10 @@ export default function JudgeDashboard() {
         
         // Check if all scoring is completed and return to first contestant
         checkAndReturnToFirstContestant();
+      } else {
+        // For All Criteria mode, save UI state to Firestore
+        console.log('Saving UI state for All Criteria mode...');
+        await saveUIStateToFirestore(contestantId, -1, true); // -1 indicates all criteria completed
       }
       
     } catch (error) {
@@ -4892,7 +5206,7 @@ export default function JudgeDashboard() {
     const currentProgress = judgeCriteriaProgress[judgeProgressKey] || 0;
     const totalCriteria = getCurrentEventCriteria().length;
     
-    // Only advance if this is the current active criteria for this contestant
+    // Only advance if this is current active criteria for this contestant
     if (criteriaIndex === currentProgress) {
       // Check if this was the last criteria for this contestant
       if (currentProgress === totalCriteria - 1) {
@@ -4905,31 +5219,34 @@ export default function JudgeDashboard() {
             const nextContestantIndex = currentContestantIndex + 1;
             setCurrentContestantIndex(nextContestantIndex);
             
-            // Update current contestant state
+            // Save UI state for current contestant (completed all criteria)
+            saveUIStateToFirestore(contestantId, totalCriteria - 1, true);
+            
+            // Initialize progress for next contestant
             const nextContestant = contestants[nextContestantIndex];
             if (nextContestant) {
-              setCurrentContestant({
-                number: nextContestant.contestantNo,
-                name: nextContestant.contestantName,
-                category: nextContestant.category || 'Vocal Performance',
-                performanceOrder: nextContestant.performanceOrder || 1,
-                photo: nextContestant.photo
-              });
+              const nextProgressKey = `${user.uid}_${currentEvent.id}_${nextContestant.id}`;
+              setJudgeCriteriaProgress(prev => ({
+                ...prev,
+                [nextProgressKey]: 0
+              }));
+              
+              // Save UI state for next contestant (starting at criteria 0)
+              saveUIStateToFirestore(nextContestant.id, 0, false);
             }
-            
-            console.log(`🎯 Advanced to contestant ${nextContestantIndex + 1}: ${nextContestant?.contestantName}`);
           }
         }
+      } else {
+        // Advance to next criteria for this contestant
+        const nextCriteriaIndex = currentProgress + 1;
+        setJudgeCriteriaProgress(prev => ({
+          ...prev,
+          [judgeProgressKey]: nextCriteriaIndex
+        }));
+        
+        // Save UI state for this contestant (advanced to next criteria)
+        saveUIStateToFirestore(contestantId, nextCriteriaIndex, false);
       }
-      
-      // Update criteria progress (but don't go beyond the last criteria)
-      const newProgress = Math.min(currentProgress + 1, totalCriteria - 1);
-      setJudgeCriteriaProgress(prev => ({
-        ...prev,
-        [judgeProgressKey]: newProgress
-      }));
-      
-      console.log(`🎯 Judge ${user.uid} advanced to criteria index ${newProgress} for contestant ${contestantId}`);
     }
   };
   
@@ -7441,10 +7758,10 @@ export default function JudgeDashboard() {
 
                                   onChange={(e) => handleQuickScoreChange(contestants[currentContestantIndex]?.id, key, e.target.value)}
 
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id)}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]}
 
                                   className={`flex-1 h-1.5 sm:h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) ? 'opacity-50 cursor-not-allowed' : ''
+                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
 
                                 />
@@ -7481,10 +7798,10 @@ export default function JudgeDashboard() {
 
                                   }}
 
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id)}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]}
 
                                   className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-sm sm:text-base font-medium text-black ${
-                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) ? 'bg-gray-100 cursor-not-allowed' : ''
+                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? 'bg-gray-100 cursor-not-allowed' : ''
                                   }`}
 
                                 />
@@ -8577,11 +8894,11 @@ export default function JudgeDashboard() {
 
                                           onChange={(e) => handleQuickScoreChange(contestant.id, key, e.target.value)}
 
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id)}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]}
 
                                           className={`flex-1 h-1 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
 
-                                            isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) ? 'opacity-50 cursor-not-allowed' : ''
+                                            isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
 
                                           }`}
 
@@ -8619,7 +8936,7 @@ export default function JudgeDashboard() {
 
                                           }}
 
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id)}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]}
 
                                           className={`w-16 px-1 py-1 border rounded text-center font-semibold text-base ${
 
@@ -8627,7 +8944,7 @@ export default function JudgeDashboard() {
 
                                               ? 'border-red-300 bg-red-100 text-black' 
 
-                                              : 'border-gray-300'
+                                              : (isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]) ? 'border-gray-300 bg-gray-100 cursor-not-allowed' : 'border-gray-300'
 
                                           } ${
 
@@ -9323,7 +9640,31 @@ export default function JudgeDashboard() {
 
                   </span>
 
-                  
+                  {/* Real-time status indicator */}
+
+                  <span className={`inline-flex items-center px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-[10px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm ${
+                    Object.keys(judgeTableData).length > 0 
+                      ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200' 
+                      : 'bg-gradient-to-r from-gray-100 to-slate-100 text-gray-600 border border-gray-200'
+                  }`}>
+
+                    <div className={`w-2 h-2 rounded-full mr-1.5 ${Object.keys(judgeTableData).length > 0 ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+
+                    {Object.keys(judgeTableData).length > 0 ? '🔴 Live' : '⚪ Offline'}
+
+                  </span>
+
+                  {/* Individual submit mode indicator */}
+
+                  {currentEvent?.enableIndividualSubmit && (
+
+                    <span className="inline-flex items-center px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-[10px] sm:text-xs font-bold rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border border-blue-200 shadow-sm">
+
+                      📤 Individual Submit
+
+                    </span>
+
+                  )}
 
                   {/* Finalists Only Filter - Mobile Optimized */}
 
@@ -9581,6 +9922,16 @@ export default function JudgeDashboard() {
 
                                   
 
+                                  // Get real-time score from judgeTableData
+                                  const judgeData = judgeTableData[contestant.id];
+                                  let realTimeScore = 0;
+                                  let isSubmitted = false;
+                                  
+                                  if (judgeData && judgeData.criteria[key]) {
+                                    realTimeScore = judgeData.criteria[key].score;
+                                    isSubmitted = judgeData.criteria[key].submitted;
+                                  }
+
                                   let score;
 
                                   if (isFirstRoundAverage) {
@@ -9597,7 +9948,8 @@ export default function JudgeDashboard() {
 
                                   } else {
 
-                                    score = contestant[key] || 0;
+                                    // Use real-time score if available, otherwise fall back to contestant data
+                                    score = realTimeScore > 0 ? realTimeScore : (contestant[key] || 0);
 
                                   }
 
@@ -9619,11 +9971,23 @@ export default function JudgeDashboard() {
 
                                   
 
+                                  // Determine if this criterion is locked/submitted
+                                  const isLocked = isSubmitted || (currentEvent?.scoresLocked || currentEvent?.status === 'upcoming');
+
+                                  
+
                                   return (
 
-                                    <td key={index} className={`px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center ${isTopScore ? 'bg-yellow-200' : ''}`}>
+                                    <td key={index} className={`px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center ${isTopScore ? 'bg-yellow-200' : ''} ${isLocked ? 'bg-gray-50' : ''}`}>
 
                                       <div className="relative inline-flex items-center justify-center">
+
+                                        {/* Real-time update indicator */}
+                                        {realtimeUpdateIndicator[`${contestant.id}_${key}`]?.show && (
+                                          <div className="absolute -top-2 -right-2 w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Just updated!">
+                                            <div className="absolute inset-0 bg-green-400 rounded-full animate-ping"></div>
+                                          </div>
+                                        )}
 
                                         <span className={`inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs md:text-sm font-medium ${hasScore ? colorClass : 'bg-gray-100 text-black'} rounded-full ${hasScore ? 'shadow-sm' : ''} ${isTopScore ? 'ring-2 ring-yellow-400 ring-opacity-60' : ''}`}>
 
@@ -9639,6 +10003,13 @@ export default function JudgeDashboard() {
 
                                           </span>
 
+                                        )}
+
+                                        {/* Submitted indicator */}
+                                        {isSubmitted && (
+                                          <span className="absolute -bottom-1 -right-1 text-[8px] text-green-600" title="Submitted">
+                                            ✓
+                                          </span>
                                         )}
 
                                       </div>
@@ -9701,13 +10072,21 @@ export default function JudgeDashboard() {
 
                                 <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3">
 
-                                  <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-xs font-medium rounded-full border ${getStatusColor(contestant.status)}`}>
-
-                                    <span className="hidden md:inline">{contestant.status || 'Not Rated'}</span>
-
-                                    <span className="md:hidden">{(contestant.status || 'NR').substring(0, 4)}</span>
-
-                                  </span>
+                                  {/* Use real-time status from judgeTableData */}
+                                  {(() => {
+                                    const judgeData = judgeTableData[contestant.id];
+                                    const realTimeStatus = judgeData ? judgeData.status : (contestant.status || 'Not Rated');
+                                    const statusColor = realTimeStatus === 'Submitted' ? 'bg-green-100 text-green-800 border-green-200' : 
+                                                     realTimeStatus === 'Locked' ? 'bg-red-100 text-red-800 border-red-200' : 
+                                                     'bg-gray-100 text-gray-800 border-gray-200';
+                                    
+                                    return (
+                                      <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-xs font-medium rounded-full border ${statusColor}`}>
+                                        <span className="hidden md:inline">{realTimeStatus}</span>
+                                        <span className="md:hidden">{realTimeStatus.substring(0, 4)}</span>
+                                      </span>
+                                    );
+                                  })()}
 
                                 </td>
 

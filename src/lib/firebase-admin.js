@@ -5,7 +5,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 // Check if required environment variables are available
 const hasRequiredEnvVars = process.env.FIREBASE_PRIVATE_KEY && 
                           process.env.FIREBASE_CLIENT_EMAIL && 
-                          process.env.FIREBASE_CLIENT_ID;
+                          process.env.FIREBASE_PROJECT_ID;
 
 let adminApp = null;
 let adminAuth = null;

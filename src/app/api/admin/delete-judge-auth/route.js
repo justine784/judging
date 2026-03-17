@@ -1,6 +1,8 @@
 // Simple API route for judge auth deletion
 // This provides a fallback when Firebase Admin SDK is not configured
 
+import { adminAuth } from '@/lib/firebase-admin';
+
 // Helper function to ensure consistent JSON responses
 function createJsonResponse(data, status = 200) {
   const headers = {
@@ -83,37 +85,33 @@ export async function POST(request) {
     }
 
     // Try to use Firebase Admin SDK if available
-    try {
-      console.log('Attempting to initialize Firebase Admin SDK...');
+    if (!adminAuth) {
+      console.warn('Firebase Admin SDK not configured. Returning manual deletion instructions.');
       
-      // Dynamic import to avoid errors when SDK is not available
-      let admin;
-      try {
-        admin = require('firebase-admin');
-        console.log('Firebase Admin SDK loaded successfully');
-      } catch (importError) {
-        console.error('Failed to import Firebase Admin SDK:', importError);
-        throw new Error('Firebase Admin SDK not available. Please install firebase-admin package.');
-      }
-      
-      // Initialize if not already done
-      if (!admin.apps.length) {
-        console.log('Initializing Firebase Admin SDK...');
-        admin.initializeApp({
-          credential: admin.credential.cert({
-            projectId: envVars.FIREBASE_PROJECT_ID,
-            clientEmail: envVars.FIREBASE_CLIENT_EMAIL,
-            privateKey: envVars.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-          }),
-        });
-        console.log('Firebase Admin SDK initialized successfully');
-      } else {
-        console.log('Firebase Admin SDK already initialized');
-      }
+      return createJsonResponse({ 
+        success: false,
+        error: 'Firebase Admin SDK not configured on server',
+        details: 'Manual deletion required. Please delete the user from Firebase Console.',
+        instructions: {
+          step1: 'Go to Firebase Console: https://console.firebase.google.com',
+          step2: 'Select your project',
+          step3: 'Go to Authentication -> Users',
+          step4: 'Find the user with UID: ' + uid,
+          step5: 'Click the three-dot menu and select "Delete account"',
+          step6: 'Confirm the deletion'
+        },
+        missingVars: {
+          FIREBASE_PROJECT_ID: !!envVars.FIREBASE_PROJECT_ID,
+          FIREBASE_CLIENT_EMAIL: !!envVars.FIREBASE_CLIENT_EMAIL,
+          FIREBASE_PRIVATE_KEY: !!envVars.FIREBASE_PRIVATE_KEY,
+        }
+      }, 503);
+    }
 
+    try {
       console.log('Attempting to delete user from Firebase Auth...');
-      // Delete the user
-      await admin.auth().deleteUser(uid);
+      // Delete the user using the already initialized adminAuth
+      await adminAuth.deleteUser(uid);
       console.log(`Successfully deleted auth account for UID: ${uid}`);
       
       return createJsonResponse({ 

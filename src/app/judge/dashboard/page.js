@@ -38,6 +38,8 @@ export default function JudgeDashboard() {
 
   const [contestants, setContestants] = useState([]);
 
+  const [originalContestants, setOriginalContestants] = useState([]); // Maintain original order for navigation
+
   const [assignedEvents, setAssignedEvents] = useState([]);
 
   const [judgeData, setJudgeData] = useState(null);
@@ -75,6 +77,8 @@ export default function JudgeDashboard() {
   });
 
   const [currentContestantIndex, setCurrentContestantIndex] = useState(0);
+
+  const [currentOriginalContestantIndex, setCurrentOriginalContestantIndex] = useState(0); // Track index in original order
 
   const [currentEvent, setCurrentEvent] = useState(null);
 
@@ -114,6 +118,10 @@ export default function JudgeDashboard() {
   
   const [criteriaCompletion, setCriteriaCompletion] = useState({}); // Track completion status per criteria per event
   const [judgeCriteriaProgress, setJudgeCriteriaProgress] = useState({}); // Track per-judge criteria progression per contestant
+
+  // New state for persistent locked scores and slide states
+  const [persistentLockedScores, setPersistentLockedScores] = useState({}); // Track locked scores from Firestore
+  const [persistentSlideStates, setPersistentSlideStates] = useState({}); // Track slide locked/submitted states
 
   // Real-time judge table state
   const [judgeTableData, setJudgeTableData] = useState({}); // Store real-time judge table data
@@ -571,11 +579,35 @@ export default function JudgeDashboard() {
         currentCriteriaIndex: criteriaIndex,
         isCriteriaLocked: isLocked,
         lastUpdated: new Date().toISOString(),
-        scoringMode: currentEvent?.enableIndividualSubmit ? 'individual' : 'all'
+        scoringMode: currentEvent?.enableIndividualSubmit ? 'individual' : 'all',
+        // Save current contestant scores for restoration
+        currentScores: contestantScores[contestantId] || {},
+        // Save submission state for restoration
+        submittedCriteria: Object.keys(submittedCriteria)
+          .filter(key => key.startsWith(`${user.uid}_${contestantId}_`))
+          .reduce((obj, key) => {
+            obj[key] = submittedCriteria[key];
+            return obj;
+          }, {})
       };
       
       await setDocWithRetry(uiStateRef, uiStateData);
       console.log('💾 Saved UI state to Firestore:', uiStateData);
+      
+      // Also save a global state entry for last viewed contestant
+      const globalStateRef = doc(db, 'judgeUIState', `${user.uid}_${currentEvent.id}_global`);
+      const globalStateData = {
+        judgeId: user.uid,
+        eventId: currentEvent.id,
+        lastViewedContestantId: contestantId,
+        lastViewedContestantIndex: contestants.findIndex(c => c.id === contestantId),
+        lastUpdated: new Date().toISOString(),
+        scoringMode: currentEvent?.enableIndividualSubmit ? 'individual' : 'all'
+      };
+      
+      await setDocWithRetry(globalStateRef, globalStateData);
+      console.log('🌍 Saved global state to Firestore:', globalStateData);
+      
     } catch (error) {
       console.error('Error saving UI state to Firestore:', error);
     }
@@ -598,6 +630,24 @@ export default function JudgeDashboard() {
       querySnapshot.forEach(doc => {
         const data = doc.data();
         uiStates[data.contestantId] = data;
+        
+        // Restore scores for this contestant if available
+        if (data.currentScores && Object.keys(data.currentScores).length > 0) {
+          console.log(`🔄 Restoring scores for contestant ${data.contestantId}:`, data.currentScores);
+          setContestantScores(prev => ({
+            ...prev,
+            [data.contestantId]: data.currentScores
+          }));
+        }
+        
+        // Restore submission states if available
+        if (data.submittedCriteria && Object.keys(data.submittedCriteria).length > 0) {
+          console.log(`🔄 Restoring submission states for contestant ${data.contestantId}:`, data.submittedCriteria);
+          setSubmittedCriteria(prev => ({
+            ...prev,
+            ...data.submittedCriteria
+          }));
+        }
       });
       
       console.log('📂 Loaded UI states from Firestore:', uiStates);
@@ -614,41 +664,77 @@ export default function JudgeDashboard() {
     
     const uiStates = await loadUIStateFromFirestore();
     
-    // Restore current contestant index if available
+    // Always start at Contestant 1 by default
     let restoredContestantIndex = 0;
-    if (currentEvent?.enableIndividualSubmit) {
-      // Find the contestant with the most recent activity
-      let latestTimestamp = null;
-      let latestContestantId = null;
+    let hasPreviousState = false;
+    
+    // Try to get global state for last viewed contestant first
+    try {
+      const globalStateRef = doc(db, 'judgeUIState', `${user.uid}_${currentEvent.id}_global`);
+      const globalStateDoc = await getDocWithRetry(globalStateRef);
       
-      Object.keys(uiStates).forEach(contestantId => {
-        const state = uiStates[contestantId];
-        if (state.lastUpdated && (!latestTimestamp || state.lastUpdated > latestTimestamp)) {
-          latestTimestamp = state.lastUpdated;
-          latestContestantId = contestantId;
-        }
-      });
-      
-      if (latestContestantId) {
-        const contestantIndex = contestants.findIndex(c => c.id === latestContestantId);
-        if (contestantIndex >= 0) {
-          restoredContestantIndex = contestantIndex;
-          console.log(`🔄 Restored to contestant: ${contestants[contestantIndex].contestantName} (index: ${contestantIndex})`);
+      if (globalStateDoc.exists()) {
+        const globalState = globalStateDoc.data();
+        if (globalState.lastViewedContestantId && globalState.lastViewedContestantIndex !== undefined) {
+          // Only restore to last viewed if it's not Contestant 1 (to maintain default behavior)
+          if (globalState.lastViewedContestantIndex > 0 && globalState.lastViewedContestantIndex < contestants.length) {
+            restoredContestantIndex = globalState.lastViewedContestantIndex;
+            hasPreviousState = true;
+            console.log(`🌍 Restored to last viewed contestant from global state: ${contestants[restoredContestantIndex]?.contestantName || 'Unknown'} (index: ${restoredContestantIndex})`);
+          }
         }
       }
-    } else {
-      // For All Criteria mode, find first unscored contestant
-      for (let i = 0; i < contestants.length; i++) {
-        const contestant = contestants[i];
-        const state = uiStates[contestant.id];
+    } catch (error) {
+      console.log('Could not load global state, falling back to contestant states:', error);
+    }
+    
+    // Fallback to individual contestant states if global state doesn't exist or is invalid
+    if (!hasPreviousState) {
+      if (currentEvent?.enableIndividualSubmit) {
+        // Find the contestant with the most recent activity for individual submit mode
+        let latestTimestamp = null;
+        let latestContestantId = null;
         
-        // If contestant has no state or is not locked, this is our starting point
-        if (!state || !state.isCriteriaLocked) {
-          restoredContestantIndex = i;
-          console.log(`🔄 Restored to first unscored contestant: ${contestant.contestantName} (index: ${i})`);
-          break;
+        Object.keys(uiStates).forEach(contestantId => {
+          const state = uiStates[contestantId];
+          if (state.lastUpdated && (!latestTimestamp || state.lastUpdated > latestTimestamp)) {
+            latestTimestamp = state.lastUpdated;
+            latestContestantId = contestantId;
+          }
+        });
+        
+        if (latestContestantId) {
+          const contestantIndex = contestants.findIndex(c => c.id === latestContestantId);
+          if (contestantIndex >= 0 && contestantIndex !== 0) {
+            restoredContestantIndex = contestantIndex;
+            hasPreviousState = true;
+            console.log(`🔄 Restored to last viewed contestant: ${contestants[contestantIndex].contestantName} (index: ${contestantIndex})`);
+          }
+        }
+      } else {
+        // For All Criteria mode, find first unscored contestant, but default to Contestant 1
+        for (let i = 1; i < contestants.length; i++) { // Start from index 1 to check if we should move away from Contestant 1
+          const contestant = contestants[i];
+          const state = uiStates[contestant.id];
+          
+          // If contestant has no state or is not locked, this is our starting point
+          if (!state || !state.isCriteriaLocked) {
+            // Check if Contestant 1 is already locked/completed
+            const firstContestantState = uiStates[contestants[0].id];
+            if (firstContestantState && firstContestantState.isCriteriaLocked) {
+              restoredContestantIndex = i;
+              hasPreviousState = true;
+              console.log(`🔄 Contestant 1 completed, moved to: ${contestant.contestantName} (index: ${i})`);
+            }
+            break;
+          }
         }
       }
+    }
+    
+    // Always log the default behavior
+    if (!hasPreviousState) {
+      console.log(`📍 Starting at Contestant 1: ${contestants[0]?.contestantName || 'Loading...'} (index: 0)`);
     }
     
     setCurrentContestantIndex(restoredContestantIndex);
@@ -683,6 +769,21 @@ export default function JudgeDashboard() {
         // Update locked contestants state
         setLockedContestants(prev => new Set([...prev, ...lockedContestants]));
       }
+    }
+  };
+
+  // Save current contestant state when navigating
+  const saveCurrentContestantState = async (contestantId) => {
+    if (!user || !currentEvent || !contestantId) return;
+    
+    try {
+      const currentCriteriaIndex = getCurrentActiveCriteriaIndex(contestantId);
+      const isLocked = isCriteriaLocked(currentCriteriaIndex, contestantId);
+      
+      await saveUIStateToFirestore(contestantId, currentCriteriaIndex, isLocked);
+      console.log(`💾 Saved state for contestant ${contestantId} at index ${currentContestantIndex}`);
+    } catch (error) {
+      console.error('Error saving current contestant state:', error);
     }
   };
 
@@ -1639,76 +1740,61 @@ export default function JudgeDashboard() {
 
       
 
-      // Preserve current contestant position when reloading
+      // Set both original and ranked contestants arrays
+      // Original contestants maintain fixed order for navigation
+      // Ranked contestants are used for display with scores/rankings
+      setOriginalContestants(assignedContestants);
+      setContestants(rankedContestants);
+      
+      // Preload all contestant scores for instant navigation
+      if (currentEvent && assignedContestants.length > 0) {
+        preloadAllContestantScores(assignedContestants, currentEvent, judgeSpecificScores);
+      }
 
-      // Check if we have a current contestant and if they're still in the list
-
-      setContestants(prevContestants => {
-
-        // Get the current contestant ID we're viewing from currentContestant state instead of prevContestants
+        // Get the current contestant ID we're viewing from currentContestant state instead of contestants
 
         const currentViewingId = currentContestant?.id || 
 
-                                (currentContestantIndex >= 0 && prevContestants[currentContestantIndex]?.id);
+                                (currentContestantIndex >= 0 && contestants[currentContestantIndex]?.id);
 
         
 
-        // Find if the current contestant is still in the new list
-
+        // Find if the current contestant is still in the original list (not ranked list)
+        const originalIndex = currentViewingId ? originalContestants.findIndex(c => c.id === currentViewingId) : -1;
+        
+        // Find the contestant in the ranked list for display
         const newIndex = currentViewingId ? rankedContestants.findIndex(c => c.id === currentViewingId) : -1;
-
         
-
+        
         if (rankedContestants.length > 0) {
-
           let targetContestant;
-
           let targetIndex;
-
           
-
           if (newIndex !== -1) {
-
-            // Current contestant is still in the list, keep viewing them
-
+            // Current contestant is still in list, keep viewing them
             targetContestant = rankedContestants[newIndex];
-
             targetIndex = newIndex;
-
+            // Update both indices to maintain sync
+            setCurrentOriginalContestantIndex(originalIndex);
             console.log('✅ Preserving current contestant:', targetContestant.contestantName, 'at index:', targetIndex);
-
-          } else if (currentViewingId && prevContestants.length > 0) {
-
-            // Current contestant was eliminated, navigate to next available or first
-
-            // Try to keep same position if possible
-
-            targetIndex = Math.min(currentContestantIndex, rankedContestants.length - 1);
-
+          } else if (currentViewingId && contestants.length > 0) {
+            // Current contestant was eliminated, navigate to next available in original order
+            targetIndex = Math.min(currentOriginalContestantIndex, originalContestants.length - 1);
             targetContestant = rankedContestants[targetIndex];
-
+            // Update both indices
+            setCurrentOriginalContestantIndex(targetIndex);
             console.log('⚠️ Contestant was eliminated, navigating to index:', targetIndex);
-
           } else {
-
-            // First load or no previous state - ONLY set to 0 if we don't have a valid current index
-
-            if (currentContestantIndex >= 0 && currentContestantIndex < rankedContestants.length) {
-
-              targetIndex = currentContestantIndex;
-
+            // First load or no previous state - use original index
+            if (currentOriginalContestantIndex >= 0 && currentOriginalContestantIndex < originalContestants.length) {
+              targetIndex = currentOriginalContestantIndex;
               targetContestant = rankedContestants[targetIndex];
-
               console.log('🔄 Keeping current index:', targetIndex);
-
             } else {
-
               targetContestant = rankedContestants[0];
-
               targetIndex = 0;
-
-              console.log('🏠 Setting to first contestant (initial load)');
-
+              // Reset both indices
+              setCurrentOriginalContestantIndex(0);
             }
 
           }
@@ -1773,8 +1859,6 @@ export default function JudgeDashboard() {
 
         return rankedContestants;
 
-      });
-
     } catch (error) {
 
       console.error('Error loading contestants:', error);
@@ -1785,7 +1869,26 @@ export default function JudgeDashboard() {
 
   };
 
-
+  // Preload all contestant scores for instant navigation
+  const preloadAllContestantScores = async (assignedContestants, currentEvent, judgeSpecificScores) => {
+    if (!currentEvent || assignedContestants.length === 0) return;
+    
+    console.time('preloadScores');
+    console.log('🚀 Preloading scores for all contestants...');
+    
+    const allScores = {};
+    
+    // Initialize scores for all contestants at once
+    assignedContestants.forEach(contestant => {
+      allScores[contestant.id] = initializeQuickScores(currentEvent, contestant, null, judgeSpecificScores);
+    });
+    
+    // Batch update all scores
+    setContestantScores(allScores);
+    
+    console.timeEnd('preloadScores');
+    console.log('✅ Preloaded scores for', assignedContestants.length, 'contestants');
+  };
 
   const handleInputChange = (e) => {
 
@@ -2060,6 +2163,8 @@ export default function JudgeDashboard() {
       
       const submitted = {};
       const scores = {};
+      const lockedScores = {};
+      const slideStates = {};
       
       snapshot.forEach(doc => {
         const data = doc.data();
@@ -2071,12 +2176,35 @@ export default function JudgeDashboard() {
           scores[data.contestantId] = {};
         }
         scores[data.contestantId][data.criteriaKey] = data.score;
+        
+        // Track locked scores (submitted criteria are locked)
+        if (!lockedScores[data.contestantId]) {
+          lockedScores[data.contestantId] = {};
+        }
+        lockedScores[data.contestantId][data.criteriaKey] = {
+          score: data.score,
+          locked: true,
+          submitted: true,
+          submittedAt: data.submittedAt
+        };
+        
+        // Track slide states (if any criteria for this contestant is submitted)
+        const slideKey = `${data.contestantId}_${data.round || 'main'}`;
+        slideStates[slideKey] = {
+          locked: true,
+          submitted: true,
+          submittedAt: data.submittedAt
+        };
       });
       
       setSubmittedCriteria(submitted);
       setJudgeSpecificScores(prev => ({ ...prev, ...scores }));
+      setPersistentLockedScores(lockedScores);
+      setPersistentSlideStates(slideStates);
       console.log('✅ Loaded submitted criteria from Firestore:', submitted);
       console.log('✅ Loaded judge scores from Firestore:', scores);
+      console.log('✅ Loaded persistent locked scores:', lockedScores);
+      console.log('✅ Loaded persistent slide states:', slideStates);
     } catch (error) {
       console.error('Error loading submitted criteria from Firestore:', error);
     }
@@ -2475,6 +2603,30 @@ export default function JudgeDashboard() {
 
   };
 
+  // Helper function to check if a score is locked (submitted or locked)
+  const isScoreLocked = (contestantId, criteriaKey) => {
+    // Check persistent locked scores first
+    if (persistentLockedScores[contestantId]?.[criteriaKey]?.locked) {
+      return true;
+    }
+    
+    // Check submitted criteria
+    const submissionKey = `${user?.uid}_${contestantId}_${criteriaKey}`;
+    return submittedCriteria[submissionKey] || false;
+  };
+
+  // Helper function to get locked score value
+  const getLockedScoreValue = (contestantId, criteriaKey) => {
+    // Return persistent locked score if available
+    return persistentLockedScores[contestantId]?.[criteriaKey]?.score;
+  };
+
+  // Helper function to check if slide is locked/submitted
+  const isSlideLocked = (contestantId, round = 'main') => {
+    const slideKey = `${contestantId}_${round}`;
+    return persistentSlideStates[slideKey]?.locked || false;
+  };
+
   // Load submitted criteria state from judge's own data (not contestant document)
   const loadSubmittedCriteria = (contestant, judgeId) => {
     if (!contestant || !judgeId) return;
@@ -2646,35 +2798,29 @@ export default function JudgeDashboard() {
         scores[key] = contestant && judgeScores?.[contestant.id]?.[finalRoundKey] ? judgeScores[contestant.id][finalRoundKey] : 0;
 
       } else {
-
-        // Prioritize current contestant scores values over saved scores to preserve editing state
-
-        if (contestant && contestantScores[contestant.id]?.[key] !== undefined) {
-
+        // Check if this score is locked (submitted) first
+        if (contestant && isScoreLocked(contestant.id, key)) {
+          const lockedScore = getLockedScoreValue(contestant.id, key);
+          if (lockedScore !== undefined) {
+            scores[key] = lockedScore;
+            console.log(`🔒 Using locked score for ${criterion.name}: ${lockedScore}`);
+          } else {
+            scores[key] = 0;
+          }
+        } else if (contestant && contestantScores[contestant.id]?.[key] !== undefined) {
+          // Prioritize current contestant scores values over saved scores to preserve editing state
           scores[key] = contestantScores[contestant.id][key];
-
         } else {
-
           // Use judge-specific scores or default to 0
-
           let score = contestant && judgeScores?.[contestant.id]?.[key] ? judgeScores[contestant.id][key] : 0;
 
-          
-
           // Convert old points format to new percentage format if needed
-
           if (currentEvent?.gradingType === 'points' && score > 100) {
-
             score = (score / criterion.weight) * 100;
-
           }
 
-          
-
           scores[key] = score;
-
         }
-
       }
 
     });
@@ -3732,71 +3878,59 @@ export default function JudgeDashboard() {
     const lockKey = `${contestantId}_${usingFinalRoundCriteria ? 'final' : 'main'}`;
 
     return lockedContestants.has(lockKey);
-
   };
 
-
-
-  // Find the next unlocked contestant index
-
+  // Find the next unlocked contestant index (for auto-navigation after lock)
   const findNextUnlockedContestantIndex = (startIndex) => {
-
     for (let i = startIndex + 1; i < contestants.length; i++) {
-
       if (!isContestantLocked(contestants[i].id)) {
-
         return i;
-
       }
-
     }
-
     return -1; // No unlocked contestants found
-
   };
 
+  // Find the next contestant index (using original order for navigation)
+  const findNextContestantIndex = (startIndex) => {
+    // Use original contestants array for sequential navigation
+    for (let i = startIndex + 1; i < originalContestants.length; i++) {
+      return i; // Return the very next contestant in original order
+    }
+    return -1; // No next contestant found
+  };
 
-
-  // Find the previous unlocked contestant index
-
+  // Find the previous unlocked contestant index (for specific navigation logic)
   const findPreviousUnlockedContestantIndex = (startIndex) => {
-
     for (let i = startIndex - 1; i >= 0; i--) {
-
       if (!isContestantLocked(contestants[i].id)) {
-
         return i;
-
       }
-
     }
-
     return -1; // No unlocked contestants found
-
   };
 
+  // Find the previous contestant index (using original order for navigation)
+  const findPreviousContestantIndex = (startIndex) => {
+    // Use original contestants array for sequential navigation
+    for (let i = startIndex - 1; i >= 0; i--) {
+      return i; // Return the very previous contestant in original order
+    }
+    return -1; // No previous contestant found
+  };
 
 
   // Check if navigation to previous contestant should be disabled
-
   const isPreviousNavigationDisabled = () => {
-
-    const previousIndex = findPreviousUnlockedContestantIndex(currentContestantIndex);
-
+    const previousIndex = findPreviousContestantIndex(currentOriginalContestantIndex);
     return previousIndex === -1;
-
   };
 
 
 
   // Check if navigation to next contestant should be disabled
-
   const isNextNavigationDisabled = () => {
-
-    const nextIndex = findNextUnlockedContestantIndex(currentContestantIndex);
-
+    const nextIndex = findNextContestantIndex(currentOriginalContestantIndex);
     return nextIndex === -1;
-
   };
 
 
@@ -3898,97 +4032,65 @@ export default function JudgeDashboard() {
       }
 
     } else {
-
       // Locking contestant - add to locked set and save only current contestant's scores
-
       const newSet = new Set(lockedContestants);
-
       newSet.add(lockKey);
-
       
-
       // Save only scores for the current contestant
-
       const currentContestant = contestants[currentContestantIndex];
-
       const currentContestantScores = contestantScores[currentContestant?.id] || {};
-
       const contestantScoreKeys = Object.keys(currentContestantScores).filter(key => {
-
         if (usingFinalRoundCriteria) {
-
           return key.startsWith('final_');
-
         } else {
-
           return !key.startsWith('final_');
-
         }
-
       });
-
       const scoresToLock = {};
-
       contestantScoreKeys.forEach(key => {
-
         scoresToLock[key] = currentContestantScores[key];
-
       });
-
       const newLockedScores = {
-
         ...lockedScores,
-
         [lockKey]: scoresToLock
-
       };
-
       
-
       setLockedContestants(newSet);
-
       setLockedScores(newLockedScores);
-
       
-
       // Persist to Firestore
-
       try {
-
         const judgeRef = doc(db, 'judges', user.uid);
-
         await updateDocWithRetry(judgeRef, {
-
           lockedContestants: Array.from(newSet),
-
           lockedScores: newLockedScores
-
         });
-
         console.log('🔒 Locked contestant (persisted):', currentContestant.contestantName, 'round:', roundType);
-
+        
+        // Auto-navigate to next contestant after successful lock
+        setTimeout(() => {
+          const nextIndex = findNextContestantIndex(currentOriginalContestantIndex);
+          if (nextIndex !== -1) {
+            console.log('🔄 Auto-navigating to next contestant after lock');
+            goToNextContestant();
+          } else {
+            console.log('🏁 No more contestants to navigate to');
+          }
+        }, 500); // Small delay to ensure lock state is saved first
+        
       } catch (error) {
-
         console.error('Error persisting lock status:', error);
-
         alert('Failed to save lock status. Please try again.');
-
       }
-
     }
 
     
 
-    // Ensure current contestant index is preserved (prevent unintended navigation)
-
-    if (currentContestantIndex !== currentIndexBeforeLock) {
-
-      console.log('🔧 Restoring contestant index after lock/unlock:', currentIndexBeforeLock);
-
+    // Only restore index for unlock operations (not for lock operations)
+    if (isCurrentlyLocked && currentContestantIndex !== currentIndexBeforeLock) {
+      console.log('🔧 Restoring contestant index after unlock:', currentIndexBeforeLock);
       setCurrentContestantIndex(currentIndexBeforeLock);
-
     }
-
   };
 
 
@@ -4753,294 +4855,205 @@ export default function JudgeDashboard() {
 
   // Navigation functions
 
-  const goToPreviousContestant = () => {
-
-    // Find the previous unlocked contestant
-
-    const previousUnlockedIndex = findPreviousUnlockedContestantIndex(currentContestantIndex);
-
+  const goToPreviousContestant = async () => {
+    console.time('previousContestant');
     
-
-    if (previousUnlockedIndex === -1) {
-
-      // No previous unlocked contestants available
-
-      console.log('🚫 No previous unlocked contestants available');
-
+    // Find previous contestant (using original order for navigation)
+    const previousIndex = findPreviousContestantIndex(currentOriginalContestantIndex);
+    
+    if (previousIndex === -1) {
+      console.log('🚫 No previous contestants available');
+      console.timeEnd('previousContestant');
       return;
-
     }
 
-    
-
-    // Store current contestant's score before navigating
-
-    const currentContestantData = contestants[currentContestantIndex];
-
+    // Store current contestant's score before navigating (local state only)
+    const currentContestantData = originalContestants[currentOriginalContestantIndex];
     if (currentContestantData) {
-
       setPreviousContestantInfo({
-
         name: currentContestantData.contestantName,
-
         number: currentContestantData.contestantNo,
-
         totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
-
       });
-
       setShowPreviousScore(true);
-
       // Auto-hide after 3 seconds
-
       setTimeout(() => setShowPreviousScore(false), 3000);
-
     }
 
-    
+    const contestant = originalContestants[previousIndex];
 
-    const contestant = contestants[previousUnlockedIndex];
-
-    setCurrentContestantIndex(previousUnlockedIndex);
-
+    // Batch all state updates together for better performance
+    setCurrentOriginalContestantIndex(previousIndex);
+    setCurrentContestantIndex(previousIndex);
     setCurrentContestant({
-
       number: contestant.contestantNo,
-
       name: contestant.contestantName,
-
       category: contestant.category || 'Vocal Performance',
-
-      performanceOrder: contestant.performanceOrder || previousUnlockedIndex + 1,
-
+      performanceOrder: contestant.performanceOrder || previousIndex + 1,
       photo: null,
-
       contestantType: contestant.contestantType || 'solo'
-
     });
 
-    // Update contestant scores to match the previous contestant's saved scores
-
-    const newContestantScores = initializeQuickScores(currentEvent, contestant, null, judgeSpecificScores);
-
-    setContestantScores(prev => ({
-
-      ...prev,
-
-      [contestant.id]: newContestantScores
-
-    }));
-
-  };
-
-
-
-  const goToNextContestant = () => {
-
-    // Find the next unlocked contestant
-
-    const nextUnlockedIndex = findNextUnlockedContestantIndex(currentContestantIndex);
-
-    
-
-    if (nextUnlockedIndex !== -1) {
-
-      // Store current contestant's score before navigating
-
-      const currentContestantData = contestants[currentContestantIndex];
-
-      if (currentContestantData) {
-
-        setPreviousContestantInfo({
-
-          name: currentContestantData.contestantName,
-
-          number: currentContestantData.contestantNo,
-
-          totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
-
-        });
-
-        setShowPreviousScore(true);
-
-        // Auto-hide after 3 seconds
-
-        setTimeout(() => setShowPreviousScore(false), 3000);
-
-      }
-
-      
-
-      const contestant = contestants[nextUnlockedIndex];
-
-      setCurrentContestantIndex(nextUnlockedIndex);
-
-      setCurrentContestant({
-
-        number: contestant.contestantNo,
-
-        name: contestant.contestantName,
-
-        category: contestant.category || 'Vocal Performance',
-
-        performanceOrder: contestant.performanceOrder || nextUnlockedIndex + 1,
-
-        photo: null,
-
-        contestantType: contestant.contestantType || 'solo'
-
-      });
-
-      // Update contestant scores to match the next contestant's saved scores
-
+    // Use cached scores if available, otherwise initialize
+    if (!contestantScores[contestant.id] && currentEvent) {
       const newContestantScores = initializeQuickScores(currentEvent, contestant, null, judgeSpecificScores);
-
       setContestantScores(prev => ({
-
         ...prev,
-
         [contestant.id]: newContestantScores
-
       }));
-
-      // Force selector re-render
-
-      setSelectorKey(prev => prev + 1);
-
     }
 
+    // Force selector re-render
+    setSelectorKey(prev => prev + 1);
+    
+    // Save state in background (non-blocking)
+    setTimeout(() => {
+      if (currentContestantData) {
+        saveCurrentContestantState(currentContestantData.id);
+      }
+    }, 100);
+    
+    console.timeEnd('previousContestant');
+  };
+
+  const goToNextContestant = async () => {
+    console.time('nextContestant');
+    
+    // Find the next contestant (using original order for navigation)
+    const nextIndex = findNextContestantIndex(currentOriginalContestantIndex);
+    
+    if (nextIndex === -1) {
+      console.timeEnd('nextContestant');
+      return;
+    }
+    
+    // Store current contestant's score before navigating (local state only)
+    const currentContestantData = originalContestants[currentOriginalContestantIndex];
+    if (currentContestantData) {
+      setPreviousContestantInfo({
+        name: currentContestantData.contestantName,
+        number: currentContestantData.contestantNo,
+        totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
+      });
+      setShowPreviousScore(true);
+      // Auto-hide after 3 seconds
+      setTimeout(() => setShowPreviousScore(false), 3000);
+    }
+
+    const contestant = originalContestants[nextIndex];
+
+    // Batch all state updates together for better performance
+    setCurrentOriginalContestantIndex(nextIndex);
+    setCurrentContestantIndex(nextIndex);
+    setCurrentContestant({
+      number: contestant.contestantNo,
+      name: contestant.contestantName,
+      category: contestant.category || 'Vocal Performance',
+      performanceOrder: contestant.performanceOrder || nextIndex + 1,
+      photo: null,
+      contestantType: contestant.contestantType || 'solo'
+    });
+
+    // Use cached scores if available, otherwise initialize
+    if (!contestantScores[contestant.id] && currentEvent) {
+      const newContestantScores = initializeQuickScores(currentEvent, contestant, null, judgeSpecificScores);
+      setContestantScores(prev => ({
+        ...prev,
+        [contestant.id]: newContestantScores
+      }));
+    }
+
+    // Force selector re-render
+    setSelectorKey(prev => prev + 1);
+    
+    // Save state in background (non-blocking)
+    setTimeout(() => {
+      if (currentContestantData) {
+        saveCurrentContestantState(currentContestantData.id);
+      }
+    }, 100);
+    
+    console.timeEnd('nextContestant');
   };
 
 
 
-  const selectContestantByIndex = (index) => {
-
-    if (index >= 0 && index < contestants.length && !isContestantLocked(contestants[index].id)) {
-
-      // Store current contestant's score before navigating
-
-      const currentContestantData = contestants[currentContestantIndex];
-
-      if (currentContestantData && index !== currentContestantIndex) {
-
-        setPreviousContestantInfo({
-
-          name: currentContestantData.contestantName,
-
-          number: currentContestantData.contestantNo,
-
-          totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
-
-        });
-
-        setShowPreviousScore(true);
-
-        // Auto-hide after 3 seconds
-
-        setTimeout(() => setShowPreviousScore(false), 3000);
-
-      }
-
-      
-
-      // Determine slide direction
-
-      if (index > currentContestantIndex) {
-
-        setSlideDirection('left'); // Next contestant - slide left
-
-      } else if (index < currentContestantIndex) {
-
-        setSlideDirection('right'); // Previous contestant - slide right
-
-      }
-
-      
-
-      // Start animation
-
-      setIsAnimating(true);
-
-      
-
-      // After animation, update content
-
-      setTimeout(() => {
-
-        const contestant = contestants[index];
-
-        setCurrentContestantIndex(index);
-
-        setCurrentContestant({
-
-          number: contestant.contestantNo,
-
-          name: contestant.contestantName,
-
-          category: contestant.category || 'Vocal Performance',
-
-          performanceOrder: contestant.performanceOrder || index + 1,
-
-          photo: null,
-
-          contestantType: contestant.contestantType || 'solo'
-
-        });
-
-        // Update contestant scores to match current contestant scores based on event criteria
-
-        const newContestantScores = initializeQuickScores(currentEvent, contestant, null, judgeSpecificScores);
-
-        setContestantScores(prev => ({
-
-          ...prev,
-
-          [contestant.id]: newContestantScores
-
-        }));
-
-        // Load submitted criteria state
-
-        loadSubmittedCriteria(contestant);
-
-        // Force selector re-render
-
-        setSelectorKey(prev => prev + 1);
-
-        
-
-        // Scroll to the selected contestant card for better UX
-
-        setTimeout(() => {
-
-          const contestantCards = document.querySelectorAll('[data-contestant-card]');
-
-          const selectedCard = contestantCards[index];
-
-          if (selectedCard) {
-
-            selectedCard.scrollIntoView({
-
-              behavior: 'smooth',
-
-              block: 'center'
-
-            });
-
-          }
-
-        }, 100);
-
-        
-
-        // End animation
-
-        setIsAnimating(false);
-
-      }, 300); // Match animation duration
-
+  const selectContestantByIndex = async (index) => {
+    console.time('selectContestant');
+    
+    if (index < 0 || index >= contestants.length || index === currentContestantIndex) {
+      console.timeEnd('selectContestant');
+      return;
     }
 
+    const currentContestantData = contestants[currentContestantIndex];
+    
+    // Store current contestant's score before navigating (local state only)
+    if (currentContestantData) {
+      setPreviousContestantInfo({
+        name: currentContestantData.contestantName,
+        number: currentContestantData.contestantNo,
+        totalScore: currentContestantData.totalWeightedScore || getDisplayTotalScore()
+      });
+      setShowPreviousScore(true);
+      // Auto-hide after 3 seconds
+      setTimeout(() => setShowPreviousScore(false), 3000);
+    }
+
+    // Determine slide direction
+    setSlideDirection(index > currentContestantIndex ? 'left' : 'right');
+    setIsAnimating(true);
+
+    const contestant = contestants[index];
+    
+    // Batch all state updates
+    setCurrentContestantIndex(index);
+    setCurrentOriginalContestantIndex(index);
+    setCurrentContestant({
+      number: contestant.contestantNo,
+      name: contestant.contestantName,
+      category: contestant.category || 'Vocal Performance',
+      performanceOrder: contestant.performanceOrder || index + 1,
+      photo: null,
+      contestantType: contestant.contestantType || 'solo'
+    });
+
+    // Use cached scores if available, otherwise initialize
+    if (!contestantScores[contestant.id] && currentEvent) {
+      const newContestantScores = initializeQuickScores(currentEvent, contestant, null, judgeSpecificScores);
+      setContestantScores(prev => ({
+        ...prev,
+        [contestant.id]: newContestantScores
+      }));
+    }
+
+    // Load submitted criteria state
+    loadSubmittedCriteria(contestant);
+
+    // Force selector re-render
+    setSelectorKey(prev => prev + 1);
+
+    // Save state in background (non-blocking)
+    setTimeout(() => {
+      if (currentContestantData) {
+        saveCurrentContestantState(currentContestantData.id);
+      }
+      
+      // Scroll to selected contestant
+      const contestantCards = document.querySelectorAll('[data-contestant-card]');
+      const selectedCard = contestantCards[index];
+      if (selectedCard) {
+        selectedCard.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+      
+      // End animation
+      setIsAnimating(false);
+    }, 100);
+    
+    console.timeEnd('selectContestant');
   };
 
 
@@ -5376,6 +5389,9 @@ export default function JudgeDashboard() {
   const handleQuickScoreChange = (contestantId, criteria, value) => {
 
     const numValue = parseFloat(value) || 0;
+    
+    // Convert to integer to remove decimal values
+    const finalValue = Math.floor(numValue);
 
     
 
@@ -5388,27 +5404,17 @@ export default function JudgeDashboard() {
       c.name.toLowerCase().replace(/\s+/g, '_') === criterionName
 
     );
-
     
-
-    let finalValue = numValue;
-
     
-
     // Enforce limits based on grading type
-
+    let limitedValue = finalValue;
+    
     if (currentEvent?.gradingType === 'points' && criterion) {
-
       // For points-based grading, limit to criterion weight
-
-      finalValue = Math.min(numValue, criterion.weight);
-
+      limitedValue = Math.min(finalValue, criterion.weight);
     } else if (currentEvent?.gradingType !== 'points') {
-
       // For percentage-based grading, limit to 100
-
-      finalValue = Math.min(numValue, 100);
-
+      limitedValue = Math.min(finalValue, 100);
     }
 
     
@@ -7752,7 +7758,7 @@ export default function JudgeDashboard() {
 
                                   max={criterionMaxScore}
 
-                                  step="0.1"
+                                  step="1"
 
                                   value={score}
 
@@ -7760,7 +7766,7 @@ export default function JudgeDashboard() {
 
                                   disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]}
 
-                                  className={`flex-1 h-1.5 sm:h-2 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
+                                  className={`flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer ${
                                     isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
 
@@ -7774,7 +7780,7 @@ export default function JudgeDashboard() {
 
                                   max={criterionMaxScore}
 
-                                  step="0.1"
+                                  step="1"
 
                                   value={score}
 
@@ -8888,7 +8894,7 @@ export default function JudgeDashboard() {
 
                                           max={criterionMaxScore}
 
-                                          step="0.1"
+                                          step="1"
 
                                           value={score}
 
@@ -8896,10 +8902,8 @@ export default function JudgeDashboard() {
 
                                           disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]}
 
-                                          className={`flex-1 h-1 bg-${color}-200 rounded-lg appearance-none cursor-pointer ${
-
+                                          className={`flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer ${
                                             isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
-
                                           }`}
 
                                         />
@@ -8912,7 +8916,7 @@ export default function JudgeDashboard() {
 
                                           max={criterionMaxScore}
 
-                                          step="0.1"
+                                          step="1"
 
                                           value={score}
 
@@ -9305,11 +9309,9 @@ export default function JudgeDashboard() {
 
                           onClick={() => selectContestantByIndex(actualIndex)}
 
-                          disabled={isContestantLocked(contestant.id)}
-
                           className={`w-full mt-3 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-200 transform active:scale-95 ${
                             isContestantLocked(contestant.id)
-                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              ? 'bg-amber-600 text-white hover:bg-amber-700'
                               : isCurrentCard 
                                 ? 'bg-emerald-700 text-white cursor-default' 
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg'
@@ -9318,7 +9320,7 @@ export default function JudgeDashboard() {
                         >
 
                           {isContestantLocked(contestant.id) 
-                            ? '🔒 Locked' 
+                            ? '🔒 View Locked' 
                             : isCurrentCard 
                               ? '✓ Current Contestant' 
                               : 'Select This Contestant'
@@ -10246,7 +10248,7 @@ export default function JudgeDashboard() {
 
                         max={currentEvent?.gradingType === 'points' ? criterion.weight : 100}
 
-                        step="0.1"
+                        step="1"
 
                         className="flex-1 px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 text-slate-800 font-medium"
 

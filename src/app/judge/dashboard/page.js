@@ -3399,33 +3399,20 @@ export default function JudgeDashboard() {
                     <th key={index} className="px-1.5 sm:px-2 md:px-4 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider min-w-[60px] sm:min-w-[80px] md:min-w-[100px]">
 
                       <div className="hidden md:block">
-
-                        <div className="font-bold truncate max-w-[100px]">{criterion.name}</div>
-
+                        <div className="font-bold text-base sm:text-lg md:text-xl break-words normal-case leading-tight">{criterion.name}</div>
                         {showCategoryHeaders && criterion.category && (
-
                           <div className="text-[10px] text-black mt-0.5">{criterion.category}</div>
-
                         )}
-
                         <div className="text-[10px] text-black mt-0.5">
-
                           ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight}pt` : `${criterion.weight}%`})
-
                         </div>
-
                       </div>
-
-                      <div className="md:hidden text-[9px] sm:text-[10px]">
-
-                        {criterion.name.length > 6 ? criterion.name.substring(0, 6) + '..' : criterion.name}
-
-                        <div className="text-[9px] text-black">
-
+                      
+                      <div className="md:hidden">
+                        <div className="text-xs sm:text-sm md:text-base font-bold break-words normal-case leading-tight">{criterion.name}</div>
+                        <div className="text-[9px] text-black mt-0.5">
                           ({criterion.weight})
-
                         </div>
-
                       </div>
 
                     </th>
@@ -7718,7 +7705,7 @@ export default function JudgeDashboard() {
 
                                 <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
 
-                                  <label className={`text-base sm:text-lg font-semibold truncate max-w-[120px] sm:max-w-none ${
+                                  <label className={`text-lg sm:text-xl md:text-2xl font-bold break-words normal-case leading-tight flex-1 ${
                                     currentEvent?.enableIndividualSubmit && isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id)
                                       ? 'text-gray-500'
                                       : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex, contestants[currentContestantIndex]?.id)
@@ -8851,7 +8838,7 @@ export default function JudgeDashboard() {
                                     }`}>
                                       <div className="flex items-center justify-between mb-1">
                                         <div className="flex items-center gap-1 flex-1 min-w-0">
-                                          <label className={`text-sm font-semibold truncate max-w-[150px] ${
+                                          <label className={`text-base sm:text-lg md:text-xl font-bold break-words normal-case leading-tight flex-1 ${
                                             currentEvent?.enableIndividualSubmit && isCriteriaLocked(currentGlobalIndex, contestant.id)
                                               ? 'text-gray-500'
                                               : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex, contestant.id)
@@ -9284,7 +9271,7 @@ export default function JudgeDashboard() {
 
                                       <div className="flex items-center gap-2 flex-1 min-w-0">
 
-                                        <span className="text-sm font-medium text-black truncate">{criterion.name}</span>
+                                        <span className="text-base sm:text-lg font-bold text-black break-words normal-case leading-tight">{criterion.name}</span>
 
                                         <span className="text-xs font-medium text-black bg-gray-200 px-2 py-0.5 rounded flex-shrink-0">
 
@@ -9818,35 +9805,18 @@ export default function JudgeDashboard() {
                               <th key={index} className="px-1.5 sm:px-2 md:px-4 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-extrabold text-slate-700 uppercase tracking-wider min-w-[60px] sm:min-w-[80px] md:min-w-[100px]">
 
                                 <div className="hidden md:block">
-
-                                  <div className="font-bold truncate max-w-[100px]">{criterion.name}</div>
-
+                                  <div className="font-bold text-base sm:text-lg md:text-xl break-words normal-case leading-tight">{criterion.name}</div>
                                   {criterion.category && (
-
                                     <div className="text-[10px] text-black mt-0.5">{criterion.category}</div>
-
                                   )}
-
                                   <div className="text-[10px] text-black mt-0.5">
-
                                     ({criterion.scoringType === 'points' || currentEvent?.gradingType === 'points' ? `${criterion.weight}pt` : `${criterion.weight}%`})
-
                                   </div>
-
                                 </div>
-
-                                <div className="md:hidden text-[9px] sm:text-[10px]">
-
-                                  {criterion.name.length > 6 ? criterion.name.substring(0, 6) + '..' : criterion.name}
-
-                                  <div className="text-[9px] text-black">
-
-                                    ({criterion.weight})
-
-                                  </div>
-
+                                 
+                                <div className="md:hidden text-xs sm:text-sm md:text-base font-bold break-words normal-case leading-tight">
+                                  {criterion.name}
                                 </div>
-
                               </th>
 
                             ))}

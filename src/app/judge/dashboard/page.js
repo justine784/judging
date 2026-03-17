@@ -2544,6 +2544,37 @@ export default function JudgeDashboard() {
         console.error('Error updating judge specific scores:', judgeScoreError);
       }
       
+      // Update persistent locked scores state
+      try {
+        setPersistentLockedScores(prev => ({
+          ...prev,
+          [contestantId]: {
+            ...prev[contestantId],
+            [key]: {
+              score: score,
+              locked: true,
+              submitted: true,
+              submittedAt: new Date().toISOString()
+            }
+          }
+        }));
+        
+        // Update persistent slide states
+        const round = usingFinalRoundCriteria ? 'final' : 'main';
+        setPersistentSlideStates(prev => ({
+          ...prev,
+          [`${contestantId}_${round}`]: {
+            locked: true,
+            submitted: true,
+            submittedAt: new Date().toISOString()
+          }
+        }));
+        
+        console.log('✅ Updated persistent locked scores and slide states');
+      } catch (persistentError) {
+        console.error('Error updating persistent state:', persistentError);
+      }
+      
       console.log('✅ Score submission completed successfully');
       const successMessage = isResubmission 
         ? `✅ Score RESUBMITTED successfully for "${criteriaId}"!`
@@ -7764,13 +7795,20 @@ export default function JudgeDashboard() {
 
                                   onChange={(e) => handleQuickScoreChange(contestants[currentContestantIndex]?.id, key, e.target.value)}
 
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || isScoreLocked(contestants[currentContestantIndex]?.id, key)}
 
                                   className={`flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer ${
-                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
+                                    isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || isScoreLocked(contestants[currentContestantIndex]?.id, key) ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
 
                                 />
+
+                                {/* Visual indicator for locked scores */}
+                                {isScoreLocked(contestants[currentContestantIndex]?.id, key) && (
+                                  <span className="text-green-600 font-bold text-xs sm:text-sm" title="Score submitted and locked">
+                                    ✔
+                                  </span>
+                                )}
 
                                 <input
 
@@ -7804,10 +7842,10 @@ export default function JudgeDashboard() {
 
                                   }}
 
-                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]}
+                                  disabled={isCurrentContestantLocked() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || isScoreLocked(contestants[currentContestantIndex]?.id, key)}
 
                                   className={`w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-center text-sm sm:text-base font-medium text-black ${
-                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? 'bg-gray-100 cursor-not-allowed' : ''
+                                    !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || isScoreLocked(contestants[currentContestantIndex]?.id, key) ? 'bg-gray-100 cursor-not-allowed' : ''
                                   }`}
 
                                 />
@@ -7830,16 +7868,18 @@ export default function JudgeDashboard() {
 
                                   <button
                                     onClick={() => submitScore(criterion.name)}
-                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id)}
+                                    disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isCriteriaLocked(currentGlobalIndex, contestants[currentContestantIndex]?.id) || isScoreLocked(contestants[currentContestantIndex]?.id, key)}
                                     className={`w-24 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                                       submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]
                                         ? 'bg-gray-400 text-gray-600 cursor-wait animate-pulse'
+                                        : isScoreLocked(contestants[currentContestantIndex]?.id, key)
+                                        ? 'bg-green-600 text-white cursor-not-allowed'
                                         : submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]
                                         ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md hover:shadow-lg'
                                         : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
                                     }`}
                                   >
-                                    {submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? '⏳' : submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? '🔄 Resubmit' : '📤 Submit'}
+                                    {submittingCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? '⏳' : isScoreLocked(contestants[currentContestantIndex]?.id, key) ? '✔ Submitted' : submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`] ? '🔄 Resubmit' : '📤 Submit'}
                                   </button>
 
                                 </div>
@@ -8900,10 +8940,10 @@ export default function JudgeDashboard() {
 
                                           onChange={(e) => handleQuickScoreChange(contestant.id, key, e.target.value)}
 
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || isScoreLocked(contestant.id, key)}
 
                                           className={`flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer ${
-                                            isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`] ? 'opacity-50 cursor-not-allowed' : ''
+                                            isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || isScoreLocked(contestant.id, key) ? 'opacity-50 cursor-not-allowed' : ''
                                           }`}
 
                                         />
@@ -8940,7 +8980,7 @@ export default function JudgeDashboard() {
 
                                           }}
 
-                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]}
+                                          disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || isScoreLocked(contestant.id, key)}
 
                                           className={`w-16 px-1 py-1 border rounded text-center font-semibold text-base ${
 
@@ -8948,7 +8988,7 @@ export default function JudgeDashboard() {
 
                                               ? 'border-red-300 bg-red-100 text-black' 
 
-                                              : (isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]) ? 'border-gray-300 bg-gray-100 cursor-not-allowed' : 'border-gray-300'
+                                              : (isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || isCriteriaLocked(currentGlobalIndex, contestant.id) || isScoreLocked(contestant.id, key)) ? 'border-gray-300 bg-gray-100 cursor-not-allowed' : 'border-gray-300'
 
                                           } ${
 
@@ -8957,6 +8997,13 @@ export default function JudgeDashboard() {
                                           }`}
 
                                         />
+
+                                        {/* Visual indicator for locked scores */}
+                                        {isScoreLocked(contestant.id, key) && (
+                                          <span className="text-green-600 font-bold text-xs ml-2" title="Score submitted and locked">
+                                            ✔
+                                          </span>
+                                        )}
 
                                       </div>
 
@@ -8970,7 +9017,7 @@ export default function JudgeDashboard() {
 
                                             onClick={() => submitScore(criterion.name)}
 
-                                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittingCriteria[`${user?.uid}_${contestant.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isCriteriaLocked(currentGlobalIndex, contestant.id)}
+                                            disabled={isCurrentContestantLocked() || isFirstRoundAverage || isCurrentContestantScored() || submittingCriteria[`${user?.uid}_${contestant.id}_${key}`] || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming' || isCriteriaLocked(currentGlobalIndex, contestant.id) || isScoreLocked(contestant.id, key)}
 
                                             className={`w-24 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
 
@@ -8978,17 +9025,21 @@ export default function JudgeDashboard() {
 
                                                 ? 'bg-gray-400 text-gray-600 cursor-wait animate-pulse'
 
+                                                : isScoreLocked(contestant.id, key)
+
+                                                ? 'bg-green-600 text-white cursor-not-allowed'
+
                                                 : submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]
 
                                                 ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md hover:shadow-lg'
 
-                                                : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 shadow-md hover:shadow-lg'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
 
                                             }`}
 
                                           >
 
-                                            {submittingCriteria[`${user?.uid}_${contestant.id}_${key}`] ? '⏳' : submittedCriteria[`${user?.uid}_${contestant.id}_${key}`] ? '🔄 Resubmit' : '📤 Submit'}
+                                            {submittingCriteria[`${user?.uid}_${contestant.id}_${key}`] ? '⏳' : isScoreLocked(contestant.id, key) ? '✔ Submitted' : submittedCriteria[`${user?.uid}_${contestant.id}_${key}`] ? '🔄 Resubmit' : '📤 Submit'}
                                           </button>
 
                                         </div>

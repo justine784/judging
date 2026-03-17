@@ -165,29 +165,51 @@ export default function LiveScoreboard() {
   useEffect(() => {
     if (!selectedEvent) return;
 
-    // Fetch scores for aggregation
+    console.log('🔄 Live Scoreboard: Setting up real-time scores listener for event:', selectedEvent.id);
+    
+    // Fetch scores for aggregation with enhanced real-time listener
     const scoresCollection = collection(db, 'scores');
     const unsubscribeScores = onSnapshot(scoresCollection, (snapshot) => {
       const scoresData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      
+      console.log('🔄 Live Scoreboard: Real-time scores update received:', {
+        totalRecords: scoresData.length,
+        eventScores: scoresData.filter(s => s.eventId === selectedEvent.id).length,
+        timestamp: new Date().toISOString()
+      });
+      
       setScores(scoresData);
-      console.log('Live Scoreboard - Scores updated:', scoresData.length, 'records');
+      setLastUpdate(new Date());
+      setIsLive(true);
+      setConnectionStatus('connected');
       
       // Update contestant scores immediately when scores change
       updateContestantScores();
+      
+      // Track updated contestants for visual highlighting
+      const updatedContestantIds = new Set(
+        scoresData
+          .filter(s => s.eventId === selectedEvent.id)
+          .map(s => s.contestantId)
+      );
+      setUpdatedContestants(updatedContestantIds);
+      
+      // Clear highlighting after 2 seconds
+      setTimeout(() => {
+        setUpdatedContestants(new Set());
+      }, 2000);
+    }, (error) => {
+      console.error('🔄 Live Scoreboard: Real-time listener error:', error);
+      setConnectionStatus('error');
+      setIsLive(false);
     });
 
-    // Also add polling as a backup mechanism for real-time updates
-    const pollingInterval = setInterval(() => {
-      updateContestantScores();
-      console.log('Live Scoreboard - Polling for updates');
-    }, 3000); // Poll every 3 seconds
-
     return () => {
+      console.log('🔄 Live Scoreboard: Cleaning up scores listener');
       unsubscribeScores();
-      clearInterval(pollingInterval);
     };
   }, [selectedEvent]);
 
@@ -503,10 +525,14 @@ export default function LiveScoreboard() {
 
   // Calculate aggregated scores from all judges for a contestant
   const calculateAggregatedScore = (contestantId, eventId) => {
+    console.log('🔄 Live Scoreboard: Calculating aggregated score for contestant:', contestantId);
+    
     // Filter scores based on whether we're showing final round or main round
     let contestantScores = scores.filter(score => 
       score.contestantId === contestantId && score.eventId === eventId
     );
+    
+    console.log('🔄 Live Scoreboard: Found raw score documents:', contestantScores.length);
     
     // When showing final rounds only, filter to only include final round scores
     if (showFinalRoundsOnly) {
@@ -515,12 +541,14 @@ export default function LiveScoreboard() {
       // If we have final round scores, use those; otherwise check for final_ prefixed keys in scores
       if (finalRoundScores.length > 0) {
         contestantScores = finalRoundScores;
+        console.log('🔄 Live Scoreboard: Using final round scores:', finalRoundScores.length);
       } else {
         // Fallback: check if any scores have final_ prefixed keys (for backward compatibility)
         contestantScores = contestantScores.filter(score => {
           if (!score.scores) return false;
           return Object.keys(score.scores).some(key => key.startsWith('final_'));
         });
+        console.log('🔄 Live Scoreboard: Using final_ prefixed scores:', contestantScores.length);
       }
     } else {
       // When not showing final rounds, exclude final round scores (only show main round)
@@ -528,19 +556,24 @@ export default function LiveScoreboard() {
       // If we have main round scores, use those
       if (mainRoundScores.length > 0) {
         contestantScores = mainRoundScores;
+        console.log('🔄 Live Scoreboard: Using main round scores:', mainRoundScores.length);
       }
     }
     
     if (contestantScores.length === 0) {
+      console.log('🔄 Live Scoreboard: No scores found for contestant:', contestantId);
       return { totalScore: 0, judgeCount: 0, criteriaScores: {} };
     }
     
     // Get the event to check grading type
     const event = events.find(e => e.id === eventId);
+    const isPointsGrading = event?.gradingType === 'points';
     
     // Count unique judges (not total score entries)
     const uniqueJudges = [...new Set(contestantScores.map(score => score.judgeId))];
     const judgeCount = uniqueJudges.length;
+    
+    console.log('🔄 Live Scoreboard: Aggregating scores from', judgeCount, 'judges');
     
     // Aggregate all scores from each judge (merge individual criteria submissions)
     const aggregatedScoresByJudge = {};
@@ -552,7 +585,8 @@ export default function LiveScoreboard() {
           judgeName: score.judgeName,
           scores: {},
           totalScore: 0,
-          timestamp: score.timestamp
+          timestamp: score.timestamp,
+          isIndividualSubmission: score.isIndividualSubmission || false
         };
       }
       
@@ -565,14 +599,13 @@ export default function LiveScoreboard() {
       }
     });
     
+    console.log('🔄 Live Scoreboard: Merged scores by judge:', Object.keys(aggregatedScoresByJudge).length);
+    
     // Calculate total scores for each judge based on merged criteria scores
     const judgeScoresList = Object.values(aggregatedScoresByJudge);
     const criteria = getCurrentEventCriteria();
     
     judgeScoresList.forEach(judgeScore => {
-      const event = events.find(e => e.id === eventId);
-      const isPointsGrading = event?.gradingType === 'points';
-      
       let totalScore = 0;
       criteria.forEach((criterion, index) => {
         const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
@@ -615,25 +648,13 @@ export default function LiveScoreboard() {
     const totalScoreSum = judgeScoresList.reduce((sum, score) => sum + (score.totalScore || 0), 0);
     let totalScore = judgeScoresList.length > 0 ? totalScoreSum / judgeScoresList.length : 0;
     
-    console.log('Live Scoreboard - Aggregating scores:', {
-      contestantId,
+    console.log('🔄 Live Scoreboard: Final aggregated score for contestant', contestantId, ':', {
+      totalScore: parseFloat(totalScore.toFixed(1)),
       judgeCount,
       criteriaCount: criteria.length,
-      totalScore,
       showFinalRoundsOnly,
       rawScoresCount: contestantScores.length,
       aggregatedJudges: Object.keys(aggregatedScoresByJudge).length
-    });
-    
-    // Debug: Log merged scores for each judge
-    console.log('Live Scoreboard - Merged scores by judge:', {
-      contestantId,
-      mergedScores: judgeScoresList.map(judge => ({
-        judgeId: judge.judgeId,
-        judgeName: judge.judgeName,
-        scores: judge.scores,
-        totalScore: judge.totalScore
-      }))
     });
     
     // Calculate average for each criteria for breakdown display
@@ -666,8 +687,10 @@ export default function LiveScoreboard() {
       }
     });
     
-    // Cap total at 100 for display
-    totalScore = Math.min(totalScore, 100);
+    // Cap total at 100 for percentage grading
+    if (!isPointsGrading) {
+      totalScore = Math.min(totalScore, 100);
+    }
     
     return {
       totalScore: parseFloat(totalScore.toFixed(1)),
@@ -901,6 +924,8 @@ export default function LiveScoreboard() {
   const updateContestantScores = async () => {
     if (!selectedEvent) return;
     
+    console.log('🔄 Live Scoreboard: Updating contestant scores for real-time display');
+    
     try {
       const contestantsQuery = query(
         collection(db, 'contestants'),
@@ -912,17 +937,6 @@ export default function LiveScoreboard() {
         const data = doc.data();
         const contestantId = doc.id;
         
-        // Debug: Log contestant data structure
-        console.log('Live Scoreboard - Processing contestant:', {
-          id: contestantId,
-          contestantType: data.contestantType,
-          displayName: data.displayName,
-          groupName: data.groupName,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          contestantName: data.contestantName
-        });
-        
         // Calculate aggregated scores from all judges
         const aggregatedScore = calculateAggregatedScore(contestantId, selectedEvent.id);
         
@@ -930,12 +944,6 @@ export default function LiveScoreboard() {
           (data.contestantType === 'group' 
             ? data.groupName || 'Unknown Group'
             : `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.contestantName || 'Unknown Solo');
-            
-        console.log('Live Scoreboard - Final name constructed:', {
-          contestantId: contestantId,
-          finalName: finalName,
-          contestantType: data.contestantType
-        });
         
         return {
           id: contestantId,
@@ -945,12 +953,19 @@ export default function LiveScoreboard() {
           totalScore: aggregatedScore.totalScore,
           judgeCount: aggregatedScore.judgeCount,
           criteriaScores: aggregatedScore.criteriaScores,
-          photo: data.photo || data.imageUrl || null
+          photo: data.photo || data.imageUrl || null,
+          lastUpdated: new Date() // Track when this contestant was last updated
         };
       });
       
       // Sort client-side by aggregated totalScore in descending order
       contestantsData.sort((a, b) => b.totalScore - a.totalScore);
+      
+      console.log('🔄 Live Scoreboard: Updated contestants with real-time scores:', {
+        totalContestants: contestantsData.length,
+        highestScore: contestantsData[0]?.totalScore || 0,
+        averageScore: contestantsData.reduce((sum, c) => sum + c.totalScore, 0) / contestantsData.length
+      });
       
       setContestants(contestantsData);
       setLastUpdate(new Date());
@@ -967,7 +982,8 @@ export default function LiveScoreboard() {
       }
       
     } catch (error) {
-      console.error('Error updating contestant scores:', error);
+      console.error('🔄 Live Scoreboard: Error updating contestant scores:', error);
+      setConnectionStatus('error');
     }
   };
 
@@ -1594,8 +1610,60 @@ export default function LiveScoreboard() {
             </div>
           ) : (
             <div className="relative">
+              {/* Real-Time Status Header */}
+              <div className="absolute top-0 left-0 right-0 z-20 px-3 sm:px-4 md:px-6 py-2 sm:py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-600 border-b border-emerald-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="flex items-center gap-1.5">
+                      {isLive && connectionStatus === 'connected' ? (
+                        <>
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <span className="text-white font-bold text-xs sm:text-sm">
+                            🟢 LIVE
+                          </span>
+                        </>
+                      ) : connectionStatus === 'error' ? (
+                        <>
+                          <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                          <span className="text-white font-bold text-xs sm:text-sm">
+                            🔴 Connection Error
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                          <span className="text-white font-bold text-xs sm:text-sm">
+                            🟡 Connecting...
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="hidden sm:flex items-center gap-2 text-white/80 text-xs">
+                      <span>Updated: {lastUpdate.toLocaleTimeString()}</span>
+                      <span>•</span>
+                      <span>{judgeStats.activeJudges}/{judgeStats.totalJudges} Judges Active</span>
+                      <span>•</span>
+                      <span>{judgeStats.totalScores} Scores Submitted</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {updatedContestants.size > 0 && (
+                      <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm px-2 py-1 rounded-lg">
+                        <div className="w-1.5 h-1.5 bg-yellow-300 rounded-full animate-pulse"></div>
+                        <span className="text-white text-xs font-medium">
+                          {updatedContestants.size} Updating
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-white/80 text-xs">
+                      {contestants.length} Contestants
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               {/* Mobile Scroll Indicator - Enhanced */}
-              <div className="lg:hidden absolute top-0 left-0 right-0 z-10 px-2 sm:px-3 md:px-4 py-2 sm:py-3 bg-gradient-to-r from-emerald-50 via-white to-teal-50 backdrop-blur-sm border-b border-emerald-100">
+              <div className="lg:hidden absolute top-14 left-0 right-0 z-10 px-2 sm:px-3 md:px-4 py-2 sm:py-3 bg-gradient-to-r from-emerald-50 via-white to-teal-50 backdrop-blur-sm border-b border-emerald-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <svg className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1621,7 +1689,7 @@ export default function LiveScoreboard() {
                 if (tableConfig.showSingleTable) {
                   // Show original single table for events without sub-criteria or with more than 2 categories
                   return (
-                    <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-emerald-300 scrollbar-track-slate-100 pt-8 sm:pt-10 lg:pt-0">
+                    <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-emerald-300 scrollbar-track-slate-100 pt-20 sm:pt-22 lg:pt-16">
                       <table className="w-full min-w-[500px] sm:min-w-[600px] md:min-w-[700px] lg:min-w-[800px]">
               <thead className="bg-gradient-to-r from-slate-50 via-emerald-50/50 to-slate-50 border-b-2 border-emerald-200">
                 <tr>

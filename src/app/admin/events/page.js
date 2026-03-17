@@ -3698,7 +3698,7 @@ export default function EventManagement() {
 
 
 
-  const removeCategory = (categoryIndex) => {
+  const removeCategory = (index) => {
 
 
 
@@ -3710,7 +3710,7 @@ export default function EventManagement() {
 
 
 
-      updatedEvent.criteriaCategories.splice(categoryIndex, 1);
+      updatedEvent.criteriaCategories.splice(index, 1);
 
 
 
@@ -3774,7 +3774,7 @@ export default function EventManagement() {
 
 
 
-    const category = updatedEvent.criteriaCategories[categoryIndex];
+    const category = updatedEvent.criteriaCategories[index];
 
 
 
@@ -3862,7 +3862,7 @@ export default function EventManagement() {
 
 
 
-        if (i !== categoryIndex) {
+        if (i !== index) {
 
 
 
@@ -3902,7 +3902,7 @@ export default function EventManagement() {
 
 
 
-        updatedEvent.criteriaCategories[categoryIndex][field] = maxAllowedWeight;
+        updatedEvent.criteriaCategories[index][field] = maxAllowedWeight;
 
 
 
@@ -3910,7 +3910,7 @@ export default function EventManagement() {
 
 
 
-        updatedEvent.criteriaCategories[categoryIndex][field] = currentWeight;
+        updatedEvent.criteriaCategories[index][field] = currentWeight;
 
 
 
@@ -3922,7 +3922,7 @@ export default function EventManagement() {
 
 
 
-      updatedEvent.criteriaCategories[categoryIndex][field] = value;
+      updatedEvent.criteriaCategories[index][field] = value;
 
 
 
@@ -3946,7 +3946,7 @@ export default function EventManagement() {
 
 
 
-  const addSubCriteria = (categoryIndex) => {
+  const addSubCriteria = (index) => {
 
 
 
@@ -3954,7 +3954,7 @@ export default function EventManagement() {
 
 
 
-    if (!updatedEvent.criteriaCategories || !updatedEvent.criteriaCategories[categoryIndex]) {
+    if (!updatedEvent.criteriaCategories || !updatedEvent.criteriaCategories[index]) {
 
 
 
@@ -3970,7 +3970,7 @@ export default function EventManagement() {
 
 
 
-    const category = updatedEvent.criteriaCategories[categoryIndex];
+    const category = updatedEvent.criteriaCategories[index];
 
 
 
@@ -4146,7 +4146,7 @@ export default function EventManagement() {
 
 
 
-  const removeSubCriteria = (categoryIndex, subIndex) => {
+  const removeSubCriteria = (index, subIndex) => {
 
 
 
@@ -4154,11 +4154,11 @@ export default function EventManagement() {
 
 
 
-    if (updatedEvent.criteriaCategories && updatedEvent.criteriaCategories[categoryIndex]) {
+    if (updatedEvent.criteriaCategories && updatedEvent.criteriaCategories[index]) {
 
 
 
-      const category = updatedEvent.criteriaCategories[categoryIndex];
+      const category = updatedEvent.criteriaCategories[index];
 
 
 
@@ -4190,7 +4190,7 @@ export default function EventManagement() {
 
 
 
-  const handleSubCriteriaChange = (categoryIndex, subIndex, field, value) => {
+  const handleSubCriteriaChange = (index, subIndex, field, value) => {
 
 
 
@@ -4198,7 +4198,7 @@ export default function EventManagement() {
 
 
 
-    if (!updatedEvent.criteriaCategories || !updatedEvent.criteriaCategories[categoryIndex]) {
+    if (!updatedEvent.criteriaCategories || !updatedEvent.criteriaCategories[index]) {
 
 
 
@@ -4214,7 +4214,7 @@ export default function EventManagement() {
 
 
 
-    const category = updatedEvent.criteriaCategories[categoryIndex];
+    const category = updatedEvent.criteriaCategories[index];
 
 
 
@@ -9698,11 +9698,11 @@ export default function EventManagement() {
 
 
 
-                    selectedEvent.criteriaCategories.map((category, categoryIndex) => (
+                    selectedEvent.criteriaCategories.map((category, index) => (
 
 
 
-                      <div key={categoryIndex} className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-200">
+                      <div key={index} className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-200">
 
 
 
@@ -9718,7 +9718,7 @@ export default function EventManagement() {
 
 
 
-                              {categoryIndex + 1}
+                              {index + 1}
 
 
 
@@ -9730,7 +9730,7 @@ export default function EventManagement() {
 
 
 
-                              <h5 className="font-semibold text-gray-900 text-sm sm:text-lg truncate">{category.name || `Category ${categoryIndex + 1}`}</h5>
+                              <h5 className="font-semibold text-gray-900 text-sm sm:text-lg truncate">{category.name || `Category ${index + 1}`}</h5>
 
 
 
@@ -9782,7 +9782,7 @@ export default function EventManagement() {
 
 
 
-                            onClick={() => removeCategory(categoryIndex)}
+                            onClick={() => removeCategory(index)}
 
 
 
@@ -9846,7 +9846,7 @@ export default function EventManagement() {
 
 
 
-                              onChange={(e) => handleCategoryChange(categoryIndex, 'name', e.target.value)}
+                              onChange={(e) => handleCategoryChange(index, 'name', e.target.value)}
 
 
 
@@ -9898,7 +9898,7 @@ export default function EventManagement() {
 
 
 
-                              onChange={(e) => handleCategoryChange(categoryIndex, 'totalWeight', parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleCategoryChange(index, 'totalWeight', parseFloat(e.target.value) || 0)}
 
 
 
@@ -9986,7 +9986,7 @@ export default function EventManagement() {
 
 
 
-                              onClick={() => addSubCriteria(categoryIndex)}
+                              onClick={() => addSubCriteria(index)}
 
 
 
@@ -10046,7 +10046,7 @@ export default function EventManagement() {
 
 
 
-                                  onClick={() => removeSubCriteria(categoryIndex, subIndex)}
+                                  onClick={() => removeSubCriteria(index, subIndex)}
 
 
 
@@ -10110,7 +10110,7 @@ export default function EventManagement() {
 
 
 
-                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'name', e.target.value)}
+                                    onChange={(e) => handleSubCriteriaChange(index, subIndex, 'name', e.target.value)}
 
 
 
@@ -10162,7 +10162,7 @@ export default function EventManagement() {
 
 
 
-                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'weight', parseFloat(e.target.value) || 0)}
+                                    onChange={(e) => handleSubCriteriaChange(index, subIndex, 'weight', parseFloat(e.target.value) || 0)}
 
 
 
@@ -10238,7 +10238,7 @@ export default function EventManagement() {
 
 
 
-                                  onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'description', e.target.value)}
+                                  onChange={(e) => handleSubCriteriaChange(index, subIndex, 'description', e.target.value)}
 
 
 
@@ -10286,7 +10286,7 @@ export default function EventManagement() {
 
 
 
-                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'enabled', e.target.checked)}
+                                    onChange={(e) => handleSubCriteriaChange(index, subIndex, 'enabled', e.target.checked)}
 
 
 
@@ -10334,7 +10334,7 @@ export default function EventManagement() {
 
 
 
-                                    onChange={(e) => handleSubCriteriaChange(categoryIndex, subIndex, 'enableSubmitButton', e.target.checked)}
+                                    onChange={(e) => handleSubCriteriaChange(index, subIndex, 'enableSubmitButton', e.target.checked)}
 
 
 

@@ -5329,6 +5329,156 @@ export default function JudgeDashboard() {
     });
   };
 
+  // Check if all individual criteria have been submitted for the current contestant
+  const checkAllIndividualCriteriaSubmitted = (contestantId) => {
+    if (!currentEvent?.enableIndividualSubmit) return true; // Not in individual submit mode, allow submission
+    
+    if (!contestantId) return false;
+    
+    const criteria = getCurrentEventCriteria();
+    if (!criteria || criteria.length === 0) return false;
+    
+    // Check if all criteria for this contestant have been submitted
+    const allSubmitted = criteria.every(criterion => {
+      const usePrefix = usingFinalRoundCriteria;
+      const key = getCriteriaKey(criterion.name, usePrefix);
+      return submittedCriteria[`${user?.uid}_${contestantId}_${key}`] === true;
+    });
+    
+    console.log('🔍 Checking all criteria submitted for contestant:', contestantId, {
+      totalCriteria: criteria.length,
+      submittedCount: criteria.filter(criterion => {
+        const usePrefix = usingFinalRoundCriteria;
+        const key = getCriteriaKey(criterion.name, usePrefix);
+        return submittedCriteria[`${user?.uid}_${contestantId}_${key}`] === true;
+      }).length,
+      allSubmitted: allSubmitted
+    });
+    
+    return allSubmitted;
+  };
+
+  // Check if all criteria have valid scores for the current contestant (All Criteria mode)
+  const checkAllCriteriaFilled = (contestantId) => {
+    if (currentEvent?.enableIndividualSubmit) return true; // Not in all criteria mode, allow submission
+    
+    if (!contestantId) return false;
+    
+    const criteria = getCurrentEventCriteria();
+    if (!criteria || criteria.length === 0) return false;
+    
+    const currentScores = contestantScores[contestantId] || {};
+    
+    // Check if all criteria for this contestant have valid scores
+    const allFilled = criteria.every(criterion => {
+      const usePrefix = usingFinalRoundCriteria;
+      const key = getCriteriaKey(criterion.name, usePrefix);
+      const score = currentScores[key];
+      
+      // Check if score is valid (not null, not undefined, not empty, and is a number)
+      return score !== null && score !== undefined && score !== '' && !isNaN(score);
+    });
+    
+    console.log('🔍 Checking all criteria filled for contestant:', contestantId, {
+      totalCriteria: criteria.length,
+      filledCount: criteria.filter(criterion => {
+        const usePrefix = usingFinalRoundCriteria;
+        const key = getCriteriaKey(criterion.name, usePrefix);
+        const score = currentScores[key];
+        return score !== null && score !== undefined && score !== '' && !isNaN(score);
+      }).length,
+      allFilled: allFilled,
+      currentScores: currentScores
+    });
+    
+    return allFilled;
+  };
+
+  // Main validation function for Final Submit button
+  const canFinalSubmit = (contestantId) => {
+    if (!contestantId) return false;
+    
+    // Check if contestant is already scored or locked
+    const currentContestant = contestants.find(c => c.id === contestantId);
+    if (!currentContestant) return false;
+    
+    const isContestantScored = scoredContestants.has(contestantId) || 
+                              (usingFinalRoundCriteria && scoredContestantsFinal.has(contestantId));
+    const isContestantLocked = lockedContestants.has(contestantId);
+    
+    if (isContestantScored || isContestantLocked) return false;
+    
+    // Check event status
+    if (!currentEvent || currentEvent.status === 'upcoming' || currentEvent.scoresLocked) return false;
+    
+    // Validate based on scoring mode
+    if (currentEvent?.enableIndividualSubmit) {
+      // Individual Criteria mode: check all criteria submitted
+      return checkAllIndividualCriteriaSubmitted(contestantId);
+    } else {
+      // All Criteria mode: check all criteria filled
+      return checkAllCriteriaFilled(contestantId);
+    }
+  };
+
+  // Get appropriate button text based on scoring mode and validation state
+  const getFinalSubmitButtonText = () => {
+    const contestantId = contestants[currentContestantIndex]?.id;
+    
+    if (!contestantId) return 'Submit Scores';
+    
+    // Check if contestant is already scored or locked
+    const currentContestant = contestants.find(c => c.id === contestantId);
+    if (!currentContestant) return 'Submit Scores';
+    
+    const isContestantScored = scoredContestants.has(contestantId) || 
+                              (usingFinalRoundCriteria && scoredContestantsFinal.has(contestantId));
+    const isContestantLocked = lockedContestants.has(contestantId);
+    
+    if (isContestantScored) return 'Already Submitted';
+    if (isContestantLocked) return 'Contestant Locked';
+    
+    // Check event status
+    if (!currentEvent) return 'Submit Scores';
+    if (currentEvent.status === 'upcoming') return 'Event Not Started';
+    if (currentEvent.scoresLocked) return 'Scores Locked';
+    
+    // Check based on scoring mode
+    if (currentEvent?.enableIndividualSubmit) {
+      // Individual Criteria mode
+      const allSubmitted = checkAllIndividualCriteriaSubmitted(contestantId);
+      if (!allSubmitted) {
+        const criteria = getCurrentEventCriteria();
+        const submittedCount = criteria.filter(criterion => {
+          const usePrefix = usingFinalRoundCriteria;
+          const key = getCriteriaKey(criterion.name, usePrefix);
+          return submittedCriteria[`${user?.uid}_${contestantId}_${key}`] === true;
+        }).length;
+        
+        return `Submit All Criteria (${submittedCount}/${criteria.length})`;
+      }
+      return 'Submit Scores';
+    } else {
+      // All Criteria mode
+      const allFilled = checkAllCriteriaFilled(contestantId);
+      if (!allFilled) {
+        return 'Complete All Criteria First';
+      }
+      return 'Submit Scores';
+    }
+  };
+
+  // Check if a specific criterion is empty (for All Criteria mode visual feedback)
+  const isCriterionEmpty = (contestantId, criterionKey) => {
+    if (currentEvent?.enableIndividualSubmit) return false; // Not used in individual mode
+    
+    const currentScores = contestantScores[contestantId] || {};
+    const score = currentScores[criterionKey];
+    
+    // Check if score is empty or invalid
+    return score === null || score === undefined || score === '' || isNaN(score);
+  };
+
   // Auto-return to first contestant after completing all scoring
   const checkAndReturnToFirstContestant = () => {
     if (!currentEvent?.enableIndividualSubmit || !user) return;
@@ -7698,6 +7848,8 @@ export default function JudgeDashboard() {
                                 ? 'border-gray-300 bg-gray-50' 
                                 : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex, contestants[currentContestantIndex]?.id)
                                 ? 'border-emerald-400 bg-emerald-50 shadow-md'
+                                : !currentEvent?.enableIndividualSubmit && isCriterionEmpty(contestants[currentContestantIndex]?.id, key)
+                                ? 'border-red-300 bg-red-50'
                                 : 'border-gray-200'
                             }`}>
 
@@ -7716,7 +7868,7 @@ export default function JudgeDashboard() {
                                   </label>
 
                                   {/* Criteria Status Indicator */}
-                                  {currentEvent?.enableIndividualSubmit && (
+                                  {currentEvent?.enableIndividualSubmit ? (
                                     <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-medium rounded-full flex-shrink-0 ${
                                       submittedCriteria[`${user?.uid}_${contestants[currentContestantIndex]?.id}_${key}`]
                                         ? 'bg-green-100 text-green-800'
@@ -7734,6 +7886,12 @@ export default function JudgeDashboard() {
                                         ? '🟢 Active' 
                                         : '⏳ Waiting'}
                                     </span>
+                                  ) : (
+                                    !currentEvent?.enableIndividualSubmit && isCriterionEmpty(contestants[currentContestantIndex]?.id, key) && (
+                                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-medium rounded-full flex-shrink-0 bg-red-100 text-red-800">
+                                        ⚠️ Empty
+                                      </span>
+                                    )
                                   )}
 
                                   {isFirstRoundAverage && (
@@ -7923,6 +8081,57 @@ export default function JudgeDashboard() {
 
               
 
+              {/* Individual Criteria Progress Indicator */}
+              {currentEvent?.enableIndividualSubmit && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 sm:p-4 border border-blue-200 mb-3 sm:mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold text-blue-800">📋 Individual Criteria Progress</h4>
+                    <span className="text-xs font-medium text-blue-600">
+                      {(() => {
+                        const currentContestant = contestants[currentContestantIndex];
+                        if (!currentContestant) return '0/0';
+                        
+                        const criteria = getCurrentEventCriteria();
+                        const submittedCount = criteria.filter(criterion => {
+                          const usePrefix = usingFinalRoundCriteria;
+                          const key = getCriteriaKey(criterion.name, usePrefix);
+                          return submittedCriteria[`${user?.uid}_${currentContestant.id}_${key}`] === true;
+                        }).length;
+                        
+                        return `${submittedCount}/${criteria.length}`;
+                      })()}
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(() => {
+                          const currentContestant = contestants[currentContestantIndex];
+                          if (!currentContestant) return '0%';
+                          
+                          const criteria = getCurrentEventCriteria();
+                          if (criteria.length === 0) return '0%';
+                          
+                          const submittedCount = criteria.filter(criterion => {
+                            const usePrefix = usingFinalRoundCriteria;
+                            const key = getCriteriaKey(criterion.name, usePrefix);
+                            return submittedCriteria[`${user?.uid}_${currentContestant.id}_${key}`] === true;
+                          }).length;
+                          
+                          return `${(submittedCount / criteria.length) * 100}%`;
+                        })()}`
+                      }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-2">
+                    {checkAllIndividualCriteriaSubmitted(contestants[currentContestantIndex]?.id) 
+                      ? '✅ All criteria submitted! You can now submit your scores.' 
+                      : '⏳ Submit each criterion individually before final submission.'}
+                  </p>
+                </div>
+              )}
+
               {/* Total Score - Mobile Optimized */}
 
               <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-2.5 sm:p-3 border border-green-200 mb-3 sm:mb-4">
@@ -7977,21 +8186,17 @@ export default function JudgeDashboard() {
 
                   onClick={saveQuickScores}
 
-                  disabled={isCurrentContestantScored() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
+                  disabled={!checkAllIndividualCriteriaSubmitted(contestants[currentContestantIndex]?.id) || isCurrentContestantScored() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'}
 
                   className={`w-full px-4 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm active:scale-95 ${
-
-                    isCurrentContestantScored() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
-
+                    !checkAllIndividualCriteriaSubmitted(contestants[currentContestantIndex]?.id) || isCurrentContestantScored() || !currentEvent || currentEvent.scoresLocked || currentEvent.status === 'upcoming'
                       ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-
                       : 'bg-green-600 hover:bg-green-700 text-white'
-
                   }`}
 
                 >
 
-                  💾 {isCurrentContestantScored() ? 'Submitted' : 'Submit'}
+                  💾 {currentEvent?.enableIndividualSubmit ? (!checkAllIndividualCriteriaSubmitted(contestants[currentContestantIndex]?.id) ? 'Submit All Criteria' : (isCurrentContestantScored() ? 'Submitted' : 'Submit')) : (isCurrentContestantScored() ? 'Submitted' : 'Submit')}
 
                 </button>
 
@@ -8051,11 +8256,17 @@ export default function JudgeDashboard() {
 
                     onClick={openSubmitModal}
 
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-all duration-200 font-semibold shadow text-sm active:scale-95"
+                    disabled={!canFinalSubmit(contestants[currentContestantIndex]?.id)}
+
+                    className={`px-4 py-2 rounded-lg transition-all duration-200 font-semibold shadow text-sm active:scale-95 ${
+                      !canFinalSubmit(contestants[currentContestantIndex]?.id)
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
 
                   >
 
-                    📤 Submit
+                    📤 {getFinalSubmitButtonText()}
 
                   </button>
 
@@ -8072,6 +8283,15 @@ export default function JudgeDashboard() {
           {/* Navigation and Tips - Mobile Optimized */}
 
           <div className="space-y-2 sm:space-y-3">
+
+            {/* Validation Message for All Criteria Mode */}
+            {!currentEvent?.enableIndividualSubmit && !checkAllCriteriaFilled(contestants[currentContestantIndex]?.id) && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                <p className="text-[10px] sm:text-xs text-red-800 font-medium">
+                  ⚠️ Please complete all criteria before submitting scores
+                </p>
+              </div>
+            )}
 
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 sm:p-3 text-center">
 
@@ -8315,28 +8535,9 @@ export default function JudgeDashboard() {
 
                 </div>
 
-                <div>
-
-                  <h2 className="text-2xl font-extrabold text-slate-800">Contestant Scoring Cards</h2>
-
-                  <p className="text-sm text-slate-500 font-medium">Evaluate contestants and submit scores</p>
-
-                </div>
-
-              </div>
-
-              
-
-              {/* Contestant Cards Instructions */}
-
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 mb-4">
-
                 <h4 className="font-bold text-purple-800 mb-2 flex items-center gap-2">
-
                   <span className="text-lg">🎯</span>
-
                   Scoring Guide
-
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-purple-700">
@@ -8360,6 +8561,57 @@ export default function JudgeDashboard() {
                 </div>
 
               </div>
+
+              {/* Individual Criteria Progress Indicator - Desktop */}
+              {currentEvent?.enableIndividualSubmit && contestants[currentContestantIndex] && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-4 border border-blue-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-base font-semibold text-blue-800">📋 Individual Criteria Progress</h4>
+                    <span className="text-sm font-medium text-blue-600">
+                      {(() => {
+                        const currentContestant = contestants[currentContestantIndex];
+                        if (!currentContestant) return '0/0';
+                        
+                        const criteria = getCurrentEventCriteria();
+                        const submittedCount = criteria.filter(criterion => {
+                          const usePrefix = usingFinalRoundCriteria;
+                          const key = getCriteriaKey(criterion.name, usePrefix);
+                          return submittedCriteria[`${user?.uid}_${currentContestant.id}_${key}`] === true;
+                        }).length;
+                        
+                        return `${submittedCount}/${criteria.length}`;
+                      })()}
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-3">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-indigo-500 h-3 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(() => {
+                          const currentContestant = contestants[currentContestantIndex];
+                          if (!currentContestant) return '0%';
+                          
+                          const criteria = getCurrentEventCriteria();
+                          if (criteria.length === 0) return '0%';
+                          
+                          const submittedCount = criteria.filter(criterion => {
+                            const usePrefix = usingFinalRoundCriteria;
+                            const key = getCriteriaKey(criterion.name, usePrefix);
+                            return submittedCriteria[`${user?.uid}_${currentContestant.id}_${key}`] === true;
+                          }).length;
+                          
+                          return `${(submittedCount / criteria.length) * 100}%`;
+                        })()}`
+                      }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-2">
+                    {checkAllIndividualCriteriaSubmitted(contestants[currentContestantIndex]?.id) 
+                      ? '✅ All criteria submitted! You can now submit your scores.' 
+                      : '⏳ Submit each criterion individually before final submission.'}
+                  </p>
+                </div>
+              )}
 
               {(() => {
 
@@ -8834,6 +9086,8 @@ export default function JudgeDashboard() {
                                         ? 'border-gray-300 bg-gray-50' 
                                         : currentEvent?.enableIndividualSubmit && isCriteriaActive(currentGlobalIndex, contestant.id)
                                         ? 'border-emerald-400 bg-emerald-50 shadow-md'
+                                        : !currentEvent?.enableIndividualSubmit && isCriterionEmpty(contestant.id, key)
+                                        ? 'border-red-300 bg-red-50'
                                         : 'border-gray-200'
                                     }`}>
                                       <div className="flex items-center justify-between mb-1">
@@ -8848,7 +9102,7 @@ export default function JudgeDashboard() {
                                             {criterion.name}
                                           </label>
                                           {/* Criteria Status Indicator */}
-                                          {currentEvent?.enableIndividualSubmit && (
+                                          {currentEvent?.enableIndividualSubmit ? (
                                             <span className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
                                               submittedCriteria[`${user?.uid}_${contestant.id}_${key}`]
                                                 ? 'bg-green-100 text-green-800'
@@ -8866,6 +9120,12 @@ export default function JudgeDashboard() {
                                                 ? '🟢 Active' 
                                                 : '⏳ Waiting'}
                                             </span>
+                                          ) : (
+                                            !currentEvent?.enableIndividualSubmit && isCriterionEmpty(contestant.id, key) && (
+                                              <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-full flex-shrink-0 bg-red-100 text-red-800">
+                                                ⚠️ Empty
+                                              </span>
+                                            )
                                           )}
                                           {isFirstRoundAverage && (
                                             <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded-full flex-shrink-0" title="Auto-calculated from first round total (30%)">
@@ -9386,6 +9646,16 @@ export default function JudgeDashboard() {
 
         </div>
 
+
+
+        {/* Validation Message for All Criteria Mode - Desktop */}
+        {!currentEvent?.enableIndividualSubmit && !checkAllCriteriaFilled(contestants[currentContestantIndex]?.id) && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-red-800 font-medium text-center">
+              ⚠️ Please complete all criteria before submitting scores
+            </p>
+          </div>
+        )}
 
 
         {/* Spacing between cards and table */}
@@ -10505,11 +10775,17 @@ export default function JudgeDashboard() {
 
                 onClick={handleSubmitScores}
 
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-2.5 px-4 rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 font-bold shadow-lg shadow-emerald-500/25"
+                disabled={!canFinalSubmit(contestants[currentContestantIndex]?.id)}
+
+                className={`flex-1 bg-gradient-to-r py-2.5 px-4 rounded-xl transition-all duration-300 font-bold shadow-lg ${
+                  !canFinalSubmit(contestants[currentContestantIndex]?.id)
+                    ? 'from-gray-400 to-gray-500 text-gray-200 cursor-not-allowed'
+                    : 'from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-emerald-500/25'
+                }`}
 
               >
 
-                Submit Scores
+                {getFinalSubmitButtonText()}
 
               </button>
 

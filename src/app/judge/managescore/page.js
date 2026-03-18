@@ -465,7 +465,7 @@ export default function ManageScoreDashboard() {
           const finalTotal = calculateJudgeTotalScore(scoreData.scores, 'final');
           return {
             judgeId: judge.id,
-            judgeName: judge.judgeName || judge.displayName || 'Judge',
+            judgeName: judge.judgeName || judge.displayName || getEmailName(judge.email) || 'Judge',
             totalScore: parseFloat(mainTotal.toFixed(1)),
             mainScore: parseFloat(mainTotal.toFixed(1)),
             finalScore: parseFloat(finalTotal.toFixed(1)),
@@ -475,7 +475,7 @@ export default function ManageScoreDashboard() {
         }
         return {
           judgeId: judge.id,
-          judgeName: judge.judgeName || judge.displayName || 'Judge',
+          judgeName: judge.judgeName || judge.displayName || getEmailName(judge.email) || 'Judge',
           totalScore: 0,
           mainScore: 0,
           finalScore: 0,
@@ -577,12 +577,36 @@ export default function ManageScoreDashboard() {
     }
   };
 
+  const getEmailName = (email) => {
+    if (!email) return '';
+    // Extract name from email (everything before @)
+    const name = email.split('@')[0];
+    // Convert to title case and replace dots/underscores with spaces
+    return name.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const handlePrint = () => {
     const eventJudges = getEventJudges();
     const sortedContestants = getSortedContestants();
     const mainCriteria = getCurrentEventCriteria('main');
     const finalCriteria = getCurrentEventCriteria('final');
     const hasFinalRound = hasEventFinalRound() && finalCriteria.length > 0;
+    
+    // DEBUG: Log actual data structure
+    console.log('🔍 DEBUG: Print Function Data');
+    console.log('Event Judges:', eventJudges.map(j => ({
+      id: j.id,
+      judgeName: j.judgeName,
+      displayName: j.displayName,
+      email: j.email
+    })));
+    console.log('Sorted Contestants:', sortedContestants.map(c => ({
+      id: c.id,
+      contestantName: c.contestantName,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      contestantNumber: c.contestantNumber
+    })));
     
     const printWindow = window.open('', '_blank');
     
@@ -602,15 +626,21 @@ export default function ManageScoreDashboard() {
             font-size: 11px;
             background: #fff;
             line-height: 1.4;
+            /* A4 Paper Optimization */
+            size: A4;
+            margin: 15mm;
+            max-width: 210mm;
           }
           
           /* Header Styles */
           .header { 
             text-align: center; 
-            margin-bottom: 25px; 
-            padding-bottom: 20px;
+            margin-bottom: 20px; 
+            padding-bottom: 15px;
             border-bottom: 4px solid #059669;
             position: relative;
+            /* Print optimization */
+            page-break-after: avoid;
           }
           .header::after {
             content: '';
@@ -662,11 +692,13 @@ export default function ManageScoreDashboard() {
           /* Event Info Box */
           .event-info { 
             background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); 
-            padding: 15px 20px; 
+            padding: 12px 15px; 
             border-radius: 12px; 
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             border: 1px solid #a7f3d0;
             box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+            /* Print optimization */
+            page-break-inside: avoid;
           }
           .event-name { 
             font-size: 18px; 
@@ -699,15 +731,18 @@ export default function ManageScoreDashboard() {
           /* Section Titles */
           .section-title { 
             background: linear-gradient(90deg, #f3f4f6, #e5e7eb); 
-            padding: 10px 15px; 
-            margin: 20px 0 12px; 
+            padding: 8px 12px; 
+            margin: 15px 0 10px; 
             border-radius: 8px; 
             font-weight: 700; 
-            font-size: 13px;
+            font-size: 12px;
             border-left: 4px solid #059669;
             display: flex;
             align-items: center;
             gap: 8px;
+            /* Print optimization */
+            page-break-after: avoid;
+            page-break-inside: avoid;
           }
           
           /* Table Styles */
@@ -720,6 +755,10 @@ export default function ManageScoreDashboard() {
             border-radius: 10px;
             overflow: hidden;
             box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            /* A4 Print Optimization */
+            max-width: 190mm;
+            margin: 0 auto 4px;
+            border: 2px solid #374151;
           }
           th { 
             background: linear-gradient(180deg, #059669, #047857); 
@@ -750,6 +789,9 @@ export default function ManageScoreDashboard() {
             border-bottom: 1px solid #e5e7eb; 
             text-align: center;
             background: white;
+            /* Print optimization */
+            border-right: 1px solid #e5e7eb;
+            vertical-align: middle;
           }
           tr:nth-child(even) td { 
             background: #f9fafb; 
@@ -800,8 +842,11 @@ export default function ManageScoreDashboard() {
           
           /* Judge Section */
           .judge-section { 
-            margin-bottom: 30px; 
+            margin-bottom: 20px; 
             page-break-inside: avoid;
+            /* Print optimization */
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
           }
           .judge-title { 
             background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); 
@@ -833,19 +878,43 @@ export default function ManageScoreDashboard() {
           
           /* Summary Table */
           .summary-table { 
-            margin-top: 25px; 
+            margin-top: 20px; 
+            /* Print optimization */
+            border: 2px solid #374151;
+            page-break-inside: auto;
           }
           .summary-table th { 
             background: linear-gradient(180deg, #064e3b, #047857); 
+            padding: 6px 4px;
+            font-size: 9px;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid #374151;
+            /* Print optimization */
+            font-weight: 600;
+          }
+          .summary-table th div {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+          }
+          .summary-table th small {
+            display: block;
+            font-size: 7px;
+            margin-top: 2px;
+            opacity: 0.8;
           }
           
           /* Signature Section */
           .signature-section {
-            margin-top: 40px;
+            margin-top: 30px;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 30px;
+            gap: 25px;
             page-break-inside: avoid;
+            /* Print optimization */
+            margin-top: 20px;
           }
           .signature-box {
             text-align: center;
@@ -863,6 +932,58 @@ export default function ManageScoreDashboard() {
           .signature-title {
             font-size: 9px;
             color: #6b7280;
+          }
+          
+          /* Judge Signatures Section */
+          .judge-signatures {
+            margin: 15px 0;
+            page-break-inside: avoid;
+            /* Print optimization */
+            margin-top: 8px;
+          }
+          .judge-signatures-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
+            margin-top: 8px;
+            /* Print optimization */
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+          }
+          .judge-signature-box {
+            text-align: center;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+            /* Print optimization */
+            padding: 8px;
+            margin-bottom: 3px;
+          }
+          .judge-signature-info {
+            margin-bottom: 15px;
+          }
+          .judge-number {
+            font-weight: 700;
+            color: #059669;
+            font-size: 12px;
+            margin-bottom: 5px;
+          }
+          .judge-name {
+            font-weight: 600;
+            color: #374151;
+            font-size: 11px;
+            margin-bottom: 8px;
+          }
+          .judge-signature-line {
+            border-top: 2px solid #374151;
+            margin-top: 30px;
+            padding-top: 8px;
+          }
+          .judge-signature-line .signature-label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 10px;
           }
           
           /* Footer */
@@ -884,26 +1005,108 @@ export default function ManageScoreDashboard() {
           
           /* Print Optimization */
           @media print {
+            @page {
+              size: A4 portrait;
+              margin: 3mm 5mm;
+            }
             body { 
-              padding: 15px; 
-              font-size: 10px; 
+              padding: 3mm; 
+              font-size: 9px; 
+              line-height: 1.3;
+              color: #000 !important;
+              background: #fff;
+            }
+            /* Force all text to black when printing */
+            * {
+              color: #000 !important;
+              background-color: transparent !important;
             }
             .header { 
-              margin-bottom: 15px; 
-              padding-bottom: 12px; 
+              margin-bottom: 10px; 
+              padding-bottom: 8px; 
+            }
+            .school-name, .title, .subtitle {
+              color: #000 !important;
             }
             table { 
-              font-size: 9px;
+              font-size: 8px;
               box-shadow: none;
+              max-width: 200mm;
+              margin: 0 auto 2px;
+              page-break-inside: avoid;
+              border-collapse: collapse;
             }
             th, td { 
-              padding: 6px 4px; 
+              padding: 3px 2px; 
+              border: 1px solid #333;
+              vertical-align: middle;
+              color: #000 !important;
+            }
+            .contestant-name, .score, .total, .main-total, .final-total {
+              color: #000 !important;
+            }
+            .judge-name, .judge-number, .signature-label {
+              color: #000 !important;
+            }
+            .section-title {
+              color: #000 !important;
+              background: #f0f0f0 !important;
             }
             .judge-section { 
               page-break-inside: avoid; 
+              margin-bottom: 6px;
             }
             .signature-section {
               page-break-inside: avoid;
+              margin-top: 8px;
+            }
+            .summary-table {
+              page-break-inside: auto;
+              border-collapse: collapse;
+            }
+            .contestant-name {
+              min-width: 70px;
+              max-width: 90px;
+              font-size: 8px;
+            }
+            .section-title {
+              page-break-after: avoid;
+              page-break-inside: avoid;
+            }
+            .event-info {
+              page-break-inside: avoid;
+            }
+            .judge-signatures {
+              page-break-inside: avoid;
+              margin-top: 6px;
+            }
+            .judge-signatures-grid {
+              grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+              gap: 8px;
+            }
+            .judge-signature-box {
+              padding: 5px;
+              margin-bottom: 2px;
+            }
+            .judge-signature-line {
+              margin-top: 12px;
+            }
+            .footer, .footer p, .footer-brand {
+              color: #000 !important;
+            }
+            .event-details, .event-details span {
+              color: #000 !important;
+            }
+            .judge-signature-box, .judge-signature-info {
+              color: #000 !important;
+            }
+            .signature-box, .signature-line, .signature-label, .signature-title {
+              color: #000 !important;
+            }
+            /* Remove all colors except black */
+            .rank-1 td, .rank-2 td, .rank-3 td {
+              color: #000 !important;
+              background: #f5f5f5 !important;
             }
           }
         </style>
@@ -984,14 +1187,14 @@ export default function ManageScoreDashboard() {
                     
                     let mainTotal = 0;
                     mainCriteria.forEach(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       const score = mainScoresObj[key] || 0;
                       mainTotal += score * (criterion.weight / 100);
                     });
                     
                     let finalTotal = 0;
                     finalCriteria.forEach(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       const finalKey = 'final_' + key;
                       const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
                       finalTotal += score * (criterion.weight / 100);
@@ -999,14 +1202,14 @@ export default function ManageScoreDashboard() {
                     
                     // Build main criteria cells
                     let mainCells = mainCriteria.map(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       const score = mainScoresObj[key] || 0;
                       return '<td class="' + (score > 0 ? 'score' : 'no-score') + '">' + (score > 0 ? score : '-') + '</td>';
                     }).join('');
                     
                     // Build final criteria cells
                     let finalCells = finalCriteria.map(criterion => {
-                      const key = criterion.name.toLowerCase().replace(/\\s+/g, '_');
+                      const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
                       const finalKey = 'final_' + key;
                       const score = finalScoresObj[finalKey] || finalScoresObj[key] || 0;
                       return '<td class="' + (score > 0 ? 'score' : 'no-score') + '">' + (score > 0 ? score : '-') + '</td>';
@@ -1027,6 +1230,126 @@ export default function ManageScoreDashboard() {
           `;
         }).join('')}
 
+        <!-- Judge Names Section -->
+        <div class="section-title">👨‍⚖️ Panel of Judges</div>
+        <div class="event-details" style="margin-bottom: 25px;">
+          ${eventJudges.map((judge, index) => 
+            `<span><strong>Judge ${index + 1}:</strong> ${judge.judgeName || judge.displayName || getEmailName(judge.email) || 'Unknown Judge'}</span>`
+          ).join('')}
+        </div>
+
+        <!-- Detailed Criteria Breakdown (All Judge Scores Per Contestant) -->
+        <div class="section-title">📊 Complete Score Sheet - All Judges per Contestant</div>
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th style="width: 50px; border-radius: 10px 0 0 0;">Rank</th>
+              <th style="width: 45px;">No.</th>
+              <th style="min-width: 150px;">Contestant Name</th>
+              ${mainCriteria.map(c => `<th title="${c.name} (${c.weight}%)"><div style="writing-mode: vertical-rl; text-orientation: mixed;">${c.name.substring(0, 12)}${c.name.length > 12 ? '...' : ''}</div><small style="writing-mode: horizontal-tb;">(${c.weight}%)</small></th>`).join('')}
+              ${mainCriteria.length > 0 ? `<th class="main-header">📋 Main Total</th>` : ''}
+              ${hasFinalRound ? finalCriteria.map(c => `<th title="${c.name} (${c.weight}%)"><div style="writing-mode: vertical-rl; text-orientation: mixed;">${c.name.substring(0, 12)}${c.name.length > 12 ? '...' : ''}</div><small style="writing-mode: horizontal-tb;">(${c.weight}%)</small></th>`).join('') : ''}
+              ${hasFinalRound ? `<th class="final-header">🏆 Final Total</th>` : ''}
+              <th style="border-radius: 0 10px 0 0;">📊 Final Score</th>
+            </tr>
+          </thead>
+          <thead>
+            <tr style="background: #f0f9ff;">
+              <th colspan="3" style="background: #e0f2fe; border-bottom: 2px solid #0ea5e9;">Contestant Info</th>
+              ${mainCriteria.map((c, idx) => `<th colspan="${eventJudges.length}" style="background: #dbeafe; border-bottom: 2px solid #3b82f6; font-size: 8px;">${c.name.substring(0, 8)}</th>`).join('')}
+              ${mainCriteria.length > 0 ? `<th rowspan="2" style="background: #3b82f6; color: white;">Main</th>` : ''}
+              ${hasFinalRound ? finalCriteria.map((c, idx) => `<th colspan="${eventJudges.length}" style="background: #ede9fe; border-bottom: 2px solid #8b5cf6; font-size: 8px;">${c.name.substring(0, 8)}</th>`).join('') : ''}
+              ${hasFinalRound ? `<th rowspan="2" style="background: #8b5cf6; color: white;">Final</th>` : ''}
+              <th rowspan="2" style="background: #10b981; color: white; border-radius: 0 10px 0 0;">Total</th>
+            </tr>
+            <tr style="background: #f0f9ff;">
+              <th colspan="3" style="background: #e0f2fe;">Judge Breakdown</th>
+              ${mainCriteria.map(() => eventJudges.map((judge, jIdx) => `<th style="background: #dbeafe; font-size: 7px; writing-mode: vertical-rl; text-orientation: mixed;">J${jIdx + 1}</th>`).join('')).join('')}
+              ${hasFinalRound ? finalCriteria.map(() => eventJudges.map((judge, jIdx) => `<th style="background: #ede9fe; font-size: 7px; writing-mode: vertical-rl; text-orientation: mixed;">J${jIdx + 1}</th>`).join('')).join('') : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${sortedContestants.map(contestant => {
+              // Get all judge scores for this contestant
+              const mainJudgeScores = mainCriteria.map(criterion => {
+                const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                return eventJudges.map(judge => {
+                  const judgeScoreData = scores.find(s => 
+                    s.judgeId === judge.id && 
+                    s.contestantId === contestant.id && 
+                    s.eventId === selectedEvent?.id &&
+                    !s.isFinalRound
+                  );
+                  return judgeScoreData?.scores?.[key] || 0;
+                });
+              });
+              
+              const finalJudgeScores = hasFinalRound ? finalCriteria.map(criterion => {
+                const key = criterion.name.toLowerCase().replace(/\s+/g, '_');
+                const finalKey = 'final_' + key;
+                return eventJudges.map(judge => {
+                  const judgeScoreData = scores.find(s => 
+                    s.judgeId === judge.id && 
+                    s.contestantId === contestant.id && 
+                    s.eventId === selectedEvent?.id &&
+                    s.isFinalRound
+                  );
+                  return judgeScoreData?.scores?.[finalKey] || judgeScoreData?.scores?.[key] || 0;
+                });
+              }) : [];
+              
+              // Calculate main total from all judge scores
+              let mainTotalFromJudges = 0;
+              mainCriteria.forEach((criterion, cIdx) => {
+                const weight = criterion.weight / 100;
+                const judgeScores = mainJudgeScores[cIdx] || [];
+                const averageScore = judgeScores.length > 0 
+                  ? judgeScores.reduce((sum, score) => sum + score, 0) / judgeScores.length 
+                  : 0;
+                mainTotalFromJudges += averageScore * weight;
+              });
+              
+              // Calculate final total from all judge scores  
+              let finalTotalFromJudges = 0;
+              finalCriteria.forEach((criterion, cIdx) => {
+                const weight = criterion.weight / 100;
+                const judgeScores = finalJudgeScores[cIdx] || [];
+                const averageScore = judgeScores.length > 0 
+                  ? judgeScores.reduce((sum, score) => sum + score, 0) / judgeScores.length 
+                  : 0;
+                finalTotalFromJudges += averageScore * weight;
+              });
+              
+              const finalCombinedScore = mainTotalFromJudges + finalTotalFromJudges;
+              
+              // Build individual judge score cells for main criteria
+              const mainJudgeCells = mainJudgeScores.map(judgeScores => 
+                judgeScores.map(score => 
+                  `<td class="${score > 0 ? 'score' : 'no-score'}" style="font-size: 9px;">${score > 0 ? score : '-'}</td>`
+                ).join('')
+              ).join('');
+              
+              // Build individual judge score cells for final criteria
+              const finalJudgeCells = finalJudgeScores.map(judgeScores => 
+                judgeScores.map(score => 
+                  `<td class="${score > 0 ? 'score' : 'no-score'}" style="font-size: 9px;">${score > 0 ? score : '-'}</td>`
+                ).join('')
+              ).join('');
+              
+              return '<tr class="' + (contestant.rank <= 3 ? 'rank-' + contestant.rank : '') + '">' +
+                '<td style="font-size: 14px;"><strong>' + (contestant.rank <= 3 ? ['🥇', '🥈', '🥉'][contestant.rank - 1] : contestant.rank) + '</strong></td>' +
+                '<td style="font-weight: 600;">' + (contestant.contestantNumber || contestant.contestantNo || '-') + '</td>' +
+                '<td class="contestant-name">' + (contestant.contestantName || ((contestant.firstName || '') + ' ' + (contestant.lastName || '')).trim() || 'Unknown') + '</td>' +
+                mainJudgeCells +
+                (mainCriteria.length > 0 ? '<td class="main-total">' + (mainTotalFromJudges > 0 ? mainTotalFromJudges.toFixed(1) : '-') + '</td>' : '') +
+                (hasFinalRound ? finalJudgeCells : '') +
+                (hasFinalRound ? '<td class="final-total">' + (finalTotalFromJudges > 0 ? finalTotalFromJudges.toFixed(1) : '-') + '</td>' : '') +
+                '<td class="total" style="font-size: 12px; font-weight: 700; background: #ecfdf5; border: 2px solid #059669;">' + (finalCombinedScore > 0 ? finalCombinedScore.toFixed(1) : '-') + '</td>' +
+                '</tr>';
+            }).join('')}
+          </tbody>
+        </table>
+
         <!-- Overall Summary / Rankings -->
         <div class="section-title">🏆 Final Rankings Summary (Average of All Judges)</div>
         <table class="summary-table">
@@ -1045,7 +1368,7 @@ export default function ManageScoreDashboard() {
               <tr class="${c.rank <= 3 ? 'rank-' + c.rank : ''}">
                 <td style="font-size: 14px;"><strong>${c.rank <= 3 ? ['🥇', '🥈', '🥉'][c.rank - 1] : c.rank}</strong></td>
                 <td style="font-weight: 600;">${c.contestantNumber || c.contestantNo || '-'}</td>
-                <td class="contestant-name">${c.contestantName || (c.firstName + ' ' + c.lastName).trim() || 'Unknown'}</td>
+                <td class="contestant-name">${c.contestantName || ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown'}</td>
                 ${mainCriteria.length > 0 ? `<td class="main-total">${c.mainScore ? c.mainScore.toFixed(2) : '-'}</td>` : ''}
                 ${hasFinalRound ? `<td class="final-total">${c.finalScore ? c.finalScore.toFixed(2) : '-'}</td>` : ''}
                 <td>${c.scoredJudges}/${eventJudges.length}</td>
@@ -1054,25 +1377,23 @@ export default function ManageScoreDashboard() {
           </tbody>
         </table>
         
-        <!-- Signature Section -->
-        <div class="signature-section">
-          <div class="signature-box">
-            <div class="signature-line">
-              <div class="signature-label">Tabulator</div>
-              <div class="signature-title">Score Manager</div>
-            </div>
-          </div>
-          <div class="signature-box">
-            <div class="signature-line">
-              <div class="signature-label">Event Coordinator</div>
-              <div class="signature-title">Event Management</div>
-            </div>
-          </div>
-          <div class="signature-box">
-            <div class="signature-line">
-              <div class="signature-label">Approved By</div>
-              <div class="signature-title">School Administration</div>
-            </div>
+        <!-- Signature Section Removed -->
+
+        <!-- Judge Signatures Section -->
+        <div class="section-title">👨‍⚖️ Judge Signatures</div>
+        <div class="judge-signatures">
+          <div class="judge-signatures-grid">
+            ${eventJudges.map((judge, index) => `
+              <div class="judge-signature-box">
+                <div class="judge-signature-info">
+                  <div class="judge-number">Judge ${index + 1}</div>
+                  <div class="judge-name">${judge.judgeName || judge.displayName || getEmailName(judge.email) || 'Unknown Judge'}</div>
+                </div>
+                <div class="judge-signature-line">
+                  <div class="signature-label">Signature</div>
+                </div>
+              </div>
+            `).join('')}
           </div>
         </div>
         
@@ -2321,7 +2642,7 @@ export default function ManageScoreDashboard() {
                             <span className="text-white text-sm font-bold">{index + 1}</span>
                           </div>
                           <span className="font-semibold text-gray-900">Judge {index + 1}</span>
-                          <span className="text-sm text-gray-500">({js.judgeName})</span>
+                          <span className="text-sm text-gray-500">({js.judgeName || js.displayName || getEmailName(js.email) || 'Unknown'})</span>
                         </div>
                         <div className="flex gap-2">
                           <span className={`px-2 py-1 rounded-full text-xs font-bold ${
